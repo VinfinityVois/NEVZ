@@ -1,0 +1,51 @@
+{
+  "name": "manufacturing-optimizer",
+  "version": "1.0.0",
+  "description": "Production optimization with CPM/PERT and AI",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --debug",
+    "build": "electron-builder"
+  },
+  "author": "Manufacturing Optimizer Team",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^27.0.0",
+    "electron-builder": "^24.6.4"
+  },
+  "dependencies": {
+    "axios": "^1.6.2",
+    "xlsx": "^0.18.5",
+    "chokidar": "^3.5.3",
+    "cytoscape": "^3.26.0",
+    "cytoscape-dagre": "^2.5.0",
+    "handsontable": "^14.0.0",
+    "animejs": "^3.2.1"
+  },
+  "build": {
+    "appId": "com.manufacturing.optimizer",
+    "productName": "Manufacturing Optimizer",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "node_modules/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "renderer/assets/icons/app-icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "renderer/assets/icons/app-icon.icns"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "renderer/assets/icons/app-icon.png"
+    }
+  }
+}

@@ -1,0 +1,55 @@
+<!-- Компонент границы ошибки -->
+<div class="error-boundary" id="errorBoundary" style="display: none;">
+    <div class="error-boundary-content">
+        <svg viewBox="0 0 64 64" fill="none">
+            <circle cx="32" cy="32" r="28" stroke="#ef4444" stroke-width="4"/>
+            <path d="M22 22L42 42M42 22L22 42" stroke="#ef4444" stroke-width="4" stroke-linecap="round"/>
+        </svg>
+        <h3>Что-то пошло не так</h3>
+        <p id="errorBoundaryMessage">Произошла ошибка при загрузке компонента.</p>
+        <button class="btn btn-primary" onclick="location.reload()">
+            Перезагрузить страницу
+        </button>
+    </div>
+</div>
+
+<style>
+.error-boundary {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(214, 224, 229, 0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.error-boundary-content {
+    text-align: center;
+    padding: 40px;
+    background: white;
+    border-radius: 24px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+    max-width: 400px;
+}
+
+.error-boundary-content svg {
+    width: 64px;
+    height: 64px;
+    margin-bottom: 24px;
+}
+
+.error-boundary-content h3 {
+    font-size: 20px;
+    color: #414B4E;
+    margin-bottom: 12px;
+}
+
+.error-boundary-content p {
+    color: #6b7280;
+    margin-bottom: 24px;
+}
+</style>

@@ -1,0 +1,131 @@
+<!-- Компонент диалога подтверждения -->
+<div class="confirm-dialog-overlay" id="confirmDialogOverlay" style="display: none;">
+    <div class="confirm-dialog">
+        <div class="confirm-dialog-header">
+            <h3 id="confirmDialogTitle">Подтверждение</h3>
+        </div>
+        <div class="confirm-dialog-body">
+            <p id="confirmDialogMessage">Вы уверены?</p>
+        </div>
+        <div class="confirm-dialog-footer">
+            <button class="btn btn-outline" id="confirmDialogCancel">Отмена</button>
+            <button class="btn btn-primary" id="confirmDialogConfirm">Подтвердить</button>
+        </div>
+    </div>
+</div>
+
+<style>
+.confirm-dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.confirm-dialog {
+    background: white;
+    border-radius: 16px;
+    width: 400px;
+    max-width: 90vw;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    animation: scale-in 0.2s ease;
+}
+
+.confirm-dialog-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.confirm-dialog-header h3 {
+    margin: 0;
+    font-size: 18px;
+    color: #414B4E;
+}
+
+.confirm-dialog-body {
+    padding: 24px;
+}
+
+.confirm-dialog-body p {
+    margin: 0;
+    color: #414B4E;
+}
+
+.confirm-dialog-footer {
+    padding: 16px 24px;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+@keyframes scale-in {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+</style>
+
+<script>
+    class ConfirmDialog {
+        constructor() {
+            this.overlay = document.getElementById('confirmDialogOverlay');
+            this.title = document.getElementById('confirmDialogTitle');
+            this.message = document.getElementById('confirmDialogMessage');
+            this.cancelBtn = document.getElementById('confirmDialogCancel');
+            this.confirmBtn = document.getElementById('confirmDialogConfirm');
+            
+            this.resolve = null;
+            
+            this.setupListeners();
+        }
+        
+        setupListeners() {
+            this.cancelBtn.addEventListener('click', () => {
+                this.hide(false);
+            });
+            
+            this.confirmBtn.addEventListener('click', () => {
+                this.hide(true);
+            });
+            
+            this.overlay.addEventListener('click', (e) => {
+                if (e.target === this.overlay) {
+                    this.hide(false);
+                }
+            });
+        }
+        
+        show(options = {}) {
+            this.title.textContent = options.title || 'Подтверждение';
+            this.message.textContent = options.message || 'Вы уверены?';
+            this.overlay.style.display = 'flex';
+            
+            return new Promise(resolve => {
+                this.resolve = resolve;
+            });
+        }
+        
+        hide(result) {
+            this.overlay.style.display = 'none';
+            if (this.resolve) {
+                this.resolve(result);
+                this.resolve = null;
+            }
+        }
+    }
+    
+    window.confirmDialog = new ConfirmDialog();
+</script>

@@ -1,0 +1,100 @@
+{
+  "app": {
+    "name": "Manufacturing Optimizer",
+    "version": "Version",
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "refresh": "Refresh",
+    "export": "Export",
+    "import": "Import",
+    "search": "Search",
+    "filter": "Filter",
+    "settings": "Settings",
+    "logout": "Logout",
+    "close": "Close",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "finish": "Finish"
+  },
+  "login": {
+    "title": "Sign In",
+    "subtitle": "Intelligent Production Optimization",
+    "username": "Username",
+    "password": "Password",
+    "remember": "Remember me",
+    "forgot": "Forgot password?",
+    "submit": "Sign In",
+    "error": "Invalid username or password",
+    "locked": "Too many attempts. Try again later."
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "totalOperations": "Total Operations",
+    "completedOperations": "Completed",
+    "inProgressOperations": "In Progress",
+    "activeBrigades": "Active Brigades",
+    "efficiency": "Efficiency",
+    "criticalPath": "Critical Path",
+    "operations": "operations",
+    "progress": "Production Progress",
+    "brigadesLoad": "Brigades Load",
+    "aiRecommendations": "AI Recommendations"
+  },
+  "operations": {
+    "title": "Operations",
+    "add": "Add Operation",
+    "edit": "Edit Operation",
+    "delete": "Delete Operation",
+    "import": "Import from Excel",
+    "export": "Export to Excel",
+    "columns": {
+      "id": "ID",
+      "post": "Post",
+      "number": "Number",
+      "name": "Name",
+      "drawing": "Drawing",
+      "labor": "Labor",
+      "people": "People",
+      "duration": "Duration",
+      "brigade": "Brigade",
+      "location": "Location",
+      "reserve": "Reserve",
+      "status": "Status"
+    },
+    "status": {
+      "pending": "Pending",
+      "in_progress": "In Progress",
+      "completed": "Completed",
+      "blocked": "Blocked"
+    }
+  },
+  "worker": {
+    "currentTask": "Current Task",
+    "taskQueue": "Task Queue",
+    "history": "History",
+    "myBrigade": "My Brigade",
+    "statistics": "Statistics",
+    "noTask": "No active task",
+    "startTask": "Start Task",
+    "completeTask": "Complete Task",
+    "tasksCompleted": "Tasks Completed",
+    "hoursWorked": "Hours Worked",
+    "efficiency": "Efficiency",
+    "inQueue": "In Queue"
+  },
+  "notifications": {
+    "success": "Success",
+    "error": "Error",
+    "warning": "Warning",
+    "info": "Information",
+    "dataLoaded": "Data loaded",
+    "dataSaved": "Data saved",
+    "taskStarted": "Task started",
+    "taskCompleted": "Task completed"
+  }
+}

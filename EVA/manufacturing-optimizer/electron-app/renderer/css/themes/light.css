@@ -1,0 +1,22 @@
+/**
+ * ================================================================
+ * MANUFACTURING OPTIMIZER - СВЕТЛАЯ ТЕМА
+ * ================================================================
+ */
+
+[data-theme="light"] {
+    --primary-bg: #d6e0e5;
+    --accent-dark: #414B4E;
+    --accent-blue: #0961f6;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --error: #ef4444;
+    --info: #3b82f6;
+    --text-primary: #414B4E;
+    --text-secondary: #6b7280;
+    --bg-primary: #d6e0e5;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #f3f4f6;
+    --border-light: #e5e7eb;
+    --border-medium: #d1d5db;
+}

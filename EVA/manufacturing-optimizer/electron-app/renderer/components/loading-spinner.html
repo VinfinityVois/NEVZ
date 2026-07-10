@@ -1,0 +1,32 @@
+<!-- Компонент загрузочного спиннера -->
+<div class="loading-spinner-container">
+    <svg class="loading-spinner-svg" viewBox="0 0 50 50">
+        <circle cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round">
+            <animate attributeName="stroke-dasharray" values="1,150;90,150;90,150" dur="1.5s" repeatCount="indefinite" />
+            <animate attributeName="stroke-dashoffset" values="0;-35;-124" dur="1.5s" repeatCount="indefinite" />
+        </circle>
+    </svg>
+    <p class="loading-spinner-text">Загрузка...</p>
+</div>
+
+<style>
+.loading-spinner-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+}
+
+.loading-spinner-svg {
+    width: 50px;
+    height: 50px;
+    color: #0961f6;
+}
+
+.loading-spinner-text {
+    margin-top: 16px;
+    color: #414B4E;
+    font-size: 14px;
+}
+</style>

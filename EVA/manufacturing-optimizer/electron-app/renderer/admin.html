@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:8000;"> -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src-elem 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' data:; img-src 'self' data:; connect-src 'self' http://127.0.0.1:8000;">
+    <title>Manufacturing Optimizer · Администратор</title>
+    
+    <!-- Стили -->
+    <link rel="stylesheet" href="css/themes/light.css" id="theme-stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/admin.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/animations.css">
+    <!-- Локальный Handsontable -->
+    <link rel="stylesheet" href="js/libs/handsontable.full.min.css">
+    <!-- Внешние библиотеки -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@14.0.0/dist/handsontable.full.min.css">
+    
+    <!-- Иконка -->
+    <link rel="icon" type="image/png" href="assets/icons/admin-icon.png">
+</head>
+<body>
+    <!-- 
+        ================================================================
+        ИНТЕРФЕЙС АДМИНИСТРАТОРА
+        ================================================================
+        Цвета: #d6e0e5 (фон), #414B4E (тёмный акцент), #0961f6 (синий акцент)
+    -->
+    
+    <div class="admin-layout">
+        
+        <!-- ===== БОКОВАЯ ПАНЕЛЬ ===== -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-wrapper">
+                    <svg class="logo-icon" viewBox="0 0 40 40" fill="none">
+                        <rect width="40" height="40" rx="8" fill="#0961f6"/>
+                        <path d="M10 20L16 14L22 20L28 14V26H10V20Z" fill="white" opacity="0.9"/>
+                        <circle cx="20" cy="22" r="3" fill="#414B4E"/>
+                    </svg>
+                    <span class="logo-text">MfgOptimizer</span>
+                </div>
+                <button class="sidebar-toggle" id="sidebarToggle" title="Свернуть панель">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M15 6L9 12L15 18" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </button>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="#dashboard" class="nav-item active" data-tab="dashboard">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none">
+                        <rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/>
+                        <rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/>
+                        <rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/>
+                        <rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                    <span>Дашборд</span>
+                </a>
+                
+                <a href="#graph" class="nav-item" data-tab="graph">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none">
+                        <circle cx="6" cy="6" r="2" stroke="currentColor" stroke-width="2"/>
+                        <circle cx="18" cy="6" r="2" stroke="currentColor" stroke-width="2"/>
+                        <circle cx="6" cy="18" r="2" stroke="currentColor" stroke-width="2"/>
+                        <circle cx="18" cy="18" r="2" stroke="currentColor" stroke-width="2"/>
+                        <path d="M6 8L18 8M8 6L8 18M16 6L16 18M6 16L18 16" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                    <span>Граф процессов</span>
+                </a>
+                
+                <a href="#operations" class="nav-item" data-tab="operations">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none">
+                        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/>
+                        <path d="M3 9H21M9 3V21" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                    <span>Операции</span>
+                </a>
+                
+                <a href="#brigade-groups" class="nav-item" data-tab="brigade-groups">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none">
+                        <circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="2"/>
+                        <circle cx="16" cy="8" r="3" stroke="currentColor" stroke-width="2"/>
+                        <circle cx="8" cy="16" r="3" stroke="currentColor" stroke-width="2"/>
+                        <circle cx="16" cy="16" r="3" stroke="currentColor" stroke-width="2"/>
+                        <path d="M11 8H13M8 11V13M16 11V13M11 16H13" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                    <span>Группы бригад</span>
+                </a>
+
+                <a href="#brigades" class="nav-item" data-tab="brigades">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="8" r="3" stroke="currentColor" stroke-width="2"/>
+                        <path d="M5 20V19C5 15.6863 7.68629 13 11 13H13C16.3137 13 19 15.6863 19 19V20" stroke="currentColor" stroke-width="2"/>
+                        <circle cx="8" cy="6" r="2" stroke="currentColor" stroke-width="2"/>
+                        <circle cx="16" cy="6" r="2" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                    <span>Бригады</span>
+                </a>
+                
+                <a href="#workers" class="nav-item" data-tab="workers">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="2"/>
+                        <path d="M3 20V19C3 15.6863 5.68629 13 9 13H15C18.3137 13 21 15.6863 21 19V20" stroke="currentColor" stroke-width="2"/>
+                        <circle cx="20" cy="8" r="2" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                    <span>Рабочие</span>
+                </a>
+                
+                <a href="#ai" class="nav-item" data-tab="ai">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none">
+                        <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2"/>
+                        <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2"/>
+                        <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                    <span>AI Оптимизация</span>
+                </a>
+                
+                <a href="#reports" class="nav-item" data-tab="reports">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none">
+                        <path d="M4 4H20V20H4V4Z" stroke="currentColor" stroke-width="2"/>
+                        <path d="M8 8H16M8 12H16M8 16H13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    <span>Отчёты</span>
+                </a>
+                
+                <a href="#settings" class="nav-item" data-tab="settings">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
+                        <path d="M19.4 15C19.7 14.1 19.9 13.1 19.9 12C19.9 10.9 19.7 9.9 19.4 9L21.3 7.5C21.6 7.2 21.6 6.7 21.4 6.4L19.4 2.9C19.2 2.6 18.8 2.5 18.5 2.6L16.3 3.5C15.4 2.8 14.3 2.3 13.2 2L12.8 0C12.7 -0.3 12.4 -0.5 12 -0.5C11.6 -0.5 11.3 -0.3 11.2 0L10.8 2C9.7 2.3 8.6 2.8 7.7 3.5L5.5 2.6C5.2 2.5 4.8 2.6 4.6 2.9L2.6 6.4C2.4 6.7 2.4 7.2 2.7 7.5L4.6 9C4.3 9.9 4.1 10.9 4.1 12C4.1 13.1 4.3 14.1 4.6 15L2.7 16.5C2.4 16.8 2.4 17.3 2.6 17.6L4.6 21.1C4.8 21.4 5.2 21.5 5.5 21.4L7.7 20.5C8.6 21.2 9.7 21.7 10.8 22L11.2 24C11.3 24.3 11.6 24.5 12 24.5C12.4 24.5 12.7 24.3 12.8 24L13.2 22C14.3 21.7 15.4 21.2 16.3 20.5L18.5 21.4C18.8 21.5 19.2 21.4 19.4 21.1L21.4 17.6C21.6 17.3 21.6 16.8 21.3 16.5L19.4 15Z" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                    <span>Настройки</span>
+                </a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="user-info" id="userInfo">
+                    <div class="user-avatar">А</div>
+                    <div class="user-details">
+                        <span class="user-name">Администратор</span>
+                        <span class="user-role">admin</span>
+                    </div>
+                </div>
+                <button class="logout-btn" id="logoutBtn" title="Выйти">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M9 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3H9" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M16 17L21 12L16 7" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M21 12H9" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </button>
+            </div>
+        </aside>
+        
+        <!-- ===== ОСНОВНОЙ КОНТЕНТ ===== -->
+        <main class="main-content">
+            
+            <!-- Шапка -->
+            <header class="content-header">
+                <div class="header-left">
+                    <h1 class="page-title" id="pageTitle">Дашборд</h1>
+                    <div class="breadcrumbs" id="breadcrumbs">
+                        <span>Главная</span>
+                        <span class="separator">/</span>
+                        <span class="current">Дашборд</span>
+                    </div>
+                </div>
+                
+                <div class="header-actions">
+                    <!-- В секцию header-actions добавьте кнопку импорта с drag & drop -->
+                    <!-- <div class="import-area" id="importDropZone">
+                        <button class="btn btn-primary" id="importExcelBtn">
+                            <svg viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M3 15H17V17H3V15Z"/>
+                                <path d="M13 5L10 2L7 5H9V11H11V5H13Z"/>
+                            </svg>
+                            Импорт Excel
+                        </button>
+                        <div class="drop-overlay" id="dropOverlay" style="display: none;">
+                            <svg viewBox="0 0 48 48" fill="none" width="48" height="48">
+                                <path d="M24 8V32M24 32L16 24M24 32L32 24M8 40H40" stroke="white" stroke-width="3" stroke-linecap="round"/>
+                            </svg>
+                            <p>Отпустите файл для импорта</p>
+                        </div>
+                    </div> -->
+                    <!-- Статус Python API -->
+                    <div class="api-status" id="apiStatus">
+                        <span class="status-dot"></span>
+                        <span class="status-text">API</span>
+                    </div>
+                    
+                    <!-- Кнопки действий -->
+                    <button class="btn btn-primary" id="importExcelBtn">
+                        <svg viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M3 15H17V17H3V15Z"/>
+                            <path d="M13 5L10 2L7 5H9V11H11V5H13Z"/>
+                        </svg>
+                        Импорт Excel
+                    </button>
+                    
+                    <button class="btn btn-secondary" id="runOptimizationBtn">
+                        <svg viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M4 16L16 10L4 4V16Z"/>
+                        </svg>
+                        AI Оптимизация
+                    </button>
+                    
+                    <button class="btn btn-outline" id="refreshBtn">
+                        <svg viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M17 10C17 13.866 13.866 17 10 17C6.13401 17 3 13.866 3 10C3 6.13401 6.13401 3 10 3C12.4853 3 14.6153 4.28355 15.8995 6.22265L13 9H17V5L15.3846 6.61538C13.9379 4.40775 11.1465 3 8 3C4.13401 3 1 6.13401 1 10C1 13.866 4.13401 17 8 17C11.866 17 15 13.866 15 10H17Z"/>
+                        </svg>
+                        Обновить
+                    </button>
+                </div>
+            </header>
+            
+            <!-- Контент вкладок -->
+            <div class="content-body">
+                
+                <!-- ===== ВКЛАДКА ДАШБОРД ===== -->
+                <div class="tab-pane active" id="dashboard-tab">
+                    
+                    <!-- Карточки статистики -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon blue">
+                                <svg viewBox="0 0 24 24" fill="none">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/>
+                                    <path d="M3 9H21M9 3V21" stroke="currentColor" stroke-width="2"/>
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <span class="stat-value" id="totalOps">--</span>
+                                <span class="stat-label">Всего операций</span>
+                                <span class="stat-trend positive" id="opsTrend">+0%</span>
+                            </div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-icon green">
+                                <svg viewBox="0 0 24 24" fill="none">
+                                    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
+                                    <path d="M8 12L11 15L16 9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <span class="stat-value" id="completedOps">--</span>
+                                <span class="stat-label">Завершено</span>
+                                <span class="stat-trend" id="completedTrend">--</span>
+                            </div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-icon orange">
+                                <svg viewBox="0 0 24 24" fill="none">
+                                    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
+                                    <path d="M12 6V12L16 14" stroke="currentColor" stroke-width="2"/>
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <span class="stat-value" id="inProgressOps">--</span>
+                                <span class="stat-label">В процессе</span>
+                            </div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-icon purple">
+                                <svg viewBox="0 0 24 24" fill="none">
+                                    <circle cx="12" cy="8" r="3" stroke="currentColor" stroke-width="2"/>
+                                    <path d="M5 20V19C5 15.6863 7.68629 13 11 13H13C16.3137 13 19 15.6863 19 19V20" stroke="currentColor" stroke-width="2"/>
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <span class="stat-value" id="activeBrigadesCount">--</span>
+                                <span class="stat-label">Активных бригад</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Графики -->
+                    <div class="charts-row">
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <h3>Прогресс производства</h3>
+                                <select class="chart-select" id="progressPeriod">
+                                    <option value="day">День</option>
+                                    <option value="week" selected>Неделя</option>
+                                    <option value="month">Месяц</option>
+                                </select>
+                            </div>
+                            <div class="chart-container" id="progressChart">
+                                <canvas id="progressCanvas" width="600" height="250"></canvas>
+                            </div>
+                        </div>
+                        
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <h3>Загрузка бригад</h3>
+                            </div>
+                            <div class="chart-container" id="brigadeLoadChart">
+                                <canvas id="brigadeLoadCanvas" width="400" height="250"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Критический путь и рекомендации -->
+                    <div class="bottom-row">
+                        <div class="info-card">
+                            <div class="card-header">
+                                <h3>📊 Критический путь</h3>
+                                <span class="badge badge-primary" id="criticalPathLength">0 операций</span>
+                            </div>
+                            <div class="card-body" id="criticalPathInfo">
+                                <p class="text-secondary">Загрузка данных...</p>
+                            </div>
+                        </div>
+                        
+                        <div class="info-card">
+                            <div class="card-header">
+                                <h3>🤖 Рекомендации AI</h3>
+                                <button class="btn-ghost" id="refreshRecommendationsBtn">
+                                    <svg viewBox="0 0 20 20" fill="currentColor" width="16">
+                                        <path d="M17 10C17 13.866 13.866 17 10 17C6.13401 17 3 13.866 3 10C3 6.13401 6.13401 3 10 3"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="card-body" id="aiRecommendations">
+                                <p class="text-secondary">Нажмите "AI Оптимизация" для получения рекомендаций</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- ===== ВКЛАДКА ГРАФ ПРОЦЕССОВ ===== -->
+                <!-- ===== ВКЛАДКА ГРАФ ПРОЦЕССОВ (RPG СТИЛЬ) ===== -->
+            <!-- ===== ВКЛАДКА ГРАФ ПРОЦЕССОВ ===== -->
+<div class="tab-pane" id="graph-tab">
+    <div class="graph-rpg-container">
+        <!-- Холст для графа -->
+        <div id="cyGraph"></div>
+        
+        <!-- Загрузка -->
+        <div class="graph-loading" id="graphLoading">
+            <div class="spinner"></div>
+            <p>Построение графа процессов...</p>
+        </div>
+        
+        <!-- Верхняя панель инструментов -->
+        <div class="graph-toolbar-top">
+            <div class="graph-toolbar-group">
+                <button class="graph-toolbar-btn" onclick="window.cy?.fit(50)" title="Вписать всё">
+                    <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18">
+                        <rect x="2" y="2" width="16" height="16" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                    </svg>
+                    Вписать
+                </button>
+                <button class="graph-toolbar-btn" onclick="window.cy?.center(); window.cy?.zoom(1)" title="Сбросить вид">
+                    <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18">
+                        <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                        <circle cx="10" cy="10" r="2" fill="currentColor"/>
+                    </svg>
+                    Сбросить
+                </button>
+            </div>
+            
+            <div class="graph-toolbar-group">
+                <select id="graphLayoutSelect" class="graph-select" onchange="changeGraphLayout(this.value)">
+                    <option value="dagre:LR">➡️ Слева направо</option>
+                    <option value="dagre:TB">⬇️ Сверху вниз</option>
+                    <option value="breadthfirst">🌳 Дерево</option>
+                    <option value="cose">🔄 Радиальный</option>
+                </select>
+            </div>
+            
+            <div class="graph-toolbar-group">
+                <label class="graph-checkbox">
+                    <input type="checkbox" id="showCriticalOnly" onchange="toggleCriticalOnly(this.checked)"> Только критический путь
+                </label>
+                <label class="graph-checkbox">
+                    <input type="checkbox" id="showCompleted" checked onchange="toggleCompleted(this.checked)"> Показывать завершённые
+                </label>
+            </div>
+        </div>
+        
+        <!-- Легенда -->
+        <div class="graph-rpg-legend">
+            <h4>📊 Легенда</h4>
+            <div class="legend-items">
+                <div class="legend-item">
+                    <span class="legend-dot completed"></span>
+                    <span>Завершено</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-dot progress"></span>
+                    <span>В работе</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-dot pending"></span>
+                    <span>Ожидает</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-dot blocked"></span>
+                    <span>Заблокировано</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-dot critical"></span>
+                    <span>Критический путь</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-line completed-line"></span>
+                    <span>Путь открыт</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-line pending-line"></span>
+                    <span>Путь заблокирован</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Контролы зума -->
+        <div class="graph-controls">
+            <button class="graph-control-btn" onclick="window.cy?.zoom(window.cy.zoom() * 1.3)" title="Приблизить">
+                <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                    <circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                    <path d="M13 13L18 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    <path d="M6 9h6M9 6v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+            </button>
+            <button class="graph-control-btn" onclick="window.cy?.zoom(window.cy.zoom() * 0.7)" title="Отдалить">
+                <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                    <circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                    <path d="M13 13L18 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    <path d="M6 9h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+        
+        <!-- Панель информации об узле -->
+        <div class="graph-node-info" id="nodeInfoPanel">
+            <div class="node-info-header">
+                <h4 id="nodeName">Операция</h4>
+                <button class="node-info-close" onclick="hideNodeInfo()">&times;</button>
+            </div>
+            <div class="node-info-body" id="nodeDetails">
+                <!-- Динамическое содержимое -->
+            </div>
+        </div>
+    </div>
+</div>
+                
+                <!-- ===== ВКЛАДКА ОПЕРАЦИИ ===== -->
+                <!-- ===== ВКЛАДКА ОПЕРАЦИИ ===== -->
+                <div class="tab-pane" id="operations-tab">
+                    <div class="table-toolbar">
+                        <div class="toolbar-left">
+                            <button class="btn btn-primary btn-sm" id="addOperationBtn">
+                                <svg viewBox="0 0 20 20" fill="currentColor" width="16">
+                                    <path d="M10 4V16M4 10H16" stroke="currentColor" stroke-width="1.5"/>
+                                </svg>
+                                Добавить
+                            </button>
+                            <button class="btn btn-outline btn-sm" id="editOperationBtn" disabled>
+                                <svg viewBox="0 0 20 20" fill="currentColor" width="16">
+                                    <path d="M14 2L18 6L7 17H3V13L14 2Z" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                                </svg>
+                                Изменить
+                            </button>
+                            <button class="btn btn-outline btn-sm btn-danger" id="deleteOperationBtn" disabled>
+                                <svg viewBox="0 0 20 20" fill="currentColor" width="16">
+                                    <path d="M4 5H16M8 8V14M12 8V14M5 5L6 17H14L15 5H5Z" stroke="currentColor" stroke-width="1.5"/>
+                                </svg>
+                                Удалить
+                            </button>
+                        </div>
+                        <div class="toolbar-right">
+                            <select id="filterStatus" class="input input-sm" style="width: 140px;">
+                                <option value="">Все статусы</option>
+                                <option value="pending">Ожидает</option>
+                                <option value="in_progress">В работе</option>
+                                <option value="completed">Завершено</option>
+                                <option value="blocked">Заблокировано</option>
+                            </select>
+                            <select id="filterBrigade" class="input input-sm" style="width: 160px;">
+                                <option value="">Все бригады</option>
+                            </select>
+                            <input type="text" class="input input-sm" id="searchOperations" placeholder="Поиск..." style="width: 200px;">
+                            <button class="btn btn-outline btn-sm" id="exportOperationsBtn">
+                                <svg viewBox="0 0 20 20" fill="currentColor" width="16">
+                                    <path d="M3 15H17V17H3V15Z"/>
+                                    <path d="M10 3V13M7 10L10 13L13 10" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                                </svg>
+                                Экспорт
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="table-container" id="operationsTableContainer" style="overflow-x: auto;">
+                        <table class="table" style="min-width: 1800px;">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Пост</th>
+                                    <th>Номер</th>
+                                    <th>Предш.</th>
+                                    <th>Послед.</th>
+                                    <th>Название</th>
+                                    <th>Чертёж</th>
+                                    <th>Трудоём.</th>
+                                    <th>Люди</th>
+                                    <th>Время</th>
+                                    <th>Бригада</th>
+                                    <th>Место</th>
+                                    <th>Резерв</th>
+                                    <th>Статус</th>
+                                    <th>Срок (ДД)</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="operationsTableBody">
+                                <!-- Данные загружаются динамически -->
+                                <tr><td colspan="16" style="text-align: center; padding: 40px;">Загрузка операций...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Пагинация -->
+                    <div class="pagination" id="operationsPagination">
+                        <button class="page-btn" id="prevPage" disabled>←</button>
+                        <span class="page-info" id="pageInfo">Страница 1 из 1</span>
+                        <button class="page-btn" id="nextPage" disabled>→</button>
+                    </div>
+                </div>
+                
+                <!-- ===== ВКЛАДКА БРИГАДЫ ===== -->
+                <!-- ===== ВКЛАДКА БРИГАДЫ ===== -->
+<div class="tab-pane" id="brigades-tab">
+    <!-- ПАНЕЛЬ ПОИСКА И СОРТИРОВКИ -->
+    <div style="display: flex; gap: 16px; margin-bottom: 20px; align-items: center; background: white; padding: 16px; border-radius: 12px;">
+        <div style="flex: 1; max-width: 350px;">
+            <div style="position: relative;">
+                <input type="text" id="brigadeSearch" class="input" placeholder="🔍 Поиск по названию или описанию..." 
+                       style="padding-left: 36px;">
+            </div>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <label style="color: #64748b; font-size: 13px;">Сортировка:</label>
+            <select id="brigadeSort" class="input" style="width: 220px;">
+                <option value="default">По умолчанию</option>
+                <option value="importance_desc">🔥 Важность (высокая → низкая)</option>
+                <option value="importance_asc">🔹 Важность (низкая → высокая)</option>
+                <option value="name_asc">📋 Название (А → Я)</option>
+                <option value="name_desc">📋 Название (Я → А)</option>
+                <option value="workers_desc">👥 Рабочих (больше → меньше)</option>
+                <option value="load_desc">📊 Загрузка (высокая → низкая)</option>
+            </select>
+        </div>
+        <div>
+            <span id="brigadeCount" style="color: #64748b; font-size: 13px;"></span>
+        </div>
+    </div>
+    
+    <!-- СЕТКА БРИГАД -->
+    <div class="brigades-grid" id="brigadesGrid"></div>
+</div>
+
+                <!-- ===== ВКЛАДКА ГРУППЫ БРИГАД ===== -->
+                <div class="tab-pane" id="brigade-groups-tab">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                        <h2>👥 Группы бригад</h2>
+                        <button class="btn btn-primary" id="addBrigadeGroupBtn" onclick="createBrigadeGroup()">
+                            <svg viewBox="0 0 20 20" fill="currentColor" width="16">
+                                <path d="M10 4V16M4 10H16" stroke="currentColor" stroke-width="1.5"/>
+                            </svg>
+                            Создать группу
+                        </button>
+                    </div>
+                    
+                    <div id="brigadeGroupsContainer">
+                        <!-- Группы бригад загружаются динамически -->
+                        <div style="text-align:center;padding:40px;color:#666;">
+                            Загрузка групп бригад...
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- ===== ВКЛАДКА РАБОЧИЕ ===== -->
+                <!-- ===== ВКЛАДКА РАБОЧИЕ ===== -->
+<div class="tab-pane" id="workers-tab">
+    <!-- ПАНЕЛЬ ПОИСКА И ФИЛЬТРАЦИИ -->
+    <div style="display: flex; gap: 16px; margin-bottom: 20px; align-items: center; background: white; padding: 16px; border-radius: 12px; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 250px;">
+            <div style="position: relative;">
+                <input type="text" id="workerSearch" class="input" placeholder="🔍 Поиск по имени, должности или логину..." 
+                       style="padding-left: 36px;">
+            </div>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <label style="color: #64748b; font-size: 13px;">Бригада:</label>
+            <select id="workerBrigadeFilter" class="input" style="width: 200px;">
+                <option value="">Все бригады</option>
+            </select>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <label style="color: #64748b; font-size: 13px;">Статус:</label>
+            <select id="workerStatusFilter" class="input" style="width: 150px;">
+                <option value="">Все статусы</option>
+                <option value="online">🟢 Онлайн</option>
+                <option value="busy">🟡 Занят</option>
+                <option value="offline">⚪ Офлайн</option>
+            </select>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <label style="color: #64748b; font-size: 13px;">Сортировка:</label>
+            <select id="workerSort" class="input" style="width: 200px;">
+                <option value="default">По умолчанию</option>
+                <option value="name_asc">Имя (А → Я)</option>
+                <option value="name_desc">Имя (Я → А)</option>
+                <option value="brigade_asc">Бригада (А → Я)</option>
+                <option value="status_online">Статус (онлайн → офлайн)</option>
+                <option value="brigadier_first">Бригадиры сначала</option>
+            </select>
+        </div>
+        <div>
+            <button class="btn btn-primary btn-sm" id="addWorkerBtn">
+                <svg viewBox="0 0 20 20" fill="currentColor" width="16">
+                    <path d="M10 4V16M4 10H16" stroke="currentColor" stroke-width="1.5"/>
+                </svg>
+                Добавить рабочего
+            </button>
+        </div>
+        <div style="margin-left: auto;">
+            <span id="workerCount" style="color: #64748b; font-size: 13px;"></span>
+        </div>
+    </div>
+    
+    <!-- СЕТКА РАБОЧИХ -->
+    <div class="workers-grid" id="workersGrid"></div>
+</div>
+                
+                <!-- ===== ВКЛАДКА AI ОПТИМИЗАЦИЯ ===== -->
+                <div class="tab-pane" id="ai-tab">
+                    <div class="ai-panel">
+                        <div class="ai-header">
+                            <h2>🤖 AI Оптимизация производства</h2>
+                            <p>Интеллектуальный анализ и рекомендации по оптимизации ресурсов</p>
+                        </div>
+                        
+                        <div class="ai-controls">
+                            <div class="control-group">
+                                <label>Доступно рабочих:</label>
+                                <input type="number" id="availableWorkers" class="input" value="50" min="1" max="100">
+                            </div>
+                            <div class="control-group">
+                                <label>Целевая эффективность:</label>
+                                <input type="range" id="targetEfficiency" min="50" max="95" value="80" step="5">
+                                <span id="efficiencyValue">80%</span>
+                            </div>
+                            <button class="btn btn-primary btn-lg" id="runAIOptimizationBtn">
+                                <svg viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M4 16L16 10L4 4V16Z"/>
+                                </svg>
+                                Запустить оптимизацию
+                            </button>
+                            <button class="btn btn-secondary" id="trainModelBtn">
+                                <svg viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M3 17H17M5 13V7M9 13V4M13 13V10" stroke="currentColor" stroke-width="1.5"/>
+                                </svg>
+                                Обучить модель
+                            </button>
+                        </div>
+                        
+                        <div class="ai-results" id="aiResults">
+                            <div class="results-summary" id="optimizationSummary" style="display: none;">
+                                <!-- Сводка оптимизации -->
+                            </div>
+                            <div class="results-list" id="optimizationRecommendations">
+                                <!-- Список рекомендаций -->
+                            </div>
+                        </div>
+                        
+                        <div class="ai-model-info">
+                            <h3>Информация о модели</h3>
+                            <div id="modelStats">
+                                <p>Загрузка информации о модели...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- ===== ВКЛАДКА ОТЧЁТЫ ===== -->
+                <div class="tab-pane" id="reports-tab">
+                    <div class="reports-grid">
+                        <div class="report-card" data-report="efficiency">
+                            <svg viewBox="0 0 48 48" fill="none">
+                                <path d="M8 40H40M12 32V20M24 32V12M36 32V24" stroke="#0961f6" stroke-width="3" stroke-linecap="round"/>
+                            </svg>
+                            <h3>Отчёт по эффективности</h3>
+                            <p>Анализ производительности бригад и рабочих</p>
+                            <button class="btn btn-outline generate-report-btn">Сгенерировать</button>
+                        </div>
+                        
+                        <div class="report-card" data-report="timeline">
+                            <svg viewBox="0 0 48 48" fill="none">
+                                <circle cx="12" cy="12" r="4" stroke="#0961f6" stroke-width="2"/>
+                                <circle cx="24" cy="24" r="4" stroke="#0961f6" stroke-width="2"/>
+                                <circle cx="36" cy="36" r="4" stroke="#0961f6" stroke-width="2"/>
+                                <path d="M16 12L20 20M28 28L32 36" stroke="#0961f6" stroke-width="2"/>
+                            </svg>
+                            <h3>Временная диаграмма</h3>
+                            <p>График выполнения операций во времени</p>
+                            <button class="btn btn-outline generate-report-btn">Сгенерировать</button>
+                        </div>
+                        
+                        <div class="report-card" data-report="resources">
+                            <svg viewBox="0 0 48 48" fill="none">
+                                <rect x="8" y="8" width="14" height="14" rx="2" stroke="#0961f6" stroke-width="2"/>
+                                <rect x="26" y="8" width="14" height="14" rx="2" stroke="#0961f6" stroke-width="2"/>
+                                <rect x="8" y="26" width="14" height="14" rx="2" stroke="#0961f6" stroke-width="2"/>
+                                <rect x="26" y="26" width="14" height="14" rx="2" stroke="#0961f6" stroke-width="2"/>
+                            </svg>
+                            <h3>Использование ресурсов</h3>
+                            <p>Анализ загрузки бригад и рабочих</p>
+                            <button class="btn btn-outline generate-report-btn">Сгенерировать</button>
+                        </div>
+                        
+                        <div class="report-card" data-report="ai-analysis">
+                            <svg viewBox="0 0 48 48" fill="none">
+                                <path d="M24 4L8 12V22C8 30 16 36 24 38C32 36 40 30 40 22V12L24 4Z" stroke="#0961f6" stroke-width="2"/>
+                                <circle cx="24" cy="22" r="4" stroke="#0961f6" stroke-width="2"/>
+                                <path d="M24 26V32" stroke="#0961f6" stroke-width="2"/>
+                            </svg>
+                            <h3>AI Анализ</h3>
+                            <p>Детальный анализ и рекомендации от AI</p>
+                            <button class="btn btn-outline generate-report-btn">Сгенерировать</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- ===== ВКЛАДКА НАСТРОЙКИ ===== -->
+                <div class="tab-pane" id="settings-tab">
+                    <div class="settings-container">
+                        <div class="settings-section">
+                            <h3>Внешний вид</h3>
+                            <div class="setting-item">
+                                <label>Тема</label>
+                                <select id="themeSelect" class="select">
+                                    <option value="light">Светлая</option>
+                                    <option value="dark">Тёмная</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="settings-section">
+                            <h3>Производство</h3>
+                            <div class="setting-item">
+                                <label>Автосохранение</label>
+                                <label class="switch">
+                                    <input type="checkbox" id="autoSave" checked>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <label>Интервал обновления (сек)</label>
+                                <input type="number" id="refreshInterval" class="input" value="30" min="5" max="300">
+                            </div>
+                        </div>
+                        
+                        <div class="settings-section">
+                            <h3>AI Настройки</h3>
+                            <div class="setting-item">
+                                <label>Авто-оптимизация</label>
+                                <label class="switch">
+                                    <input type="checkbox" id="autoOptimize">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <label>Порог эффективности (%)</label>
+                                <input type="number" id="efficiencyThreshold" class="input" value="75" min="50" max="95">
+                            </div>
+                        </div>
+                        
+                        <div class="settings-actions">
+                            <button class="btn btn-primary" id="saveSettingsBtn">Сохранить настройки</button>
+                            <button class="btn btn-outline" id="resetSettingsBtn">Сбросить</button>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+        </main>
+    </div>
+    
+    <!-- Модальные окна -->
+    <div class="modal-overlay" id="modalOverlay" style="display: none;"></div>
+    
+    <!-- Модальное окно добавления/редактирования операции -->
+    <div class="modal" id="operationModal" style="display: none;">
+        <div class="modal-header">
+            <h3 id="modalTitle">Добавить операцию</h3>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="operationForm">
+                <!-- Поля формы заполняются динамически -->
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" id="cancelOperationBtn">Отмена</button>
+            <button class="btn btn-primary" id="saveOperationBtn">Сохранить</button>
+        </div>
+    </div>
+    
+    <!-- Уведомления -->
+    <div class="notifications-container" id="notificationsContainer"></div>
+    
+    <!-- Загрузочный оверлей -->
+    <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+        <div class="loading-spinner"></div>
+        <p id="loadingText">Загрузка...</p>
+    </div>
+    
+    <!-- Скрипты -->
+    <!-- <script src="js/libs/anime.min.js"></script>
+    <script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
+    <script src="https://unpkg.com/cytoscape-dagre/cytoscape-dagre.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/handsontable@14.0.0/dist/handsontable.full.min.js"></script>
+    
+    <script src="js/admin/admin-main.js"></script> -->
+    
+
+    <!-- В конце admin.html перед закрывающим body -->
+<script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
+
+<!-- <script src="https://unpkg.com/cytoscape-dagre/cytoscape-dagre.js"></script> -->
+<script src="https://unpkg.com/dagre/dist/dagre.min.js"></script>
+<script src="https://unpkg.com/cytoscape-dagre/cytoscape-dagre.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/handsontable@14.0.0/dist/handsontable.full.min.js"></script>
+
+<script type="module" src="js/api-client.js"></script>
+<script src="js/libs/handsontable.full.min.js"></script>
+<script type="module" src="js/admin/admin-main.js"></script>
+    
+    <script>
+        // Инициализация при загрузке
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('[Admin] Интерфейс администратора загружен');
+        });
+    </script>
+</body>
+</html>

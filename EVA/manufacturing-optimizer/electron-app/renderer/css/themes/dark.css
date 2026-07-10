@@ -1,0 +1,68 @@
+/**
+ * ================================================================
+ * MANUFACTURING OPTIMIZER - ТЁМНАЯ ТЕМА
+ * ================================================================
+ */
+
+[data-theme="dark"] {
+    --primary-bg: #1a1f24;
+    --accent-dark: #d6e0e5;
+    --accent-blue: #3b82f6;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --error: #ef4444;
+    --info: #3b82f6;
+    --text-primary: #d6e0e5;
+    --text-secondary: #9ca3af;
+    --bg-primary: #1a1f24;
+    --bg-secondary: #262d33;
+    --bg-tertiary: #2d353e;
+    --border-light: #374151;
+    --border-medium: #4b5563;
+}
+
+[data-theme="dark"] body {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .card,
+[data-theme="dark"] .modal,
+[data-theme="dark"] .brigade-card,
+[data-theme="dark"] .worker-card,
+[data-theme="dark"] .table-container {
+    background: var(--bg-secondary);
+    border-color: var(--border-light);
+}
+
+[data-theme="dark"] .input,
+[data-theme="dark"] .textarea,
+[data-theme="dark"] .select {
+    background: var(--bg-tertiary);
+    border-color: var(--border-medium);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .table th {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .table td {
+    border-color: var(--border-light);
+}
+
+[data-theme="dark"] .btn-outline {
+    background: var(--bg-secondary);
+    border-color: var(--border-medium);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .sidebar {
+    background: var(--bg-secondary);
+}
+
+[data-theme="dark"] .content-header {
+    background: var(--bg-secondary);
+    border-color: var(--border-light);
+}

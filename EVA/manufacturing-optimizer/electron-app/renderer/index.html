@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+    <title>Manufacturing Optimizer · Вход</title>
+    
+    <!-- Стили -->
+    <link rel="stylesheet" href="css/themes/light.css" id="theme-stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/login.css">
+    <link rel="stylesheet" href="css/animations.css">
+    
+    <!-- Иконка -->
+    <link rel="icon" type="image/png" href="assets/icons/app-icon.png">
+</head>
+<body>
+    <!-- 
+        ================================================================
+        ОКНО ВХОДА В СИСТЕМУ
+        ================================================================
+        Дизайн: минималистичный, современный, с акцентом на цветах бренда.
+        Цвета: #d6e0e5 (фон), #414B4E (тёмный акцент), #0961f6 (синий акцент)
+    -->
+    
+    <div class="login-wrapper">
+        
+        <!-- Декоративный фон с градиентом -->
+        <div class="login-background">
+            <div class="bg-gradient"></div>
+            <div class="bg-pattern"></div>
+        </div>
+        
+        <!-- Основная карточка входа -->
+        <div class="login-container">
+            
+            <!-- Заголовок с логотипом -->
+            <div class="login-header">
+                <div class="logo-wrapper">
+                    <svg class="logo-icon" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="60" height="60" rx="12" fill="#0961f6"/>
+                        <path d="M15 30L25 20L35 30L45 20V40H15V30Z" fill="white" opacity="0.9"/>
+                        <circle cx="30" cy="35" r="4" fill="#414B4E"/>
+                        <path d="M10 45H50" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    <span class="logo-text">Manufacturing Optimizer</span>
+                </div>
+                <p class="login-subtitle">Интеллектуальная оптимизация производства</p>
+            </div>
+            
+            <!-- Форма входа -->
+            <form class="login-form" id="loginForm">
+                
+                <!-- Поле логина -->
+                <div class="form-group">
+                    <label for="login" class="form-label">
+                        <svg class="input-icon" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M10 10C12.7625 10 15 7.7625 15 5C15 2.2375 12.7625 0 10 0C7.2375 0 5 2.2375 5 5C5 7.7625 7.2375 10 10 10ZM10 12.5C6.6625 12.5 0 14.175 0 17.5V20H20V17.5C20 14.175 13.3375 12.5 10 12.5Z"/>
+                        </svg>
+                        Логин
+                    </label>
+                    <input 
+                        type="text" 
+                        id="login" 
+                        name="login" 
+                        class="form-input" 
+                        placeholder="Введите логин"
+                        value="admin"
+                        autocomplete="username"
+                        required
+                    >
+                    <div class="input-highlight"></div>
+                </div>
+                
+                <!-- Поле пароля -->
+                <div class="form-group">
+                    <label for="password" class="form-label">
+                        <svg class="input-icon" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M16.25 8.75H15V5C15 2.2375 12.7625 0 10 0C7.2375 0 5 2.2375 5 5V8.75H3.75C2.375 8.75 1.25 9.875 1.25 11.25V17.5C1.25 18.875 2.375 20 3.75 20H16.25C17.625 20 18.75 18.875 18.75 17.5V11.25C18.75 9.875 17.625 8.75 16.25 8.75ZM10 16.25C8.625 16.25 7.5 15.125 7.5 13.75C7.5 12.375 8.625 11.25 10 11.25C11.375 11.25 12.5 12.375 12.5 13.75C12.5 15.125 11.375 16.25 10 16.25ZM12.5 8.75H7.5V5C7.5 3.625 8.625 2.5 10 2.5C11.375 2.5 12.5 3.625 12.5 5V8.75Z"/>
+                        </svg>
+                        Пароль
+                    </label>
+                    <div class="password-wrapper">
+                        <input 
+                            type="password" 
+                            id="password" 
+                            name="password" 
+                            class="form-input" 
+                            placeholder="Введите пароль"
+                            value="admin123"
+                            autocomplete="current-password"
+                            required
+                        >
+                        <button type="button" class="password-toggle" id="togglePassword" aria-label="Показать пароль">
+                            <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M1 12C1 12 5 4 12 4C19 4 23 12 23 12C23 12 19 20 12 20C5 20 1 12 1 12Z" stroke-width="2"/>
+                                <circle cx="12" cy="12" r="3" stroke-width="2"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="input-highlight"></div>
+                </div>
+                
+                <!-- Чекбокс "Запомнить меня" -->
+                <div class="form-options">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="rememberMe" checked>
+                        <span class="checkbox-custom"></span>
+                        <span class="checkbox-text">Запомнить меня</span>
+                    </label>
+                    <a href="#" class="forgot-link" id="forgotPassword">Забыли пароль?</a>
+                </div>
+                
+                <!-- Кнопка входа -->
+                <button type="submit" class="login-button" id="loginBtn">
+                    <span class="button-text">Войти в систему</span>
+                    <svg class="button-icon" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M10.5 2.5L18 10L10.5 17.5M2 10H17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+                
+                <!-- Сообщение об ошибке -->
+                <div class="error-message" id="errorMessage"></div>
+            </form>
+            
+            <!-- Статус подключения -->
+            <div class="connection-status" id="connectionStatus">
+                <span class="status-indicator"></span>
+                <span class="status-text">Проверка подключения к Python API...</span>
+            </div>
+            
+            <!-- Информация о версии -->
+            <div class="version-info">
+                <span id="appVersion">Версия загружается...</span>
+            </div>
+        </div>
+        
+        <!-- Информационная панель справа (видна только на больших экранах) -->
+        <div class="info-panel">
+            <div class="info-content">
+                <h2 class="info-title">Оптимизируйте производство с AI</h2>
+                
+                <div class="feature-list">
+                    <div class="feature-item">
+                        <svg class="feature-icon" viewBox="0 0 24 24" fill="none">
+                            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="#0961f6" stroke-width="2"/>
+                            <path d="M2 17L12 22L22 17" stroke="#0961f6" stroke-width="2"/>
+                            <path d="M2 12L12 17L22 12" stroke="#0961f6" stroke-width="2"/>
+                        </svg>
+                        <div class="feature-text">
+                            <h3>CPM/PERT анализ</h3>
+                            <p>Автоматический расчёт критического пути и резервов времени</p>
+                        </div>
+                    </div>
+                    
+                    <div class="feature-item">
+                        <svg class="feature-icon" viewBox="0 0 24 24" fill="none">
+                            <path d="M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3" stroke="#0961f6" stroke-width="2"/>
+                            <path d="M12 7V12L15 15" stroke="#0961f6" stroke-width="2"/>
+                            <circle cx="18" cy="6" r="2" stroke="#0961f6" stroke-width="2"/>
+                        </svg>
+                        <div class="feature-text">
+                            <h3>AI оптимизация</h3>
+                            <p>Интеллектуальное распределение ресурсов и бригад</p>
+                        </div>
+                    </div>
+                    
+                    <div class="feature-item">
+                        <svg class="feature-icon" viewBox="0 0 24 24" fill="none">
+                            <path d="M3 3H21V21H3V3Z" stroke="#0961f6" stroke-width="2"/>
+                            <path d="M8 8H16V16H8V8Z" stroke="#0961f6" stroke-width="2"/>
+                            <path d="M3 8H8M16 8H21M3 16H8M16 16H21" stroke="#0961f6" stroke-width="2"/>
+                        </svg>
+                        <div class="feature-text">
+                            <h3>Реалтайм мониторинг</h3>
+                            <p>Отслеживание прогресса в реальном времени</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="stats-preview" id="statsPreview">
+                    <div class="stat-card">
+                        <span class="stat-value" id="totalOperations">--</span>
+                        <span class="stat-label">Всего операций</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-value" id="activeBrigades">--</span>
+                        <span class="stat-label">Активных бригад</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-value" id="avgEfficiency">--</span>
+                        <span class="stat-label">Средняя эффективность</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="info-footer">
+                <p>© 2024 Manufacturing Optimizer Team</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Загрузочный оверлей (показывается при авторизации) -->
+    <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+        <div class="loading-spinner">
+            <svg viewBox="0 0 50 50">
+                <circle cx="25" cy="25" r="20" fill="none" stroke-width="4"></circle>
+            </svg>
+        </div>
+        <p class="loading-text">Вход в систему...</p>
+    </div>
+    
+    <!-- Подключаем библиотеки -->
+    <script src="js/libs/anime.min.js"></script>
+    
+    <!-- Подключаем основной скрипт -->
+    <script src="js/app.js"></script>
+    
+    <!-- Скрипт для страницы входа -->
+    <script>
+        /**
+         * ================================================================
+         * ЛОГИКА СТРАНИЦЫ ВХОДА
+         * ================================================================
+         */
+        
+        (function() {
+            'use strict';
+            
+            // ===== DOM ЭЛЕМЕНТЫ =====
+            const loginForm = document.getElementById('loginForm');
+            const loginInput = document.getElementById('login');
+            const passwordInput = document.getElementById('password');
+            const loginBtn = document.getElementById('loginBtn');
+            const errorMessage = document.getElementById('errorMessage');
+            const togglePasswordBtn = document.getElementById('togglePassword');
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            const connectionStatus = document.getElementById('connectionStatus');
+            const appVersionSpan = document.getElementById('appVersion');
+            const totalOpsSpan = document.getElementById('totalOperations');
+            const activeBrigadesSpan = document.getElementById('activeBrigades');
+            const avgEfficiencySpan = document.getElementById('avgEfficiency');
+            
+            // ===== ПЕРЕМЕННЫЕ СОСТОЯНИЯ =====
+            let isPythonReady = false;
+            let loginAttempts = 0;
+            const MAX_LOGIN_ATTEMPTS = 5;
+            
+            // ===== ИНИЦИАЛИЗАЦИЯ =====
+            async function init() {
+                console.log('[Login] Инициализация страницы входа...');
+                
+                // Устанавливаем версию приложения
+                try {
+                    const version = await window.electronAPI.app.getVersion();
+                    appVersionSpan.textContent = `Версия ${version}`;
+                } catch (error) {
+                    appVersionSpan.textContent = 'Версия 1.0.0';
+                }
+                
+                // Проверяем сохранённые учётные данные
+                const savedLogin = window.electronAPI.storage.get('saved_login');
+                if (savedLogin) {
+                    loginInput.value = savedLogin;
+                    document.getElementById('rememberMe').checked = true;
+                }
+                
+                // Проверяем статус Python API
+                await checkPythonStatus();
+                
+                // Загружаем статистику для информационной панели
+                await loadStats();
+                
+                // Анимация появления
+                animateEntrance();
+            }
+            
+            // ===== ПРОВЕРКА СТАТУСА PYTHON API =====
+            async function checkPythonStatus() {
+                const statusIndicator = connectionStatus.querySelector('.status-indicator');
+                const statusText = connectionStatus.querySelector('.status-text');
+                
+                try {
+                    isPythonReady = await window.electronAPI.python.isReady();
+                    
+                    if (isPythonReady) {
+                        connectionStatus.className = 'connection-status online';
+                        statusText.textContent = 'Python API подключён';
+                    } else {
+                        connectionStatus.className = 'connection-status warning';
+                        statusText.textContent = 'Python API недоступен (функции AI ограничены)';
+                    }
+                } catch (error) {
+                    connectionStatus.className = 'connection-status offline';
+                    statusText.textContent = 'Ошибка подключения к Python API';
+                    console.error('[Login] Ошибка проверки API:', error);
+                }
+            }
+            
+            // ===== ЗАГРУЗКА СТАТИСТИКИ =====
+            async function loadStats() {
+                if (!isPythonReady) {
+                    totalOpsSpan.textContent = '--';
+                    activeBrigadesSpan.textContent = '--';
+                    avgEfficiencySpan.textContent = '--';
+                    return;
+                }
+                
+                try {
+                    const stats = await window.electronAPI.ai.getStatistics();
+                    
+                    // Здесь можно отобразить реальные данные из API
+                    // Пока показываем примерные данные
+                    animateNumber(totalOpsSpan, 0, 270, 1500);
+                    animateNumber(activeBrigadesSpan, 0, 10, 1500);
+                    animateNumber(avgEfficiencySpan, 0, 87, 1500, '%');
+                } catch (error) {
+                    console.error('[Login] Ошибка загрузки статистики:', error);
+                }
+            }
+            
+            // ===== АНИМАЦИЯ ЧИСЕЛ =====
+            function animateNumber(element, start, end, duration, suffix = '') {
+                const range = end - start;
+                const increment = range / (duration / 16);
+                let current = start;
+                
+                const timer = setInterval(() => {
+                    current += increment;
+                    if (current >= end) {
+                        element.textContent = end + suffix;
+                        clearInterval(timer);
+                    } else {
+                        element.textContent = Math.floor(current) + suffix;
+                    }
+                }, 16);
+            }
+            
+            // ===== АНИМАЦИЯ ПОЯВЛЕНИЯ =====
+            function animateEntrance() {
+                if (typeof anime !== 'undefined') {
+                    anime({
+                        targets: '.login-container',
+                        opacity: [0, 1],
+                        translateY: [20, 0],
+                        duration: 600,
+                        easing: 'easeOutCubic'
+                    });
+                    
+                    anime({
+                        targets: '.info-panel',
+                        opacity: [0, 1],
+                        translateX: [20, 0],
+                        duration: 600,
+                        delay: 100,
+                        easing: 'easeOutCubic'
+                    });
+                }
+            }
+            
+            // ===== ПЕРЕКЛЮЧЕНИЕ ВИДИМОСТИ ПАРОЛЯ =====
+            togglePasswordBtn.addEventListener('click', () => {
+                const type = passwordInput.type === 'password' ? 'text' : 'password';
+                passwordInput.type = type;
+                
+                // Анимация иконки
+                const eyeIcon = togglePasswordBtn.querySelector('.eye-icon');
+                if (typeof anime !== 'undefined') {
+                    anime({
+                        targets: eyeIcon,
+                        scale: [1, 0.8, 1],
+                        duration: 300,
+                        easing: 'easeInOutQuad'
+                    });
+                }
+            });
+            
+            // ===== ОБРАБОТКА ОТПРАВКИ ФОРМЫ =====
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const login = loginInput.value.trim();
+                const password = passwordInput.value;
+                
+                // Валидация
+                if (!login || !password) {
+                    showError('Введите логин и пароль');
+                    return;
+                }
+                
+                // Проверка попыток входа
+                if (loginAttempts >= MAX_LOGIN_ATTEMPTS) {
+                    showError('Слишком много попыток. Попробуйте позже.');
+                    return;
+                }
+                
+                // Показываем загрузку
+                showLoading(true);
+                errorMessage.style.display = 'none';
+                
+                try {
+                    // Имитация задержки для плавности
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    // Здесь должен быть реальный запрос к API
+                    // Пока используем тестовые учётные данные
+                    if (login === 'admin' && password === 'admin123') {
+                        // Сохраняем логин если нужно
+                        if (document.getElementById('rememberMe').checked) {
+                            window.electronAPI.storage.set('saved_login', login);
+                        } else {
+                            window.electronAPI.storage.remove('saved_login');
+                        }
+                        
+                        // Открываем окно администратора
+                        await window.electronAPI.navigation.openAdmin();
+                        
+                        // Анимация успешного входа
+                        if (typeof anime !== 'undefined') {
+                            anime({
+                                targets: '.login-container',
+                                opacity: 0,
+                                scale: 0.95,
+                                duration: 400,
+                                easing: 'easeInCubic'
+                            });
+                        }
+                    } else {
+                        loginAttempts++;
+                        showError('Неверный логин или пароль');
+                        showLoading(false);
+                        
+                        // Анимация ошибки
+                        if (typeof anime !== 'undefined') {
+                            anime({
+                                targets: '.login-form',
+                                translateX: [0, -10, 10, -5, 5, 0],
+                                duration: 400,
+                                easing: 'easeInOutQuad'
+                            });
+                        }
+                    }
+                } catch (error) {
+                    console.error('[Login] Ошибка входа:', error);
+                    showError('Ошибка подключения к серверу');
+                    showLoading(false);
+                }
+            });
+            
+            // ===== ПОКАЗАТЬ ОШИБКУ =====
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorMessage.style.display = 'block';
+                
+                if (typeof anime !== 'undefined') {
+                    anime({
+                        targets: errorMessage,
+                        opacity: [0, 1],
+                        translateY: [-10, 0],
+                        duration: 300
+                    });
+                }
+            }
+            
+            // ===== ПОКАЗАТЬ/СКРЫТЬ ЗАГРУЗКУ =====
+            function showLoading(show) {
+                loadingOverlay.style.display = show ? 'flex' : 'none';
+                loginBtn.disabled = show;
+                
+                if (show && typeof anime !== 'undefined') {
+                    anime({
+                        targets: loadingOverlay,
+                        opacity: [0, 1],
+                        duration: 200
+                    });
+                }
+            }
+            
+            // ===== ЗАБЫЛИ ПАРОЛЬ =====
+            document.getElementById('forgotPassword').addEventListener('click', (e) => {
+                e.preventDefault();
+                
+                if (typeof anime !== 'undefined') {
+                    anime({
+                        targets: '.forgot-link',
+                        scale: [1, 1.1, 1],
+                        duration: 300
+                    });
+                }
+                
+                // Показываем сообщение
+                window.electronAPI.notifications.show({
+                    title: 'Восстановление пароля',
+                    body: 'Обратитесь к администратору системы для сброса пароля.',
+                    type: 'info'
+                });
+            });
+            
+            // ===== ГОРЯЧИЕ КЛАВИШИ =====
+            document.addEventListener('keydown', (e) => {
+                // Ctrl+Shift+D - режим разработчика
+                if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+                    console.log('[Login] Режим разработчика активирован');
+                }
+            });
+            
+            // ===== ПЕРИОДИЧЕСКАЯ ПРОВЕРКА СТАТУСА API =====
+            setInterval(checkPythonStatus, 30000); // Каждые 30 секунд
+            
+            // ===== ЗАПУСК ИНИЦИАЛИЗАЦИИ =====
+            init();
+            
+        })();
+    </script>
+</body>
+</html>

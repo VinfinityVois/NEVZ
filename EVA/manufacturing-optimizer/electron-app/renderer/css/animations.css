@@ -1,0 +1,287 @@
+/**
+ * ================================================================
+ * MANUFACTURING OPTIMIZER - CSS АНИМАЦИИ
+ * ================================================================
+ * 
+ * Набор CSS-анимаций для использования во всём приложении.
+ */
+
+/* ===== ПОЯВЛЕНИЕ / ИСЧЕЗНОВЕНИЕ ===== */
+@keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes fade-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+@keyframes slide-in-up {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slide-in-down {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slide-in-left {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes slide-in-right {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* ===== МАСШТАБИРОВАНИЕ ===== */
+@keyframes scale-in {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes scale-out {
+    from {
+        opacity: 1;
+        transform: scale(1);
+    }
+    to {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+}
+
+/* ===== ВРАЩЕНИЕ ===== */
+@keyframes rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes rotate-pulse {
+    0% { transform: rotate(0deg) scale(1); }
+    50% { transform: rotate(180deg) scale(1.1); }
+    100% { transform: rotate(360deg) scale(1); }
+}
+
+/* ===== ПУЛЬСАЦИЯ ===== */
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+@keyframes pulse-scale {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+@keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(9, 97, 246, 0.4); }
+    50% { box-shadow: 0 0 0 10px rgba(9, 97, 246, 0); }
+}
+
+/* ===== ДРОЖАНИЕ ===== */
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+    20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+@keyframes shake-soft {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-3px); }
+    75% { transform: translateX(3px); }
+}
+
+/* ===== ПРЫЖКИ ===== */
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+@keyframes bounce-small {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+}
+
+/* ===== МЕРЦАНИЕ ===== */
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+/* ===== ВОЛНА ===== */
+@keyframes wave {
+    0% { transform: translateX(-100%); }
+    50% { transform: translateX(0); }
+    100% { transform: translateX(100%); }
+}
+
+/* ===== ПЛАВАНИЕ ===== */
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+}
+
+@keyframes float-horizontal {
+    0%, 100% { transform: translateX(0); }
+    50% { transform: translateX(8px); }
+}
+
+/* ===== ГРАДИЕНТНЫЕ АНИМАЦИИ ===== */
+@keyframes gradient-shift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+@keyframes gradient-pulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.6; }
+}
+
+/* ===== СКЕЛЕТОН (ДЛЯ ЗАГРУЗКИ) ===== */
+@keyframes skeleton-loading {
+    0% { background-position: -200px 0; }
+    100% { background-position: calc(200px + 100%) 0; }
+}
+
+.skeleton {
+    background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+    background-size: 200px 100%;
+    animation: skeleton-loading 1.5s infinite;
+    border-radius: var(--radius-sm);
+}
+
+/* ===== КЛАССЫ ДЛЯ ПРИМЕНЕНИЯ АНИМАЦИЙ ===== */
+.animate-fade-in { animation: fade-in 0.3s ease forwards; }
+.animate-fade-out { animation: fade-out 0.3s ease forwards; }
+
+.animate-slide-in-up { animation: slide-in-up 0.4s ease forwards; }
+.animate-slide-in-down { animation: slide-in-down 0.4s ease forwards; }
+.animate-slide-in-left { animation: slide-in-left 0.4s ease forwards; }
+.animate-slide-in-right { animation: slide-in-right 0.4s ease forwards; }
+
+.animate-scale-in { animation: scale-in 0.3s ease forwards; }
+.animate-scale-out { animation: scale-out 0.3s ease forwards; }
+
+.animate-rotate { animation: rotate 1s linear infinite; }
+.animate-rotate-pulse { animation: rotate-pulse 2s ease infinite; }
+
+.animate-pulse { animation: pulse 2s ease infinite; }
+.animate-pulse-scale { animation: pulse-scale 1.5s ease infinite; }
+.animate-pulse-glow { animation: pulse-glow 2s ease infinite; }
+
+.animate-shake { animation: shake 0.5s ease; }
+.animate-shake-soft { animation: shake-soft 0.3s ease; }
+
+.animate-bounce { animation: bounce 1s ease infinite; }
+.animate-bounce-small { animation: bounce-small 0.8s ease infinite; }
+
+.animate-blink { animation: blink 1s step-end infinite; }
+
+.animate-float { animation: float 3s ease-in-out infinite; }
+.animate-float-horizontal { animation: float-horizontal 3s ease-in-out infinite; }
+
+/* ===== ЗАДЕРЖКИ АНИМАЦИЙ ===== */
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }
+.delay-700 { animation-delay: 700ms; }
+.delay-1000 { animation-delay: 1000ms; }
+
+/* ===== ДЛИТЕЛЬНОСТЬ АНИМАЦИЙ ===== */
+.duration-fast { animation-duration: 150ms; }
+.duration-normal { animation-duration: 300ms; }
+.duration-slow { animation-duration: 500ms; }
+.duration-very-slow { animation-duration: 1000ms; }
+
+/* ===== ФУНКЦИИ СГЛАЖИВАНИЯ ===== */
+.ease-linear { animation-timing-function: linear; }
+.ease-in { animation-timing-function: ease-in; }
+.ease-out { animation-timing-function: ease-out; }
+.ease-in-out { animation-timing-function: ease-in-out; }
+.ease-bounce { animation-timing-function: cubic-bezier(0.68, -0.55, 0.265, 1.55); }
+
+/* ===== HOVER ЭФФЕКТЫ ===== */
+.hover-lift {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.hover-scale {
+    transition: transform 0.2s ease;
+}
+
+.hover-scale:hover {
+    transform: scale(1.02);
+}
+
+.hover-glow {
+    transition: box-shadow 0.2s ease;
+}
+
+.hover-glow:hover {
+    box-shadow: 0 0 0 4px rgba(9, 97, 246, 0.1);
+}
+
+/* ===== ПЕРЕХОДЫ ДЛЯ СТРАНИЦ ===== */
+.page-enter {
+    opacity: 0;
+    transform: translateY(20px);
+}
+
+.page-enter-active {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 300ms, transform 300ms;
+}
+
+.page-exit {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.page-exit-active {
+    opacity: 0;
+    transform: translateY(-20px);
+    transition: opacity 300ms, transform 300ms;
+}

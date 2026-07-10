@@ -1,0 +1,39 @@
+{
+  "appId": "com.manufacturing.optimizer",
+  "productName": "Manufacturing Optimizer",
+  "directories": {
+    "output": "dist"
+  },
+  "files": [
+    "main.js",
+    "preload.js",
+    "renderer/**/*",
+    "node_modules/**/*",
+    "!**/*.map",
+    "!**/test/**",
+    "!**/tests/**",
+    "!**/*.ts",
+    "!**/*.md"
+  ],
+  "win": {
+    "target": "nsis",
+    "icon": "renderer/assets/icons/app-icon.ico"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Manufacturing Optimizer"
+  },
+  "mac": {
+    "target": "dmg",
+    "icon": "renderer/assets/icons/app-icon.icns",
+    "category": "public.app-category.productivity"
+  },
+  "linux": {
+    "target": "AppImage",
+    "icon": "renderer/assets/icons/app-icon.png",
+    "category": "Office"
+  }
+}

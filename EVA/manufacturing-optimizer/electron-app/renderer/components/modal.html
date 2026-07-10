@@ -1,0 +1,163 @@
+<!-- Базовый компонент модального окна -->
+<div class="modal-overlay" id="modalOverlay" style="display: none;"></div>
+
+<div class="modal" id="modal" style="display: none;">
+    <div class="modal-header">
+        <h3 id="modalTitle">Модальное окно</h3>
+        <button class="modal-close" id="modalClose">&times;</button>
+    </div>
+    <div class="modal-body" id="modalBody">
+        <!-- Содержимое -->
+    </div>
+    <div class="modal-footer" id="modalFooter">
+        <button class="btn btn-outline" id="modalCancelBtn">Отмена</button>
+        <button class="btn btn-primary" id="modalConfirmBtn">OK</button>
+    </div>
+</div>
+
+<style>
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    animation: fade-in 0.2s ease;
+}
+
+.modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    border-radius: 16px;
+    width: 500px;
+    max-width: 90vw;
+    max-height: 80vh;
+    overflow: hidden;
+    z-index: 1001;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    animation: scale-in 0.2s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+    color: #414B4E;
+}
+
+.modal-close {
+    background: transparent;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #6b7280;
+    padding: 0 4px;
+    transition: color 0.2s;
+}
+
+.modal-close:hover {
+    color: #ef4444;
+}
+
+.modal-body {
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+@keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes scale-in {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+</style>
+
+<script>
+    class Modal {
+        constructor() {
+            this.overlay = document.getElementById('modalOverlay');
+            this.modal = document.getElementById('modal');
+            this.title = document.getElementById('modalTitle');
+            this.body = document.getElementById('modalBody');
+            this.footer = document.getElementById('modalFooter');
+            this.closeBtn = document.getElementById('modalClose');
+            this.cancelBtn = document.getElementById('modalCancelBtn');
+            this.confirmBtn = document.getElementById('modalConfirmBtn');
+            
+            this.resolve = null;
+            this.setupListeners();
+        }
+        
+        setupListeners() {
+            this.closeBtn.addEventListener('click', () => this.hide(false));
+            this.cancelBtn.addEventListener('click', () => this.hide(false));
+            this.overlay.addEventListener('click', (e) => {
+                if (e.target === this.overlay) this.hide(false);
+            });
+        }
+        
+        show(options = {}) {
+            this.title.textContent = options.title || 'Модальное окно';
+            this.body.innerHTML = options.content || '';
+            
+            this.confirmBtn.textContent = options.confirmText || 'OK';
+            this.cancelBtn.textContent = options.cancelText || 'Отмена';
+            
+            this.overlay.style.display = 'block';
+            this.modal.style.display = 'flex';
+            
+            return new Promise(resolve => {
+                this.resolve = resolve;
+                this.confirmBtn.onclick = () => this.hide(true);
+            });
+        }
+        
+        hide(result) {
+            this.overlay.style.display = 'none';
+            this.modal.style.display = 'none';
+            if (this.resolve) {
+                this.resolve(result);
+                this.resolve = null;
+            }
+        }
+        
+        setContent(html) {
+            this.body.innerHTML = html;
+        }
+    }
+    
+    window.modal = new Modal();
+</script>
