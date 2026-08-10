@@ -385,38 +385,69 @@
         
         <!-- Легенда -->
         <div class="graph-rpg-legend">
-            <h4>📊 Легенда</h4>
+            <h4>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:-2px;margin-right:6px">
+                <rect x="3" y="3" width="7" height="7" rx="1.5" fill="#10b981"/>
+                <rect x="14" y="3" width="7" height="7" rx="1.5" fill="#3b82f6"/>
+                <rect x="3" y="14" width="7" height="7" rx="1.5" fill="#94a3b8"/>
+                <rect x="14" y="14" width="7" height="7" rx="1.5" fill="#ef4444"/>
+              </svg>
+              Легенда
+            </h4>
             <div class="legend-items">
-                <div class="legend-item">
-                    <span class="legend-dot completed"></span>
-                    <span>Завершено</span>
-                </div>
-                <div class="legend-item">
-                    <span class="legend-dot progress"></span>
-                    <span>В работе</span>
-                </div>
-                <div class="legend-item">
-                    <span class="legend-dot pending"></span>
-                    <span>Ожидает</span>
-                </div>
-                <div class="legend-item">
-                    <span class="legend-dot blocked"></span>
-                    <span>Заблокировано</span>
-                </div>
-                <div class="legend-item">
-                    <span class="legend-dot critical"></span>
-                    <span>Критический путь</span>
-                </div>
-                <div class="legend-item">
-                    <span class="legend-line completed-line"></span>
-                    <span>Путь открыт</span>
-                </div>
-                <div class="legend-item">
-                    <span class="legend-line pending-line"></span>
-                    <span>Путь заблокирован</span>
-                </div>
+              <div class="legend-item">
+                <svg class="legend-icon" width="18" height="18" viewBox="0 0 18 18">
+                  <rect x="2" y="2" width="14" height="14" rx="4" fill="#10b981"/>
+                  <path d="M5.5 9.2l2.2 2.2 4.6-4.8" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                </svg>
+                <span>Завершено</span>
+              </div>
+              <div class="legend-item">
+                <svg class="legend-icon" width="18" height="18" viewBox="0 0 18 18">
+                  <rect x="2" y="2" width="14" height="14" rx="4" fill="#3b82f6"/>
+                  <circle cx="9" cy="9" r="3.2" fill="none" stroke="#fff" stroke-width="1.6"/>
+                  <path d="M9 6.5v2.8l1.8 1.2" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+                <span>В работе</span>
+              </div>
+              <div class="legend-item">
+                <svg class="legend-icon" width="18" height="18" viewBox="0 0 18 18">
+                  <rect x="2" y="2" width="14" height="14" rx="4" fill="#94a3b8"/>
+                  <circle cx="9" cy="9" r="3" fill="none" stroke="#fff" stroke-width="1.5" stroke-dasharray="2.5 2"/>
+                </svg>
+                <span>Ожидает</span>
+              </div>
+              <div class="legend-item">
+                <svg class="legend-icon" width="18" height="18" viewBox="0 0 18 18">
+                  <rect x="2" y="2" width="14" height="14" rx="4" fill="#ef4444"/>
+                  <rect x="6" y="7.5" width="6" height="5" rx="1" fill="none" stroke="#fff" stroke-width="1.4"/>
+                  <path d="M7.5 7.5V6.2a1.5 1.5 0 013 0V7.5" stroke="#fff" stroke-width="1.4" fill="none"/>
+                </svg>
+                <span>Заблокировано</span>
+              </div>
+              <div class="legend-item">
+                <svg class="legend-icon" width="18" height="18" viewBox="0 0 18 18">
+                  <rect x="2" y="2" width="14" height="14" rx="4" fill="#64748b" stroke="#f59e0b" stroke-width="2.5"/>
+                  <path d="M9 5.5v4M9 12.2h.01" stroke="#f59e0b" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+                <span>Критический путь</span>
+              </div>
+              <div class="legend-item">
+                <svg class="legend-icon" width="28" height="12" viewBox="0 0 28 12">
+                  <line x1="2" y1="6" x2="20" y2="6" stroke="#10b981" stroke-width="2.5" stroke-linecap="round"/>
+                  <path d="M18 3l5 3-5 3" fill="#10b981"/>
+                </svg>
+                <span>Путь открыт</span>
+              </div>
+              <div class="legend-item">
+                <svg class="legend-icon" width="28" height="12" viewBox="0 0 28 12">
+                  <line x1="2" y1="6" x2="20" y2="6" stroke="#94a3b8" stroke-width="2.2" stroke-dasharray="4 3" stroke-linecap="round"/>
+                  <path d="M18 3l5 3-5 3" fill="#94a3b8"/>
+                </svg>
+                <span>Путь заблокирован</span>
+              </div>
             </div>
-        </div>
+          </div>
         
         <!-- Контролы зума -->
         <div class="graph-controls">
@@ -821,32 +852,25 @@
         <p id="loadingText">Загрузка...</p>
     </div>
     
-    <!-- Скрипты -->
-    <!-- <script src="js/libs/anime.min.js"></script>
-    <script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
-    <script src="https://unpkg.com/cytoscape-dagre/cytoscape-dagre.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/handsontable@14.0.0/dist/handsontable.full.min.js"></script>
-    
-    <script src="js/admin/admin-main.js"></script> -->
-    
 
-    <!-- В конце admin.html перед закрывающим body -->
-<script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
+<!-- Скрипты -->
+<script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
+<script src="https://unpkg.com/cytoscape-dagre@4.0.0/dist/cytoscape-dagre.min.js"></script>
+<script>
+  cytoscape.use(cytoscapeDagre);
+</script>
 
-<!-- <script src="https://unpkg.com/cytoscape-dagre/cytoscape-dagre.js"></script> -->
-<script src="https://unpkg.com/dagre/dist/dagre.min.js"></script>
-<script src="https://unpkg.com/cytoscape-dagre/cytoscape-dagre.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/handsontable@14.0.0/dist/handsontable.full.min.js"></script>
+<script src="js/libs/handsontable.full.min.js"></script>
 
 <script type="module" src="js/api-client.js"></script>
-<script src="js/libs/handsontable.full.min.js"></script>
 <script type="module" src="js/admin/admin-main.js"></script>
-    
-    <script>
-        // Инициализация при загрузке
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log('[Admin] Интерфейс администратора загружен');
-        });
-    </script>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    console.log('[Admin] Интерфейс администратора загружен');
+  });
+</script>
+
 </body>
 </html>

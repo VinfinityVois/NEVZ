@@ -1637,3 +1637,311 @@ input:checked + .slider:before {
 #operationsTableBody tr:hover {
     background: rgba(9, 97, 246, 0.05);
 }
+
+/* ===== ГРАФ RPG ===== */
+.graph-rpg-container {
+    position: relative;
+    height: calc(100vh - 180px);
+    min-height: 520px;
+    background: linear-gradient(160deg, #f1f5f9 0%, #e2e8f0 50%, #f8fafc 100%);
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(15, 23, 42, 0.08);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+  }
+  
+  #cyGraph {
+    width: 100%;
+    height: 100%;
+  }
+  
+  .graph-toolbar-top {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    right: 14px;
+    z-index: 30;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    pointer-events: none;
+  }
+  
+  .graph-toolbar-top > * {
+    pointer-events: auto;
+  }
+  
+  .graph-toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(10px);
+    padding: 6px 10px;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+  }
+  
+  .graph-toolbar-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #334155;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  
+  .graph-toolbar-btn:hover {
+    background: #eff6ff;
+    color: #0961f6;
+  }
+  
+  .graph-select {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+    background: white;
+    color: #334155;
+    cursor: pointer;
+  }
+  
+  .graph-checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #475569;
+    cursor: pointer;
+    user-select: none;
+  }
+  
+  .graph-checkbox input {
+    accent-color: #0961f6;
+  }
+  
+  /* Легенда */
+  .graph-rpg-legend {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    z-index: 25;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(12px);
+    border-radius: 16px;
+    padding: 14px 16px;
+    box-shadow: 0 8px 28px rgba(15, 23, 42, 0.1);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    min-width: 200px;
+    max-width: 280px;
+  }
+  
+  .graph-rpg-legend h4 {
+    margin: 0 0 12px 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e293b;
+    letter-spacing: 0.02em;
+    display: flex;
+    align-items: center;
+  }
+  
+  .legend-items {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 12px;
+  }
+  
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #475569;
+    line-height: 1.2;
+  }
+  
+  .legend-icon {
+    flex-shrink: 0;
+    display: block;
+  }
+  
+  /* Контролы зума */
+  .graph-controls {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    z-index: 25;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  
+  .graph-control-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #334155;
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+    transition: background 0.15s, color 0.15s, transform 0.15s;
+  }
+  
+  .graph-control-btn:hover {
+    background: #eff6ff;
+    color: #0961f6;
+    transform: scale(1.05);
+  }
+  
+  /* Панель инфо об узле */
+  .graph-node-info {
+    position: absolute;
+    top: 70px;
+    right: 16px;
+    width: 300px;
+    max-height: calc(100% - 100px);
+    overflow-y: auto;
+    background: rgba(255, 255, 255, 0.97);
+    backdrop-filter: blur(14px);
+    border-radius: 16px;
+    box-shadow: 0 12px 40px rgba(15, 23, 42, 0.14);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    z-index: 40;
+    display: none;
+    animation: nodeInfoIn 0.2s ease;
+  }
+  
+  .graph-node-info.active {
+    display: block;
+  }
+  
+  @keyframes nodeInfoIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  
+  .node-info-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid #f1f5f9;
+    background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+  }
+  
+  .node-info-header h4 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: #1e293b;
+  }
+  
+  .node-info-close {
+    border: none;
+    background: transparent;
+    font-size: 22px;
+    line-height: 1;
+    color: #94a3b8;
+    cursor: pointer;
+    padding: 0 4px;
+  }
+  
+  .node-info-close:hover {
+    color: #ef4444;
+  }
+  
+  .node-info-body {
+    padding: 14px 16px 18px;
+  }
+  
+  .node-info-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    font-size: 13px;
+    border-bottom: 1px solid #f8fafc;
+  }
+  
+  .node-info-label {
+    color: #64748b;
+    flex-shrink: 0;
+  }
+  
+  .node-info-value {
+    font-weight: 500;
+    color: #1e293b;
+    text-align: right;
+  }
+  
+  .node-info-status.completed { color: #10b981; }
+  .node-info-status.progress  { color: #3b82f6; }
+  .node-info-status.pending   { color: #94a3b8; }
+  .node-info-status.blocked   { color: #ef4444; }
+  
+  .node-info-deps {
+    margin-top: 14px;
+  }
+  
+  .node-info-deps h5 {
+    margin: 0 0 8px 0;
+    font-size: 12px;
+    color: #64748b;
+    font-weight: 600;
+  }
+  
+  .deps-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  
+  .dep-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    background: #f1f5f9;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+    color: #334155;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  
+  .dep-tag:hover {
+    background: #dbeafe;
+    color: #0961f6;
+  }
+  
+  .dep-tag.missing {
+    background: #fef2f2;
+    color: #dc2626;
+  }
+  
+  .graph-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(248, 250, 252, 0.92);
+    z-index: 50;
+    color: #64748b;
+    font-size: 14px;
+  }

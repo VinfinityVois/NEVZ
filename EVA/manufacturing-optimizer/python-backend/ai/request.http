@@ -1,0 +1,15 @@
+POST http://localhost:8000/ai/scenarios/run
+Content-Type: application/json
+
+{
+  "base_plan": {},
+  "scenario": {
+    "name": "Поломка сварочного на сборке",
+    "description": "Оборудование встало на 6 дней",
+    "task_delays": {
+      "Т3": 6
+    },
+    "disabled_brigades": []
+  },
+  "brigades": []
+}

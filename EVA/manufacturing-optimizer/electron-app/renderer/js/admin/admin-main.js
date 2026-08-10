@@ -99,7 +99,17 @@ const api = {
 };
 
 
-
+// Регистрация dagre
+if (typeof cytoscape !== 'undefined') {
+    const dagreExt = window.cytoscapeDagre || window.dagre;
+    if (dagreExt && !cytoscape.prototype.layout?.dagre) {
+      try {
+        cytoscape.use(dagreExt);
+      } catch (e) {
+        console.warn('Не удалось зарегистрировать dagre:', e);
+      }
+    }
+  }
 
 
 // ================================================================
@@ -4369,240 +4379,249 @@ function buildGraphElements() {
 
 
 function getGraphStyle() {
-  return [
+    return [
       // ===== БАЗОВЫЙ СТИЛЬ УЗЛОВ =====
       {
-          selector: 'node',
-          style: {
-              'width': 'data(size)',
-              'height': 'data(size)',
-              'background-color': 'data(bgColor)',
-              'background-opacity': 0.95,
-              'label': 'data(label)',
-              'color': '#ffffff',
-              'font-size': '11px',
-              'font-weight': '600',
-              'text-valign': 'center',
-              'text-halign': 'center',
-              'text-wrap': 'wrap',
-              'text-max-width': '90px',
-              'shape': 'round-rectangle',
-              'border-width': 3,
-              'border-color': '#ffffff',
-              'border-opacity': 0.9,
-              'padding': '12px',
-              'text-margin-y': 2,
-              'transition-property': 'background-color, border-color, width, height',
-              'transition-duration': '0.2s'
-          }
+        selector: 'node',
+        style: {
+          'width': 'data(size)',
+          'height': 'data(size)',
+          'background-color': 'data(bgColor)',
+          'background-opacity': 0.95,
+          'label': 'data(label)',
+          'color': '#ffffff',
+          'font-size': '11px',
+          'font-weight': '600',
+          'font-family': 'Inter, system-ui, sans-serif',
+          'text-valign': 'center',
+          'text-halign': 'center',
+          'text-wrap': 'wrap',
+          'text-max-width': '88px',
+          'text-outline-width': 0,
+          'shape': 'round-rectangle',
+          'border-width': 2.5,
+          'border-color': 'rgba(255,255,255,0.85)',
+          'border-opacity': 1,
+          'padding': '10px',
+          'shadow-blur': 12,
+          'shadow-color': 'rgba(0,0,0,0.18)',
+          'shadow-offset-x': 0,
+          'shadow-offset-y': 4,
+          'shadow-opacity': 0.35,
+          'transition-property': 'background-color, border-color, border-width, width, height, opacity',
+          'transition-duration': '0.2s'
+        }
       },
-      
-      // ===== ОПЕРАЦИИ =====
+  
+      // Операции
       {
-          selector: 'node.operation',
-          style: {
-              'shape': 'round-rectangle',
-              'border-radius': '12px'
-          }
+        selector: 'node.operation',
+        style: {
+          'shape': 'round-rectangle'
+        }
       },
-      
+  
       // Завершённые
       {
-          selector: 'node.completed',
-          style: {
-              'background-color': '#10b981',
-              'border-color': '#34d399',
-              'background-opacity': 1
-          }
+        selector: 'node.completed',
+        style: {
+          'background-color': '#10b981',
+          'border-color': '#6ee7b7',
+          'background-opacity': 1
+        }
       },
-      
-      // В процессе
+  
+      // В работе
       {
-          selector: 'node.progress',
-          style: {
-              'background-color': '#3b82f6',
-              'border-color': '#60a5fa',
-              'background-opacity': 1
-          }
+        selector: 'node.progress',
+        style: {
+          'background-color': '#3b82f6',
+          'border-color': '#93c5fd',
+          'background-opacity': 1
+        }
       },
-      
+  
+      // Ожидает
+      {
+        selector: 'node.pending',
+        style: {
+          'background-color': '#94a3b8',
+          'border-color': '#cbd5e1',
+          'background-opacity': 0.95
+        }
+      },
+  
       // Заблокированные
       {
-          selector: 'node.blocked',
-          style: {
-              'background-color': '#ef4444',
-              'border-color': '#f87171',
-              'background-opacity': 0.9
-          }
+        selector: 'node.blocked',
+        style: {
+          'background-color': '#ef4444',
+          'border-color': '#fca5a5',
+          'background-opacity': 0.95
+        }
       },
-      
+  
       // Критический путь
       {
-          selector: 'node.critical',
-          style: {
-              'border-width': 4,
-              'border-color': '#ef4444',
-              'border-style': 'solid'
-          }
+        selector: 'node.critical',
+        style: {
+          'border-width': 4,
+          'border-color': '#f59e0b',
+          'border-style': 'solid',
+          'shadow-blur': 16,
+          'shadow-color': 'rgba(245, 158, 11, 0.45)',
+          'shadow-opacity': 0.6
+        }
       },
-      
-      // ===== БРИГАДЫ =====
+  
+      // Бригады
       {
-          selector: 'node.brigade',
-          style: {
-              'shape': 'ellipse',
-              'border-radius': '40px 40px 40px 40px',
-              'background-opacity': 0.9
-          }
+        selector: 'node.brigade',
+        style: {
+          'shape': 'ellipse',
+          'background-opacity': 0.92,
+          'border-width': 3,
+          'border-color': '#c4b5fd',
+          'font-size': '12px'
+        }
       },
-      
-      // ===== ГРУППЫ =====
+  
+      // Группы
       {
-          selector: 'node.group',
-          style: {
-              'shape': 'round-rectangle',
-              'border-radius': '20px',
-              'background-color': '#8b5cf6',
-              'border-color': '#c4b5fd',
-              'border-width': 3
-          }
+        selector: 'node.group',
+        style: {
+          'shape': 'round-rectangle',
+          'background-color': '#7c3aed',
+          'border-color': '#a78bfa',
+          'border-width': 2.5,
+          'font-size': '12px'
+        }
       },
-      
-      // ===== ВЫДЕЛЕНИЕ =====
+  
+      // Выделение
       {
-          selector: 'node:selected',
-          style: {
-              'border-width': 5,
-              'border-color': '#fbbf24',
-              'overlay-opacity': 0.25,
-              'overlay-color': '#fbbf24',
-              'overlay-padding': 8
-          }
+        selector: 'node:selected',
+        style: {
+          'border-width': 4,
+          'border-color': '#fbbf24',
+          'shadow-blur': 20,
+          'shadow-color': 'rgba(251, 191, 36, 0.5)',
+          'shadow-opacity': 0.7
+        }
       },
-      
-      // ===== РЁБРА: ЗАВЕРШЁННЫЕ =====
+  
+      // ===== РЁБРА =====
       {
-          selector: 'edge.completed',
-          style: {
-              'width': 4,
-              'line-color': '#10b981',
-              'target-arrow-color': '#10b981',
-              'target-arrow-shape': 'triangle',
-              'curve-style': 'bezier',
-              'arrow-scale': 1.4,
-              'line-style': 'solid',
-              'opacity': 1
-          }
+        selector: 'edge',
+        style: {
+          'curve-style': 'bezier',
+          'target-arrow-shape': 'triangle',
+          'arrow-scale': 1.15,
+          'opacity': 0.85,
+          'transition-property': 'line-color, width, opacity',
+          'transition-duration': '0.2s'
+        }
       },
-      
-      // ===== РЁБРА: КРИТИЧЕСКИЕ =====
+  
+      // Зависимости — открытый путь
       {
-          selector: 'edge.critical',
-          style: {
-              'width': 4,
-              'line-color': '#ef4444',
-              'target-arrow-color': '#ef4444',
-              'target-arrow-shape': 'triangle',
-              'curve-style': 'bezier',
-              'arrow-scale': 1.4,
-              'line-style': 'solid',
-              'opacity': 1
-          }
+        selector: 'edge.dependency.completed, edge.dependency[sourceCompleted]',
+        style: {
+          'width': 2.5,
+          'line-color': '#10b981',
+          'target-arrow-color': '#10b981',
+          'line-style': 'solid',
+          'opacity': 0.9
+        }
       },
-      
-      // ===== РЁБРА: НЕЗАВЕРШЁННЫЕ (пунктир, полупрозрачные) =====
+  
+      // Зависимости — заблокированный путь
       {
-          selector: 'edge.dependency',
-          style: {
-              'width': 2.5,
-              'line-color': '#94a3b8',
-              'target-arrow-color': '#94a3b8',
-              'target-arrow-shape': 'triangle',
-              'curve-style': 'bezier',
-              'arrow-scale': 1.2,
-              'line-style': 'dashed',
-              'line-dash-pattern': [8, 6],
-              'opacity': 0.5,
-              'transition-property': 'line-color, opacity',
-              'transition-duration': '0.3s'
-          }
+        selector: 'edge.dependency',
+        style: {
+          'width': 2.2,
+          'line-color': '#94a3b8',
+          'target-arrow-color': '#94a3b8',
+          'line-style': 'dashed',
+          'line-dash-pattern': [7, 5],
+          'opacity': 0.55
+        }
       },
-      
-      // ===== РЁБРА: СВЯЗИ С БРИГАДАМИ =====
+  
+      // Критические рёбра
       {
-          selector: 'edge.assignment',
-          style: {
-              'width': 2.5,
-              'line-color': '#8b5cf6',
-              'target-arrow-color': '#8b5cf6',
-              'target-arrow-shape': 'triangle',
-              'curve-style': 'bezier',
-              'arrow-scale': 1.2,
-              'line-style': 'dashed',
-              'line-dash-pattern': [6, 5],
-              'opacity': 0.6
-          }
+        selector: 'edge.critical',
+        style: {
+          'width': 3.5,
+          'line-color': '#f59e0b',
+          'target-arrow-color': '#f59e0b',
+          'line-style': 'solid',
+          'opacity': 1
+        }
       },
-      
-      // ===== РЁБРА: СВЯЗИ С ГРУППАМИ =====
+  
+      // Назначение бригада → операция
       {
-          selector: 'edge.membership',
-          style: {
-              'width': 2,
-              'line-color': '#a78bfa',
-              'target-arrow-color': '#a78bfa',
-              'target-arrow-shape': 'triangle',
-              'curve-style': 'bezier',
-              'arrow-scale': 1,
-              'line-style': 'dotted',
-              'opacity': 0.5
-          }
+        selector: 'edge.assignment',
+        style: {
+          'width': 2,
+          'line-color': '#8b5cf6',
+          'target-arrow-color': '#8b5cf6',
+          'line-style': 'dashed',
+          'line-dash-pattern': [5, 4],
+          'opacity': 0.55
+        }
       },
-      
-      // ===== РЁБРА: ВЫДЕЛЕНИЕ =====
+  
+      // Членство в группе
       {
-          selector: 'edge:selected',
-          style: {
-              'width': 5,
-              'line-color': '#fbbf24',
-              'target-arrow-color': '#fbbf24',
-              'opacity': 1
-          }
+        selector: 'edge.membership',
+        style: {
+          'width': 1.8,
+          'line-color': '#a78bfa',
+          'target-arrow-color': '#a78bfa',
+          'line-style': 'dotted',
+          'opacity': 0.45
+        }
       },
-      
-      // ===== СКРЫТЫЕ ЭЛЕМЕНТЫ =====
+  
       {
-          selector: '.hidden',
-          style: {
-              'display': 'none'
-          }
+        selector: 'edge:selected',
+        style: {
+          'width': 4.5,
+          'line-color': '#fbbf24',
+          'target-arrow-color': '#fbbf24',
+          'opacity': 1
+        }
       },
-      
-      // ===== ПОДСВЕТКА ПРИ НАВЕДЕНИИ =====
+  
       {
-          selector: 'node.hover',
-          style: {
-              'border-width': 4,
-              'border-color': '#fbbf24',
-              'overlay-opacity': 0.2,
-              'overlay-color': '#fbbf24',
-              'overlay-padding': 6,
-              'transition-duration': '0.15s'
-          }
+        selector: '.hidden',
+        style: { 'display': 'none' }
       },
-      
+  
       {
-          selector: 'edge.hover',
-          style: {
-              'width': 5,
-              'line-color': '#fbbf24',
-              'target-arrow-color': '#fbbf24',
-              'opacity': 1,
-              'transition-duration': '0.15s'
-          }
+        selector: 'node.hover',
+        style: {
+          'border-width': 4,
+          'border-color': '#fbbf24',
+          'overlay-opacity': 0.15,
+          'overlay-color': '#fbbf24',
+          'overlay-padding': 8
+        }
+      },
+  
+      {
+        selector: 'edge.hover',
+        style: {
+          'width': 4.5,
+          'line-color': '#fbbf24',
+          'target-arrow-color': '#fbbf24',
+          'opacity': 1
+        }
       }
-  ];
-}
+    ];
+  }
 
 function setupGraphEvents(cy) {
   // Клик по узлу
@@ -4785,33 +4804,84 @@ function changeGraphLayout(layoutValue) {
 // ================================================================
 
 function animateNodesAppearance() {
-  if (!cy || typeof anime === 'undefined') return;
+    if (!cy) return;
   
-  const nodes = cy.nodes();
-  nodes.style({
-      'opacity': 0,
-      'transform': 'scale(0.8)'
-  });
+    const nodes = cy.nodes();
+    nodes.style({ opacity: 0 });
   
-  anime({
-      targets: nodes,
-      opacity: [0, 1],
-      scale: [0.8, 1],
-      delay: (el, i) => i * 5,
-      duration: 400,
-      easing: 'easeOutCubic',
-      update: function(anim) {
-          // Обновление не требуется, cytoscape сам обрабатывает
+    nodes.forEach((node, i) => {
+      node.delay(i * 12).animate({
+        style: { opacity: 1 },
+        duration: 280,
+        easing: 'ease-out-cubic'
+      });
+    });
+  
+    cy.edges().style({ opacity: 0 });
+    setTimeout(() => {
+      cy.edges().animate({
+        style: { opacity: 1 },
+        duration: 400,
+        easing: 'ease-out'
+      });
+    }, 150);
+  }
+
+  function pulseCriticalPath() {
+    if (!cy) return;
+    const crit = cy.nodes('.critical');
+  
+    crit.animate({
+      style: { 'border-width': 6 },
+      duration: 350,
+      easing: 'ease-in-out-sine',
+      complete: function() {
+        this.animate({
+          style: { 'border-width': 3 },
+          duration: 350,
+          easing: 'ease-in-out-sine'
+        });
       }
-  });
+    });
+  }
+
+  function highlightPath(opNumber) {
+    const node = cy.$(`#op${opNumber}`);
+    if (!node.length) return;
   
-  // Анимация рёбер
-  const edges = cy.edges();
-  edges.style({ 'opacity': 0 });
+    const neighborhood = node.closedNeighborhood(); // узел + связанные
   
-  setTimeout(() => {
-      edges.style({ 'opacity': 1, 'transition-duration': '0.5s' });
-  }, 300);
+    cy.elements().animate({ style: { opacity: 0.25 }, duration: 200 });
+    neighborhood.animate({ style: { opacity: 1 }, duration: 250 });
+  
+    cy.animate({
+      fit: { eles: neighborhood, padding: 60 },
+      duration: 400,
+      easing: 'ease-out-cubic'
+    });
+  }
+
+
+  function resetHighlight() {
+    cy.elements().animate({
+      style: { opacity: 1 },
+      duration: 200
+    });
+  }
+
+
+function getRenderOptions(elementCount) {
+  const heavy = elementCount > 200;
+  return {
+    textureOnViewport: true,
+    hideEdgesOnViewport: heavy,
+    pixelRatio: heavy && window.devicePixelRatio > 1.5 ? 1 : 'auto',
+    wheelSensitivity: 1,
+    boxSelectionEnabled: false,
+    selectionType: 'single',
+    minZoom: 0.08,
+    maxZoom: 2.5
+  };
 }
 
 function showNodeInfo(nodeData) {
@@ -5179,6 +5249,8 @@ window.toggleGroups = toggleGroups;
 window.highlightNode = highlightNode;
 window.hideNodeInfo = hideNodeInfo;
 window.showNodeInfo = showNodeInfo;
+window.switchTab = switchTab;          // ← добавить
+window.closeAllModals = closeAllModals;
 
 
 async function runOptimization() {
