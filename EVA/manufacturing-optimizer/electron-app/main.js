@@ -1,8 +1,9 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const http = require('http');
 const fs = require('fs');
+const net = require('net');
 
 app.commandLine.appendSwitch('disable-gpu');
 app.commandLine.appendSwitch('in-process-gpu');
@@ -12,21 +13,31 @@ const PYTHON_API_URL = 'http://127.0.0.1:8000';
 
 let loginWindow = null;
 let adminWindow = null;
-const workerWindows = new Map();
 let pythonProcess = null;
-let isPythonReady = false;
 
 function log(level, ...args) {
     console.log(`[${new Date().toISOString()}] [${level}]`, ...args);
 }
 
+function isPortInUse(port) {
+    return new Promise((resolve) => {
+        const server = net.createServer();
+        server.once('error', () => resolve(true));
+        server.once('listening', () => {
+            server.close();
+            resolve(false);
+        });
+        server.listen(port);
+    });
+}
+
 async function checkPythonApi() {
     return new Promise((resolve) => {
-        const req = http.get(`${PYTHON_API_URL}/health`, (res) => {
+        const req = http.get(`${PYTHON_API_URL}/health`, { timeout: 2000 }, (res) => {
             resolve(res.statusCode === 200);
         });
         req.on('error', () => resolve(false));
-        req.setTimeout(2000, () => { req.destroy(); resolve(false); });
+        req.on('timeout', () => { req.destroy(); resolve(false); });
     });
 }
 
@@ -42,8 +53,13 @@ async function waitForPythonApi(maxRetries = 30) {
     return false;
 }
 
-function startPythonBackend() {
-    const pythonCmd = 'python';
+async function startPythonBackend() {
+    if (await isPortInUse(8000)) {
+        log('INFO', 'Port 8000 already in use, using existing Python API');
+        return;
+    }
+
+    const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
     const apiScript = path.join(__dirname, '..', 'python-backend', 'api.py');
     
     if (!fs.existsSync(apiScript)) {
@@ -51,13 +67,25 @@ function startPythonBackend() {
         return;
     }
     
+    log('INFO', 'Starting Python backend...');
     pythonProcess = spawn(pythonCmd, [apiScript], {
         cwd: path.join(__dirname, '..', 'python-backend'),
-        env: { ...process.env, PYTHONUNBUFFERED: '1' }
+        env: { ...process.env, PYTHONUNBUFFERED: '1', PYTHONIOENCODING: 'utf-8' }
     });
     
-    pythonProcess.stdout.on('data', d => console.log('[Python]', d.toString().trim()));
-    pythonProcess.stderr.on('data', d => console.log('[Python Error]', d.toString().trim()));
+    pythonProcess.stdout.on('data', d => {
+        const text = d.toString().trim();
+        if (text) console.log('[Python]', text);
+    });
+    pythonProcess.stderr.on('data', d => {
+        const text = d.toString().trim();
+        if (text) console.log('[Python Error]', text);
+    });
+    
+    pythonProcess.on('exit', (code) => {
+        log('WARN', `Python process exited with code ${code}`);
+        pythonProcess = null;
+    });
 }
 
 function createLoginWindow() {
@@ -70,7 +98,7 @@ function createLoginWindow() {
         }
     });
     loginWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
-    loginWindow.webContents.openDevTools();
+    loginWindow.webContents.openDevTools();  // F12 для логина
     loginWindow.on('closed', () => { loginWindow = null; });
 }
 
@@ -89,113 +117,121 @@ function createAdminWindow() {
         }
     });
     adminWindow.loadFile(path.join(__dirname, 'renderer', 'admin.html'));
-    adminWindow.webContents.openDevTools();
+    adminWindow.webContents.openDevTools();  // <-- F12 ВЕРНУЛ
     adminWindow.on('closed', () => { adminWindow = null; });
-    adminWindow.on('focus', () => adminWindow?.webContents.send('window-focus', 'admin'));
 }
 
-// IPC Handlers
 function registerIpcHandlers() {
     ipcMain.handle('get-app-version', () => APP_VERSION);
     ipcMain.handle('get-python-status', checkPythonApi);
     
     ipcMain.handle('open-admin', () => {
         createAdminWindow();
-        loginWindow?.close();
+        if (loginWindow) loginWindow.close();
     });
     
     ipcMain.handle('logout', (e) => {
         BrowserWindow.fromWebContents(e.sender)?.close();
     });
     
-    // AI endpoints
+    // Legacy AI
     ipcMain.handle('python:optimize', async (e, data) => {
-        const res = await fetch(`${PYTHON_API_URL}/optimize`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
-        });
-        return res.json();
-    });
-    
-    ipcMain.handle('python:calculate-cpm', async (e, ops) => {
-        const res = await fetch(`${PYTHON_API_URL}/calculate-cpm`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operations: ops })
-        });
-        return res.json();
+        try {
+            const res = await fetch(`${PYTHON_API_URL}/optimize`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+            });
+            return res.ok ? res.json() : { status: 'error', detail: res.statusText };
+        } catch (e) { return { status: 'error', detail: e.message }; }
     });
     
     ipcMain.handle('python:predict', async (e, data) => {
-        const res = await fetch(`${PYTHON_API_URL}/predict`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
-        });
-        return res.json();
+        try {
+            const res = await fetch(`${PYTHON_API_URL}/predict`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+            });
+            return res.ok ? res.json() : { status: 'error' };
+        } catch (e) { return { status: 'error', detail: e.message }; }
     });
     
     ipcMain.handle('python:train-model', async (e, data) => {
-        const res = await fetch(`${PYTHON_API_URL}/train`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
-        });
-        return res.json();
+        try {
+            const res = await fetch(`${PYTHON_API_URL}/train`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+            });
+            return res.ok ? res.json() : { status: 'error' };
+        } catch (e) { return { status: 'error', detail: e.message }; }
     });
     
     ipcMain.handle('python:statistics', async () => {
-        const res = await fetch(`${PYTHON_API_URL}/statistics`);
-        return res.json();
+        try {
+            const res = await fetch(`${PYTHON_API_URL}/statistics`);
+            return res.ok ? res.json() : { status: 'error' };
+        } catch (e) { return { status: 'error', detail: e.message }; }
+    });
+    
+    ipcMain.handle('python:calculate-cpm', async (e, ops) => {
+        try {
+            const res = await fetch(`${PYTHON_API_URL}/calculate-cpm`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operations: ops })
+            });
+            return res.ok ? res.json() : { status: 'error' };
+        } catch (e) { return { status: 'error', detail: e.message }; }
+    });
+    
+    // AI Engine (без дублей!)
+    ipcMain.handle('python:ai-status', async () => {
+        try {
+            const res = await fetch(`${PYTHON_API_URL}/ai/status`, { signal: AbortSignal.timeout(3000) });
+            return res.ok ? res.json() : { status: 'error', detail: 'API returned ' + res.status };
+        } catch (e) { return { status: 'offline', detail: e.message }; }
+    });
+    
+    ipcMain.handle('python:ai-build-plan', async (e, data) => {
+        try {
+            const res = await fetch(`${PYTHON_API_URL}/ai/build-plan`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+                signal: AbortSignal.timeout(15000)
+            });
+            return res.ok ? res.json() : { success: false, error: res.statusText };
+        } catch (e) { return { success: false, error: e.message }; }
+    });
+    
+    ipcMain.handle('python:ai-bottlenecks', async (e, data) => {
+        try {
+            const res = await fetch(`${PYTHON_API_URL}/ai/bottlenecks`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+                signal: AbortSignal.timeout(10000)
+            });
+            return res.ok ? res.json() : { bottlenecks: [] };
+        } catch (e) { return { bottlenecks: [] }; }
+    });
+    
+    ipcMain.handle('python:ai-train-delay', async () => {
+        try {
+            await fetch(`${PYTHON_API_URL}/ai/sync-training-data`, { method: 'POST', signal: AbortSignal.timeout(5000) });
+            const res = await fetch(`${PYTHON_API_URL}/ai/train/delay-model-from-db`, { method: 'POST', signal: AbortSignal.timeout(30000) });
+            return res.ok ? res.json() : { status: 'error' };
+        } catch (e) { return { status: 'offline', message: e.message }; }
     });
     
     ipcMain.handle('select-excel-file', async () => {
-    const result = await dialog.showOpenDialog({
-        properties: ['openFile'],
-        filters: [
-            { name: 'Excel Files', extensions: ['xlsx', 'xls', 'xlsb', 'csv'] }
-        ]
-    });
-    
-    if (!result.canceled && result.filePaths.length > 0) {
-        const filePath = result.filePaths[0];
-        const fileBuffer = await fs.promises.readFile(filePath);
-        const fileName = path.basename(filePath);
-        
-        // Создаём FormData для отправки
-        const formData = new FormData();
-        const blob = new Blob([fileBuffer]);
-        formData.append('file', blob, fileName);
-        
-        try {
-            const response = await fetch(`${PYTHON_API_URL}/import-excel`, {
-                method: 'POST',
-                body: formData
-            });
-            
-            const data = await response.json();
-            return { success: true, ...data };
-        } catch (error) {
-            console.error('Upload error:', error);
-            return { success: false, error: error.message };
-        }
-    }
-    
-    return { success: false, error: 'No file selected' };
-});
-    
-    // File upload to Python
-    ipcMain.handle('upload-excel', async (e, filePath) => {
-        const formData = new FormData();
-        const fileBuffer = await fs.promises.readFile(filePath);
-        const blob = new Blob([fileBuffer]);
-        formData.append('file', blob, path.basename(filePath));
-        
-        const res = await fetch(`${PYTHON_API_URL}/import-excel`, {
-            method: 'POST', body: formData
+        const result = await dialog.showOpenDialog({
+            properties: ['openFile'],
+            filters: [{ name: 'Excel Files', extensions: ['xlsx', 'xls', 'xlsb', 'csv'] }]
         });
-        return res.json();
+        return result.canceled ? null : result.filePaths[0];
     });
 }
 
 app.whenReady().then(async () => {
     log('INFO', 'Starting Manufacturing Optimizer v' + APP_VERSION);
     
-    startPythonBackend();
-    isPythonReady = await waitForPythonApi();
+    await startPythonBackend();
+    const isReady = await waitForPythonApi();
+    
+    if (!isReady) {
+        log('WARN', 'Python API not responding, continuing anyway...');
+    }
     
     registerIpcHandlers();
     createLoginWindow();
@@ -206,5 +242,9 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
-    pythonProcess?.kill();
+    if (pythonProcess) {
+        log('INFO', 'Killing Python process...');
+        pythonProcess.kill();
+        pythonProcess = null;
+    }
 });

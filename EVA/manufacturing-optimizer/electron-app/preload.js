@@ -19,7 +19,12 @@ try {
             optimize: (data) => ipcRenderer.invoke('python:optimize', data),
             predict: (data) => ipcRenderer.invoke('python:predict', data),
             trainModel: (data) => ipcRenderer.invoke('python:train-model', data),
-            getStatistics: () => ipcRenderer.invoke('python:statistics')
+            getStatistics: () => ipcRenderer.invoke('python:statistics'),
+            // AI Engine
+            status: () => ipcRenderer.invoke('python:ai-status'),
+            buildPlan: (data) => ipcRenderer.invoke('python:ai-build-plan', data),
+            bottlenecks: (data) => ipcRenderer.invoke('python:ai-bottlenecks', data),
+            trainDelayModel: () => ipcRenderer.invoke('python:ai-train-delay')
         },
         dbUpdated: (callback) => ipcRenderer.on('db-updated', (event, ...args) => callback(...args)),
 

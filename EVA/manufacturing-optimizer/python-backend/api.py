@@ -19,8 +19,13 @@ from contextlib import asynccontextmanager
 # Настройка кодировки для Windows
 if sys.platform == 'win32':
     import codecs
-    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
-    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+    try:
+        if hasattr(sys.stdout, 'buffer'):
+            sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+        if hasattr(sys.stderr, 'buffer'):
+            sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+    except (AttributeError, TypeError):
+        pass
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -53,229 +58,11 @@ EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
 # БАЗА ДАННЫХ
 # ================================================================
 
-def get_db():
-    """Получить соединение с БД"""
-    conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+# ================================================================
+# БАЗА ДАННЫХ
+# ================================================================
 
-def init_db():
-    """Инициализация базы данных с полной структурой"""
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    # Таблица бригад
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS brigades (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE,
-            description TEXT,
-            current_load REAL DEFAULT 0,
-            max_capacity INTEGER DEFAULT 10,
-            efficiency_rating REAL DEFAULT 1.0,
-            importance TEXT DEFAULT 'medium',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # Таблица рабочих
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS workers (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            position TEXT DEFAULT 'Рабочий',
-            role TEXT DEFAULT 'worker',
-            brigade_id INTEGER,
-            skills TEXT DEFAULT '[]',
-            status TEXT DEFAULT 'offline',
-            login TEXT UNIQUE,
-            password TEXT,
-            is_brigadier INTEGER DEFAULT 0,
-            phone TEXT,
-            email TEXT,
-            hire_date DATE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (brigade_id) REFERENCES brigades(id) ON DELETE SET NULL
-        )
-    ''')
-    
-    # Таблица операций
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS operations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            post INTEGER,
-            op_number INTEGER UNIQUE NOT NULL,
-            prev_ops TEXT DEFAULT '[]',
-            next_ops TEXT DEFAULT '[]',
-            name TEXT NOT NULL,
-            drawing TEXT DEFAULT '',
-            labor_hours REAL DEFAULT 0,
-            people_count INTEGER DEFAULT 1,
-            duration REAL DEFAULT 0,
-            brigade_id INTEGER,
-            location TEXT DEFAULT '',
-            time_reserve REAL DEFAULT 0,
-            status TEXT DEFAULT 'pending',
-            priority TEXT DEFAULT 'medium',
-            start_date DATE,
-            end_date DATE,
-            actual_start DATE,
-            actual_end DATE,
-            assigned_workers TEXT DEFAULT '[]',
-            notes TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (brigade_id) REFERENCES brigades(id) ON DELETE SET NULL
-        )
-    ''')
-    
-    # Таблица истории выполнения
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS operation_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            operation_id INTEGER NOT NULL,
-            worker_id INTEGER,
-            action TEXT NOT NULL,
-            actual_duration REAL,
-            actual_people INTEGER,
-            efficiency REAL,
-            comment TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (operation_id) REFERENCES operations(id) ON DELETE CASCADE,
-            FOREIGN KEY (worker_id) REFERENCES workers(id) ON DELETE SET NULL
-        )
-    ''')
-    
-    # Таблица для AI обучения
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS ai_training_data (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            operation_id INTEGER,
-            labor_hours REAL,
-            people_count INTEGER,
-            brigade_load REAL,
-            time_reserve REAL,
-            actual_duration REAL,
-            efficiency REAL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (operation_id) REFERENCES operations(id) ON DELETE CASCADE
-        )
-    ''')
-
-    # Таблица задач бригад
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS brigade_tasks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            brigade_id INTEGER NOT NULL,
-            title TEXT NOT NULL,
-            description TEXT DEFAULT '',
-            priority TEXT DEFAULT 'medium',
-            status TEXT DEFAULT 'pending',
-            task_type TEXT DEFAULT 'main',
-            assigned_worker_id INTEGER,
-            due_date DATE,
-            estimated_hours REAL DEFAULT 0,
-            actual_hours REAL DEFAULT 0,
-            completed_at TIMESTAMP,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (brigade_id) REFERENCES brigades(id) ON DELETE CASCADE,
-            FOREIGN KEY (assigned_worker_id) REFERENCES workers(id) ON DELETE SET NULL
-        )
-    ''')
-
-    # Таблица расписания бригад
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS brigade_schedule (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            brigade_id INTEGER NOT NULL,
-            title TEXT NOT NULL,
-            description TEXT DEFAULT '',
-            scheduled_date DATE NOT NULL,
-            due_date DATE,
-            priority TEXT DEFAULT 'medium',
-            priority_order INTEGER DEFAULT 3,
-            status TEXT DEFAULT 'pending',
-            assigned_worker_id INTEGER,
-            estimated_hours REAL DEFAULT 0,
-            actual_hours REAL DEFAULT 0,
-            completed_at TIMESTAMP,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (brigade_id) REFERENCES brigades(id) ON DELETE CASCADE,
-            FOREIGN KEY (assigned_worker_id) REFERENCES workers(id) ON DELETE SET NULL
-        )
-    ''')
-
-    # Таблица групп бригад
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS brigade_groups (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            description TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-
-    # Таблица связей групп и бригад
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS brigade_group_members (
-            group_id INTEGER,
-            brigade_id INTEGER,
-            joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (group_id, brigade_id),
-            FOREIGN KEY (group_id) REFERENCES brigade_groups(id) ON DELETE CASCADE,
-            FOREIGN KEY (brigade_id) REFERENCES brigades(id) ON DELETE CASCADE
-        )
-    ''')
-    
-    # Проверяем, есть ли данные
-    cursor.execute("SELECT COUNT(*) FROM brigades")
-    if cursor.fetchone()[0] == 0:
-        seed_database(cursor)
-    
-    conn.commit()
-    conn.close()
-    print("[OK] Database initialized")
-
-def seed_database(cursor):
-    """Заполнение базы тестовыми данными"""
-    print("[INFO] Seeding database...")
-    
-    # Бригады
-    brigades = [
-        (1, 'Бригада подготовки', 'Подготовка материалов', 25, 5, 0.95, 'high'),
-        (2, 'Бригада раскроя', 'Раскрой материалов', 80, 6, 0.88, 'high'),
-        (3, 'Бригада пошива', 'Пошив изделий', 60, 8, 0.92, 'medium'),
-        (4, 'Бригада сборки', 'Сборка изделий', 35, 6, 0.85, 'high'),
-        (5, 'Бригада ОТК', 'Контроль качества', 20, 4, 0.98, 'critical'),
-    ]
-    for b in brigades:
-        cursor.execute(
-            "INSERT OR IGNORE INTO brigades (id, name, description, current_load, max_capacity, efficiency_rating, importance) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            b
-        )
-    
-    # Рабочие
-    workers = [
-        (1, 'Иванов И.И.', 'Раскройщик', 'worker', 2, '["раскрой"]', 'online', 'ivanov', '123', 0),
-        (2, 'Петров П.П.', 'Швея', 'worker', 3, '["пошив"]', 'online', 'petrov', '123', 0),
-        (3, 'Сидорова А.В.', 'Раскройщик', 'worker', 2, '["раскрой"]', 'busy', 'sidorova', '123', 0),
-        (4, 'Кузнецов Н.С.', 'Бригадир', 'brigadier', 2, '["управление"]', 'online', 'kuznetsov', '123', 1),
-        (5, 'Администратор', 'Админ', 'admin', None, '[]', 'online', 'admin', 'admin123', 0),
-    ]
-    for w in workers:
-        cursor.execute(
-            """INSERT OR IGNORE INTO workers (id, name, position, role, brigade_id, skills, status, login, password, is_brigadier)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            w
-        )
-    
-    print("[OK] Database seeded")
-
+from db_unified import init_db, migrate_db, get_db, seed_database
 # ================================================================
 # LIFESPAN
 # ================================================================
@@ -284,7 +71,14 @@ def seed_database(cursor):
 async def lifespan(app: FastAPI):
     print("=" * 60)
     print("[INFO] Manufacturing Optimizer API starting...")
-    init_db()
+    migrate_db()
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM brigades")
+    if cursor.fetchone()[0] == 0:
+        print("[INFO] Database empty, seeding...")
+        seed_database()
+    conn.close()
     print("[INFO] API running at: http://127.0.0.1:8000")
     print("[INFO] API docs at: http://127.0.0.1:8000/docs")
     print("=" * 60)
@@ -309,11 +103,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-from api import ai_endpoints
-app.include_router(ai_endpoints.router)
 
-from api.cpm_endpoints import router as cpm_router
-app.include_router(cpm_router)
+try:
+    from api.ai_endpoints import router as ai_router
+    app.include_router(ai_router)
+    print("[OK] AI endpoints loaded")
+except Exception as e:
+    print(f"[WARN] AI endpoints not loaded: {e}")
+
+try:
+    from api.cpm_endpoints import router as cpm_router
+    app.include_router(cpm_router)
+    print("[OK] CPM endpoints loaded")
+except Exception as e:
+    print(f"[WARN] CPM endpoints not loaded: {e}")
 # ================================================================
 # ГЛОБАЛЬНЫЙ ОБРАБОТЧИК ОШИБОК
 # ================================================================
@@ -2665,85 +2468,32 @@ async def export_operations(format: str = "xlsx"):
 async def import_csv_api():
     """Импорт данных из CSV файла через API"""
     try:
-        import subprocess
-        import sys
-        
-        script_path = Path(__file__).parent / "import_from_csv.py"
-        
-        if not script_path.exists():
-            raise HTTPException(status_code=404, detail="import_from_csv.py not found")
-        
-        result = subprocess.run(
-            [sys.executable, str(script_path)],
-            capture_output=True,
-            text=True,
-            timeout=60
-        )
-        
-        if result.returncode != 0:
-            return {
-                "status": "error",
-                "message": "Import failed",
-                "stderr": result.stderr,
-                "stdout": result.stdout
-            }
-        
+        from db_unified import import_from_csv
+        import_from_csv()
         return {
             "status": "success",
-            "message": "Data imported successfully",
-            "output": result.stdout
+            "message": "Data imported successfully"
         }
-        
-    except subprocess.TimeoutExpired:
-        raise HTTPException(status_code=408, detail="Import timeout")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/import-csv-direct")
 async def import_csv_direct(file: UploadFile = File(...)):
     """Импорт CSV файла напрямую через загрузку"""
     try:
         contents = await file.read()
-        content_str = contents.decode('utf-8')
-        
         csv_path = Path(__file__).parent / "data.csv"
         with open(csv_path, 'w', encoding='utf-8') as f:
-            f.write(content_str)
-        
-        import subprocess
-        import sys
-        
-        script_path = Path(__file__).parent / "import_from_csv.py"
-        
-        if not script_path.exists():
-            raise HTTPException(status_code=404, detail="import_from_csv.py not found")
-        
-        result = subprocess.run(
-            [sys.executable, str(script_path)],
-            capture_output=True,
-            text=True,
-            timeout=60
-        )
-        
-        if result.returncode != 0:
-            return {
-                "status": "error",
-                "message": "Import failed",
-                "stderr": result.stderr,
-                "stdout": result.stdout
-            }
-        
+            f.write(contents.decode('utf-8'))
+        from db_unified import import_from_csv
+        import_from_csv()
         return {
             "status": "success",
-            "message": "Data imported successfully",
-            "output": result.stdout
+            "message": "Data imported successfully"
         }
-        
-    except subprocess.TimeoutExpired:
-        raise HTTPException(status_code=408, detail="Import timeout")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 # ================================================================
 # ОПТИМИЗАЦИЯ ОПЕРАЦИИ
 # ================================================================

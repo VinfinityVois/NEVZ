@@ -48,43 +48,28 @@ export class Dashboard {
      * Получение статистики с сервера
      */
     async fetchStats() {
-        // Имитация API запроса
-        return new Promise(resolve => {
-            setTimeout(() => {
-                resolve({
-                    totalOperations: 270,
-                    completedOperations: 145,
-                    inProgressOperations: 12,
-                    activeBrigades: 8,
-                    efficiency: 87,
-                    criticalPathLength: 7,
-                    avgTaskTime: 4.5,
-                    totalLaborHours: 1240,
-                    brigadesLoad: [
-                        { id: 1, name: 'Подготовка', load: 45 },
-                        { id: 2, name: 'Раскрой', load: 78 },
-                        { id: 3, name: 'Пошив', load: 62 },
-                        { id: 4, name: 'Сборка', load: 33 },
-                        { id: 5, name: 'ОТК', load: 51 }
-                    ],
-                    operationsByStatus: {
-                        pending: 98,
-                        in_progress: 12,
-                        completed: 145,
-                        blocked: 15
-                    },
-                    dailyProgress: [
-                        { date: '2024-01-08', completed: 18 },
-                        { date: '2024-01-09', completed: 22 },
-                        { date: '2024-01-10', completed: 20 },
-                        { date: '2024-01-11', completed: 25 },
-                        { date: '2024-01-12', completed: 19 },
-                        { date: '2024-01-13', completed: 23 },
-                        { date: '2024-01-14', completed: 18 }
-                    ]
-                });
-            }, 500);
-        });
+        try {
+            const res = await fetch('http://127.0.0.1:8000/statistics');
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            return {
+                totalOperations: data.total_operations || 0,
+                completedOperations: data.completed_operations || 0,
+                inProgressOperations: data.in_progress_operations || 0,
+                activeBrigades: data.active_brigades || 0,
+                efficiency: data.avg_efficiency || 0,
+                criticalPathLength: 0, // будет отдельно
+                operationsByStatus: {
+                    pending: data.total_operations - data.completed_operations - data.in_progress_operations || 0,
+                    in_progress: data.in_progress_operations || 0,
+                    completed: data.completed_operations || 0,
+                    blocked: 0
+                }
+            };
+        } catch (e) {
+            console.error('API недоступен, fallback:', e);
+            return this.getDefaultStats();
+        }
     }
 
     /**

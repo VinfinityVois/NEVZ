@@ -112,6 +112,8 @@ if (typeof cytoscape !== 'undefined') {
     }
   }
 
+import { AIPanel } from './ai-panel.js';
+const aiPanel = new AIPanel();
 
 // ================================================================
 // DOM ЭЛЕМЕНТЫ
@@ -5257,23 +5259,91 @@ window.changeGanttView = changeGanttView;
 
 
 async function runOptimization() {
-    showLoading('Оптимизация...');
+    showLoading('AI оптимизация...');
     try {
-        const result = await api.optimize();
+        const result = await aiPanel.runOptimization(
+            allOperationsCache,
+            AdminState.brigades,
+            { availableWorkers: AdminState.workers?.length || 50 }
+        );
+        
         const DOM = getDOM();
-        if (DOM.aiRecommendations) {
-            DOM.aiRecommendations.innerHTML = result.recommendations?.map(r => `<div style="padding:12px;background:#f8f9fa;border-radius:8px;margin-bottom:8px;"><h4>#${r.operation_id}: ${r.operation_name}</h4><p>👥 ${r.recommended_people} чел | ⚡ ${r.efficiency}%</p></div>`).join('') || '<p>Нет рекомендаций</p>';
+        
+        if (DOM.aiPlanSummary) {
+            aiPanel.renderPlanSummary('aiPlanSummary', result.summary);
         }
-        showNotification('Успех', `Экономия: ${result.summary?.time_saved_percent || 0}%`, 'success');
-    } catch (e) { showNotification('Ошибка', e.message, 'error'); } finally { hideLoading(); }
+        
+        if (DOM.aiCriticalPathChart) {
+            aiPanel.renderCriticalPathChart('aiCriticalPathChart', result.plan);
+        }
+        
+        if (DOM.aiBottleneckList) {
+            aiPanel.renderBottleneckAnalysis('aiBottleneckList', aiPanel.lastBottlenecks);
+        }
+        
+        if (DOM.aiRecommendations) {
+            aiPanel.renderRecommendations('aiRecommendations', result.recommendations);
+        }
+        
+        showNotification('Успех', 
+            `Проект: ${result.summary.projectDuration.toFixed(1)} дн, Критических: ${result.summary.criticalPath.length}`, 
+            'success');
+            
+    } catch (e) { 
+        showNotification('Ошибка', e.message, 'error'); 
+    } finally { 
+        hideLoading(); 
+    }
 }
 
 async function loadAIRecommendations() {
     try {
-        const result = await api.optimize();
+        const modelStatus = await aiPanel.getModelStatus();
         const DOM = getDOM();
-        if (DOM.aiRecommendations) DOM.aiRecommendations.innerHTML = result.recommendations?.slice(0,3).map(r => `<div>#${r.operation_id} 👥 ${r.recommended_people}</div>`).join('') || '';
-    } catch (e) {}
+        if (DOM.aiModelStatus) {
+            aiPanel.renderModelStatus('aiModelStatus', modelStatus);
+        }
+        
+        const engineStatus = await aiPanel.getEngineStatus();
+        if (DOM.aiEngineStatus && engineStatus) {
+            const hasPlan = engineStatus.engine?.has_plan;
+            DOM.aiEngineStatus.innerHTML = hasPlan 
+                ? `<span style="color:#22c55e;font-weight:600;">✓ План построен</span> (${engineStatus.engine?.project_duration_days?.toFixed(1) || 0} дн)`
+                : `<span style="color:#6b7280;">План не построен</span>`;
+        }
+        
+        const result = await api.optimize();
+        if (DOM.aiRecommendations && (!aiPanel.lastPlan)) {
+            aiPanel.renderRecommendations('aiRecommendations', result.recommendations || []);
+        }
+    } catch (e) {
+        console.warn('AI recommendations load failed:', e);
+    }
+}
+
+async function trainAIModel() {
+    showLoading('Обучение модели...');
+    try {
+        const result = await aiPanel.trainDelayModel();
+        
+        if (result.status === 'success' || result.status === 'already_running') {
+            showNotification('Успех', 
+                result.message || `Модель обучена на ${result.samples} примерах`, 
+                'success');
+            
+            const modelStatus = await aiPanel.getModelStatus();
+            const DOM = getDOM();
+            if (DOM.aiModelStatus) {
+                aiPanel.renderModelStatus('aiModelStatus', modelStatus);
+            }
+        } else {
+            showNotification('Предупреждение', result.message || 'Недостаточно данных', 'warning');
+        }
+    } catch (e) {
+        showNotification('Ошибка', e.message, 'error');
+    } finally {
+        hideLoading();
+    }
 }
 
 function switchTab(tabId) {

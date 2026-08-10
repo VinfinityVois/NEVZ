@@ -704,54 +704,74 @@
 </div>
                 
                 <!-- ===== ВКЛАДКА AI ОПТИМИЗАЦИЯ ===== -->
-                <div class="tab-pane" id="ai-tab">
-                    <div class="ai-panel">
-                        <div class="ai-header">
-                            <h2>🤖 AI Оптимизация производства</h2>
-                            <p>Интеллектуальный анализ и рекомендации по оптимизации ресурсов</p>
-                        </div>
-                        
-                        <div class="ai-controls">
-                            <div class="control-group">
-                                <label>Доступно рабочих:</label>
-                                <input type="number" id="availableWorkers" class="input" value="50" min="1" max="100">
-                            </div>
-                            <div class="control-group">
-                                <label>Целевая эффективность:</label>
-                                <input type="range" id="targetEfficiency" min="50" max="95" value="80" step="5">
-                                <span id="efficiencyValue">80%</span>
-                            </div>
-                            <button class="btn btn-primary btn-lg" id="runAIOptimizationBtn">
-                                <svg viewBox="0 0 20 20" fill="currentColor">
-                                    <path d="M4 16L16 10L4 4V16Z"/>
-                                </svg>
-                                Запустить оптимизацию
-                            </button>
-                            <button class="btn btn-secondary" id="trainModelBtn">
-                                <svg viewBox="0 0 20 20" fill="currentColor">
-                                    <path d="M3 17H17M5 13V7M9 13V4M13 13V10" stroke="currentColor" stroke-width="1.5"/>
-                                </svg>
-                                Обучить модель
-                            </button>
-                        </div>
-                        
-                        <div class="ai-results" id="aiResults">
-                            <div class="results-summary" id="optimizationSummary" style="display: none;">
-                                <!-- Сводка оптимизации -->
-                            </div>
-                            <div class="results-list" id="optimizationRecommendations">
-                                <!-- Список рекомендаций -->
-                            </div>
-                        </div>
-                        
-                        <div class="ai-model-info">
-                            <h3>Информация о модели</h3>
-                            <div id="modelStats">
-                                <p>Загрузка информации о модели...</p>
-                            </div>
-                        </div>
-                    </div>
+                <!-- AI Tab -->
+<div id="ai-tab" class="tab-pane">
+    <div class="page-header">
+        <h2 class="page-title">🤖 AI Оптимизация</h2>
+        <div class="page-actions">
+            <button class="btn btn-primary" onclick="runOptimization()">
+                <span>⚡ Запустить AI</span>
+            </button>
+            <button class="btn btn-secondary" id="trainModelBtn" onclick="trainAIModel()">
+                <span>🧠 Обучить модель</span>
+            </button>
+        </div>
+    </div>
+    
+    <div class="card" style="margin-bottom:16px;">
+        <div class="card-header">
+            <h3 class="card-title">📊 Статус системы</h3>
+        </div>
+        <div style="padding:16px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                <div>
+                    <h4 style="font-size:13px;color:#6b7280;margin:0 0 8px 0;">AI Engine</h4>
+                    <div id="aiEngineStatus" style="font-size:14px;color:#374151;">Загрузка...</div>
                 </div>
+                <div>
+                    <h4 style="font-size:13px;color:#6b7280;margin:0 0 8px 0;">ML Модели</h4>
+                    <div id="aiModelStatus">Загрузка...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card" style="margin-bottom:16px;">
+        <div class="card-header">
+            <h3 class="card-title">📈 Сводка плана</h3>
+        </div>
+        <div id="aiPlanSummary" style="padding:16px;">
+            <p style="color:#6b7280;">Запустите оптимизацию для получения сводки</p>
+        </div>
+    </div>
+    
+    <div class="card" style="margin-bottom:16px;">
+        <div class="card-header">
+            <h3 class="card-title">🔥 Критический путь</h3>
+        </div>
+        <div id="aiCriticalPathChart" style="padding:16px;overflow-x:auto;">
+            <p style="color:#6b7280;">Запустите оптимизацию для построения графика</p>
+        </div>
+    </div>
+    
+    <div class="card" style="margin-bottom:16px;">
+        <div class="card-header">
+            <h3 class="card-title">⚠️ Анализ узких мест</h3>
+        </div>
+        <div id="aiBottleneckList" style="padding:16px;">
+            <p style="color:#6b7280;">Запустите оптимизацию для анализа</p>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">💡 Рекомендации</h3>
+        </div>
+        <div id="aiRecommendations" style="padding:16px;">
+            <p style="color:#6b7280;">Запустите оптимизацию для получения рекомендаций</p>
+        </div>
+    </div>
+</div>
                 
                 <!-- ===== ВКЛАДКА ОТЧЁТЫ ===== -->
                 <div class="tab-pane" id="reports-tab">
@@ -893,6 +913,8 @@
 <script>
   cytoscape.use(cytoscapeDagre);
 </script>
+
+<script type="module" src="js/admin/admin-main.js"></script>
 
 <script src="https://cdn.jsdelivr.net/npm/handsontable@14.0.0/dist/handsontable.full.min.js"></script>
 <script src="js/libs/handsontable.full.min.js"></script>
