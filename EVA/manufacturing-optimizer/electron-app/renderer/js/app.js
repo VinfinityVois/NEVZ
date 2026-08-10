@@ -709,8 +709,10 @@ function setupEventListeners() {
     // Горячие клавиши
     document.addEventListener('keydown', handleKeyDown);
     
-    // Подписка на события Electron
-    subscribeToElectronEvents();
+    // Подписка на события Electron (с защитой)
+    if (window.electronAPI && window.electronAPI.dbUpdated) {
+        subscribeToElectronEvents(window.electronAPI);
+    }
     
     // Очистка при уходе со страницы
     window.addEventListener('beforeunload', cleanup);
@@ -784,27 +786,27 @@ function handleKeyDown(e) {
     }
 }
 
+if (window.electronAPI && window.electronAPI.dbUpdated) {
+    window.electronAPI.dbUpdated(() => {
+        // обновление данных
+    });
+}
 /**
  * Подписка на события Electron
  */
-function subscribeToElectronEvents() {
-    // Обновление БД
-    window.electronAPI.on.dbUpdated.subscribe((data) => {
-        console.log('[App] БД обновлена:', data);
-        // Можно обновить статистику
-    });
+function subscribeToElectronEvents(api) {
+    if (!api || typeof api.dbUpdated !== 'function') {
+        console.warn('[App] Electron API недоступен');
+        return;
+    }
     
-    // Импорт Excel
-    window.electronAPI.on.importExcelTriggered.subscribe((filePath) => {
-        console.log('[App] Запрошен импорт Excel:', filePath);
-    });
-    
-    // Фокус окна
-    window.electronAPI.on.windowFocus.subscribe(() => {
-        console.log('[App] Окно получило фокус');
-        checkPythonStatus();
+    api.dbUpdated(() => {
+        console.log('[App] База данных обновлена');
+        loadStats();
     });
 }
+
+
 
 /**
  * Очистка ресурсов

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:8000;"> -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src-elem 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' data:; img-src 'self' data:; connect-src 'self' http://127.0.0.1:8000;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; style-src-elem 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; font-src 'self' data:; img-src 'self' data:; connect-src 'self' http://127.0.0.1:8000;">
     <title>Manufacturing Optimizer · Администратор</title>
     
     <!-- Стили -->
@@ -20,6 +20,8 @@
     
     <!-- Иконка -->
     <link rel="icon" type="image/png" href="assets/icons/admin-icon.png">
+
+    <link rel="stylesheet" href="https://unpkg.com/frappe-gantt@0.6.1/dist/frappe-gantt.css">
 </head>
 <body>
     <!-- 
@@ -69,6 +71,14 @@
                         <path d="M6 8L18 8M8 6L8 18M16 6L16 18M6 16L18 16" stroke="currentColor" stroke-width="2"/>
                     </svg>
                     <span>Граф процессов</span>
+                </a>
+
+                <a href="#gantt" class="nav-item" data-tab="gantt">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none">
+                        <rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" stroke-width="2"/>
+                        <path d="M6 8v8M10 8v5M14 8v10M18 8v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    <span>Диаграмма Ганта</span>
                 </a>
                 
                 <a href="#operations" class="nav-item" data-tab="operations">
@@ -335,150 +345,174 @@
                 <!-- ===== ВКЛАДКА ГРАФ ПРОЦЕССОВ ===== -->
                 <!-- ===== ВКЛАДКА ГРАФ ПРОЦЕССОВ (RPG СТИЛЬ) ===== -->
             <!-- ===== ВКЛАДКА ГРАФ ПРОЦЕССОВ ===== -->
-<div class="tab-pane" id="graph-tab">
-    <div class="graph-rpg-container">
-        <!-- Холст для графа -->
-        <div id="cyGraph"></div>
-        
-        <!-- Загрузка -->
-        <div class="graph-loading" id="graphLoading">
-            <div class="spinner"></div>
-            <p>Построение графа процессов...</p>
-        </div>
-        
-        <!-- Верхняя панель инструментов -->
-        <div class="graph-toolbar-top">
-            <div class="graph-toolbar-group">
-                <button class="graph-toolbar-btn" onclick="window.cy?.fit(50)" title="Вписать всё">
-                    <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18">
-                        <rect x="2" y="2" width="16" height="16" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/>
-                    </svg>
-                    Вписать
-                </button>
-                <button class="graph-toolbar-btn" onclick="window.cy?.center(); window.cy?.zoom(1)" title="Сбросить вид">
-                    <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18">
-                        <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5" fill="none"/>
-                        <circle cx="10" cy="10" r="2" fill="currentColor"/>
-                    </svg>
-                    Сбросить
-                </button>
-            </div>
-            
-            <div class="graph-toolbar-group">
-                <select id="graphLayoutSelect" class="graph-select" onchange="changeGraphLayout(this.value)">
-                    <option value="dagre:LR">➡️ Слева направо</option>
-                    <option value="dagre:TB">⬇️ Сверху вниз</option>
-                    <option value="breadthfirst">🌳 Дерево</option>
-                    <option value="cose">🔄 Радиальный</option>
-                </select>
-            </div>
-            
-            <div class="graph-toolbar-group">
-                <label class="graph-checkbox">
-                    <input type="checkbox" id="showCriticalOnly" onchange="toggleCriticalOnly(this.checked)"> Только критический путь
-                </label>
-                <label class="graph-checkbox">
-                    <input type="checkbox" id="showCompleted" checked onchange="toggleCompleted(this.checked)"> Показывать завершённые
-                </label>
-            </div>
-        </div>
-        
-        <!-- Легенда -->
-        <div class="graph-rpg-legend">
-            <h4>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:-2px;margin-right:6px">
-                <rect x="3" y="3" width="7" height="7" rx="1.5" fill="#10b981"/>
-                <rect x="14" y="3" width="7" height="7" rx="1.5" fill="#3b82f6"/>
-                <rect x="3" y="14" width="7" height="7" rx="1.5" fill="#94a3b8"/>
-                <rect x="14" y="14" width="7" height="7" rx="1.5" fill="#ef4444"/>
-              </svg>
-              Легенда
-            </h4>
-            <div class="legend-items">
-              <div class="legend-item">
-                <svg class="legend-icon" width="18" height="18" viewBox="0 0 18 18">
-                  <rect x="2" y="2" width="14" height="14" rx="4" fill="#10b981"/>
-                  <path d="M5.5 9.2l2.2 2.2 4.6-4.8" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-                </svg>
-                <span>Завершено</span>
-              </div>
-              <div class="legend-item">
-                <svg class="legend-icon" width="18" height="18" viewBox="0 0 18 18">
-                  <rect x="2" y="2" width="14" height="14" rx="4" fill="#3b82f6"/>
-                  <circle cx="9" cy="9" r="3.2" fill="none" stroke="#fff" stroke-width="1.6"/>
-                  <path d="M9 6.5v2.8l1.8 1.2" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
-                </svg>
-                <span>В работе</span>
-              </div>
-              <div class="legend-item">
-                <svg class="legend-icon" width="18" height="18" viewBox="0 0 18 18">
-                  <rect x="2" y="2" width="14" height="14" rx="4" fill="#94a3b8"/>
-                  <circle cx="9" cy="9" r="3" fill="none" stroke="#fff" stroke-width="1.5" stroke-dasharray="2.5 2"/>
-                </svg>
-                <span>Ожидает</span>
-              </div>
-              <div class="legend-item">
-                <svg class="legend-icon" width="18" height="18" viewBox="0 0 18 18">
-                  <rect x="2" y="2" width="14" height="14" rx="4" fill="#ef4444"/>
-                  <rect x="6" y="7.5" width="6" height="5" rx="1" fill="none" stroke="#fff" stroke-width="1.4"/>
-                  <path d="M7.5 7.5V6.2a1.5 1.5 0 013 0V7.5" stroke="#fff" stroke-width="1.4" fill="none"/>
-                </svg>
-                <span>Заблокировано</span>
-              </div>
-              <div class="legend-item">
-                <svg class="legend-icon" width="18" height="18" viewBox="0 0 18 18">
-                  <rect x="2" y="2" width="14" height="14" rx="4" fill="#64748b" stroke="#f59e0b" stroke-width="2.5"/>
-                  <path d="M9 5.5v4M9 12.2h.01" stroke="#f59e0b" stroke-width="1.8" stroke-linecap="round"/>
-                </svg>
-                <span>Критический путь</span>
-              </div>
-              <div class="legend-item">
-                <svg class="legend-icon" width="28" height="12" viewBox="0 0 28 12">
-                  <line x1="2" y1="6" x2="20" y2="6" stroke="#10b981" stroke-width="2.5" stroke-linecap="round"/>
-                  <path d="M18 3l5 3-5 3" fill="#10b981"/>
-                </svg>
-                <span>Путь открыт</span>
-              </div>
-              <div class="legend-item">
-                <svg class="legend-icon" width="28" height="12" viewBox="0 0 28 12">
-                  <line x1="2" y1="6" x2="20" y2="6" stroke="#94a3b8" stroke-width="2.2" stroke-dasharray="4 3" stroke-linecap="round"/>
-                  <path d="M18 3l5 3-5 3" fill="#94a3b8"/>
-                </svg>
-                <span>Путь заблокирован</span>
-              </div>
-            </div>
-          </div>
-        
-        <!-- Контролы зума -->
-        <div class="graph-controls">
-            <button class="graph-control-btn" onclick="window.cy?.zoom(window.cy.zoom() * 1.3)" title="Приблизить">
-                <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-                    <circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.5" fill="none"/>
-                    <path d="M13 13L18 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                    <path d="M6 9h6M9 6v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                </svg>
-            </button>
-            <button class="graph-control-btn" onclick="window.cy?.zoom(window.cy.zoom() * 0.7)" title="Отдалить">
-                <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-                    <circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.5" fill="none"/>
-                    <path d="M13 13L18 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                    <path d="M6 9h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                </svg>
-            </button>
-        </div>
-        
-        <!-- Панель информации об узле -->
-        <div class="graph-node-info" id="nodeInfoPanel">
-            <div class="node-info-header">
-                <h4 id="nodeName">Операция</h4>
-                <button class="node-info-close" onclick="hideNodeInfo()">&times;</button>
-            </div>
-            <div class="node-info-body" id="nodeDetails">
-                <!-- Динамическое содержимое -->
-            </div>
-        </div>
-    </div>
-</div>
+                <div class="tab-pane" id="graph-tab">
+                    <div class="graph-rpg-container">
+                        <!-- Холст для графа -->
+                        <div id="cyGraph"></div>
+                        
+                        <!-- Загрузка -->
+                        <div class="graph-loading" id="graphLoading">
+                            <div class="spinner"></div>
+                            <p>Построение графа процессов...</p>
+                        </div>
+                        
+                        <!-- Верхняя панель инструментов -->
+                        <div class="graph-toolbar-top">
+                            <div class="graph-toolbar-group">
+                                <button class="graph-toolbar-btn" onclick="window.cy?.fit(50)" title="Вписать всё">
+                                    <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18">
+                                        <rect x="2" y="2" width="16" height="16" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                                    </svg>
+                                    Вписать
+                                </button>
+                                <button class="graph-toolbar-btn" onclick="window.cy?.center(); window.cy?.zoom(1)" title="Сбросить вид">
+                                    <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18">
+                                        <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                                        <circle cx="10" cy="10" r="2" fill="currentColor"/>
+                                    </svg>
+                                    Сбросить
+                                </button>
+                            </div>
+                            
+                            <div class="graph-toolbar-group">
+                                <select id="graphLayoutSelect" class="graph-select" onchange="changeGraphLayout(this.value)">
+                                    <option value="dagre:LR">➡️ Слева направо</option>
+                                    <option value="dagre:TB">⬇️ Сверху вниз</option>
+                                    <option value="breadthfirst">🌳 Дерево</option>
+                                    <option value="cose">🔄 Радиальный</option>
+                                </select>
+                            </div>
+                            
+                            <div class="graph-toolbar-group">
+                                <label class="graph-checkbox">
+                                    <input type="checkbox" id="showCriticalOnly" onchange="toggleCriticalOnly(this.checked)"> Только критический путь
+                                </label>
+                                <label class="graph-checkbox">
+                                    <input type="checkbox" id="showCompleted" checked onchange="toggleCompleted(this.checked)"> Показывать завершённые
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- Легенда -->
+                        <div class="graph-rpg-legend">
+                            <h4>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:-2px;margin-right:6px">
+                                <rect x="3" y="3" width="7" height="7" rx="1.5" fill="#10b981"/>
+                                <rect x="14" y="3" width="7" height="7" rx="1.5" fill="#3b82f6"/>
+                                <rect x="3" y="14" width="7" height="7" rx="1.5" fill="#94a3b8"/>
+                                <rect x="14" y="14" width="7" height="7" rx="1.5" fill="#ef4444"/>
+                            </svg>
+                            Легенда
+                            </h4>
+                            <div class="legend-items">
+                            <div class="legend-item">
+                                <svg class="legend-icon" width="18" height="18" viewBox="0 0 18 18">
+                                <rect x="2" y="2" width="14" height="14" rx="4" fill="#10b981"/>
+                                <path d="M5.5 9.2l2.2 2.2 4.6-4.8" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                                </svg>
+                                <span>Завершено</span>
+                            </div>
+                            <div class="legend-item">
+                                <svg class="legend-icon" width="18" height="18" viewBox="0 0 18 18">
+                                <rect x="2" y="2" width="14" height="14" rx="4" fill="#3b82f6"/>
+                                <circle cx="9" cy="9" r="3.2" fill="none" stroke="#fff" stroke-width="1.6"/>
+                                <path d="M9 6.5v2.8l1.8 1.2" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+                                </svg>
+                                <span>В работе</span>
+                            </div>
+                            <div class="legend-item">
+                                <svg class="legend-icon" width="18" height="18" viewBox="0 0 18 18">
+                                <rect x="2" y="2" width="14" height="14" rx="4" fill="#94a3b8"/>
+                                <circle cx="9" cy="9" r="3" fill="none" stroke="#fff" stroke-width="1.5" stroke-dasharray="2.5 2"/>
+                                </svg>
+                                <span>Ожидает</span>
+                            </div>
+                            <div class="legend-item">
+                                <svg class="legend-icon" width="18" height="18" viewBox="0 0 18 18">
+                                <rect x="2" y="2" width="14" height="14" rx="4" fill="#ef4444"/>
+                                <rect x="6" y="7.5" width="6" height="5" rx="1" fill="none" stroke="#fff" stroke-width="1.4"/>
+                                <path d="M7.5 7.5V6.2a1.5 1.5 0 013 0V7.5" stroke="#fff" stroke-width="1.4" fill="none"/>
+                                </svg>
+                                <span>Заблокировано</span>
+                            </div>
+                            <div class="legend-item">
+                                <svg class="legend-icon" width="18" height="18" viewBox="0 0 18 18">
+                                <rect x="2" y="2" width="14" height="14" rx="4" fill="#64748b" stroke="#f59e0b" stroke-width="2.5"/>
+                                <path d="M9 5.5v4M9 12.2h.01" stroke="#f59e0b" stroke-width="1.8" stroke-linecap="round"/>
+                                </svg>
+                                <span>Критический путь</span>
+                            </div>
+                            <div class="legend-item">
+                                <svg class="legend-icon" width="28" height="12" viewBox="0 0 28 12">
+                                <line x1="2" y1="6" x2="20" y2="6" stroke="#10b981" stroke-width="2.5" stroke-linecap="round"/>
+                                <path d="M18 3l5 3-5 3" fill="#10b981"/>
+                                </svg>
+                                <span>Путь открыт</span>
+                            </div>
+                            <div class="legend-item">
+                                <svg class="legend-icon" width="28" height="12" viewBox="0 0 28 12">
+                                <line x1="2" y1="6" x2="20" y2="6" stroke="#94a3b8" stroke-width="2.2" stroke-dasharray="4 3" stroke-linecap="round"/>
+                                <path d="M18 3l5 3-5 3" fill="#94a3b8"/>
+                                </svg>
+                                <span>Путь заблокирован</span>
+                            </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Контролы зума -->
+                        <div class="graph-controls">
+                            <button class="graph-control-btn" onclick="window.cy?.zoom(window.cy.zoom() * 1.3)" title="Приблизить">
+                                <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                                    <circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                                    <path d="M13 13L18 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                                    <path d="M6 9h6M9 6v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                                </svg>
+                            </button>
+                            <button class="graph-control-btn" onclick="window.cy?.zoom(window.cy.zoom() * 0.7)" title="Отдалить">
+                                <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                                    <circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                                    <path d="M13 13L18 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                                    <path d="M6 9h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        <!-- Панель информации об узле -->
+                        <div class="graph-node-info" id="nodeInfoPanel">
+                            <div class="node-info-header">
+                                <h4 id="nodeName">Операция</h4>
+                                <button class="node-info-close" onclick="hideNodeInfo()">&times;</button>
+                            </div>
+                            <div class="node-info-body" id="nodeDetails">
+                                <!-- Динамическое содержимое -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== ВКЛАДКА ГАНТТ ===== -->
+                <div class="tab-pane" id="gantt-tab">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                        <h2 style="margin:0;">📅 Диаграмма Ганта</h2>
+                        <div style="display:flex;gap:10px;align-items:center;">
+                            <select id="ganttViewMode" class="input" style="width:140px;" onchange="changeGanttView(this.value)">
+                                <option value="Day">День</option>
+                                <option value="Week" selected>Неделя</option>
+                                <option value="Month">Месяц</option>
+                            </select>
+                            <button class="btn btn-outline btn-sm" onclick="renderGantt()">🔄 Обновить</button>
+                        </div>
+                    </div>
+                    <div style="background:white;border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,0.1);overflow-x:auto;">
+                        <div id="ganttChart" style="min-width:900px;min-height:400px;"></div>
+                    </div>
+                    <div style="display:flex;gap:20px;margin-top:16px;font-size:12px;color:#64748b;">
+                        <span><span style="display:inline-block;width:12px;height:12px;background:#ef4444;border-radius:2px;margin-right:6px;"></span>Критический путь</span>
+                        <span><span style="display:inline-block;width:12px;height:12px;background:#10b981;border-radius:2px;margin-right:6px;"></span>Завершено</span>
+                        <span><span style="display:inline-block;width:12px;height:12px;background:#3b82f6;border-radius:2px;margin-right:6px;"></span>В работе</span>
+                        <span><span style="display:inline-block;width:12px;height:12px;background:#94a3b8;border-radius:2px;margin-right:6px;"></span>Ожидает</span>
+                    </div>
+                </div>
                 
                 <!-- ===== ВКЛАДКА ОПЕРАЦИИ ===== -->
                 <!-- ===== ВКЛАДКА ОПЕРАЦИИ ===== -->
@@ -871,6 +905,8 @@
     console.log('[Admin] Интерфейс администратора загружен');
   });
 </script>
+
+<script src="https://unpkg.com/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
 
 </body>
 </html>

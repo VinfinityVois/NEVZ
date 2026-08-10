@@ -24,6 +24,7 @@ const AdminState = {
 
 const API_BASE = 'http://127.0.0.1:8000';
 
+
 const api = {
     async request(method, endpoint, data = null, isFormData = false) {
         const options = { method };
@@ -171,7 +172,7 @@ const getDOM = () => ({
 // ================================================================
 // ГРАФ ПРОЦЕССОВ (ПОЛНАЯ ПЕРЕРАБОТКА)
 // ================================================================
-
+let ganttChart = null;
 // Глобальная переменная для графа
 let cy = null;
 let graphElements = [];
@@ -5251,6 +5252,8 @@ window.hideNodeInfo = hideNodeInfo;
 window.showNodeInfo = showNodeInfo;
 window.switchTab = switchTab;          // ← добавить
 window.closeAllModals = closeAllModals;
+window.renderGantt = renderGantt;
+window.changeGanttView = changeGanttView;
 
 
 async function runOptimization() {
@@ -5294,6 +5297,8 @@ function switchTab(tabId) {
     
     if (DOM.pageTitle) DOM.pageTitle.textContent = titles[tabId] || tabId;
     
+
+    if (tabId === 'gantt') setTimeout(renderGantt, 100);
     if (tabId === 'graph') setTimeout(renderGraph, 100);
     if (tabId === 'dashboard') setTimeout(renderCharts, 100);
     if (tabId === 'brigade-groups') loadBrigadeGroups();
@@ -5378,5 +5383,139 @@ window.saveOperation = saveOperation;
 window.saveBrigade = saveBrigade;
 window.saveWorker = saveWorker;
 window.closeAllModals = closeAllModals;
+
+
+// ================================================================
+// ДИАГРАММА ГАНТА
+// ================================================================
+
+function renderGantt() {
+    const container = document.getElementById('ganttChart');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    if (!AdminState.operations.length) {
+        container.innerHTML = '<p style="text-align:center;color:#64748b;padding:60px;">Нет операций для отображения. Загрузите данные через Импорт Excel.</p>';
+        return;
+    }
+    
+    // Преобразуем операции в формат Frappe Gantt
+    const tasks = AdminState.operations.map(op => {
+        // Даты: если в БД нет — строим относительно сегодня + порядковый номер
+        let start = op.start_date;
+        let end = op.end_date;
+        
+        if (!start) {
+            const base = new Date();
+            base.setDate(base.getDate() + (op.op_number * 0.3)); // простое смещение
+            start = base.toISOString().split('T')[0];
+        }
+        if (!end) {
+            const s = new Date(start);
+            const days = Math.max(1, Math.ceil((op.duration || 1) / 8)); // 8ч = 1 день
+            s.setDate(s.getDate() + days);
+            end = s.toISOString().split('T')[0];
+        }
+        
+        // Прогресс по статусу
+        let progress = 0;
+        if (op.status === 'completed') progress = 100;
+        else if (op.status === 'in_progress') progress = 50;
+        
+        // Зависимости: prev_ops → строка ID типа "op1, op2"
+        const deps = (op.prev_ops || []).map(p => `op${p}`).join(', ');
+        
+        // Критический путь — красный цвет
+        const isCritical = AdminState.criticalPath.includes(op.op_number);
+        
+        return {
+            id: `op${op.op_number}`,
+            name: truncate(op.name, 25),
+            start: start,
+            end: end,
+            progress: progress,
+            dependencies: deps,
+            custom_class: isCritical ? 'gantt-critical' : `gantt-${op.status}`,
+            // Кастомные поля для popup
+            _op_number: op.op_number,
+            _brigade: getBrigadeName(op.brigade_id),
+            _duration: op.duration || 0,
+            _status: op.status
+        };
+    });
+    
+    // Сортируем по номеру операции
+    tasks.sort((a, b) => a._op_number - b._op_number);
+    
+    // Инициализация
+    ganttChart = new Gantt("#ganttChart", tasks, {
+        view_mode: document.getElementById('ganttViewMode')?.value || 'Week',
+        date_format: 'YYYY-MM-DD',
+        language: 'ru',
+        bar_height: 28,
+        bar_corner_radius: 4,
+        arrow_curve: 5,
+        padding: 18,
+        
+        custom_popup_html: function(task) {
+            const statusText = {
+                completed: '✅ Завершено',
+                in_progress: '🔄 В работе',
+                pending: '⏳ Ожидает',
+                blocked: '🚫 Заблокировано'
+            };
+            return `
+                <div style="padding:12px 16px;background:#1e293b;color:#fff;border-radius:10px;font-size:13px;min-width:220px;box-shadow:0 8px 24px rgba(0,0,0,0.35);">
+                    <div style="font-weight:700;margin-bottom:6px;font-size:14px;">${task.name}</div>
+                    <div style="color:#94a3b8;line-height:1.6;">
+                        <div>📅 ${task.start} → ${task.end}</div>
+                        <div>👥 Бригада: ${task._brigade}</div>
+                        <div>⏱ Длительность: ${task._duration}ч</div>
+                        <div>📊 ${statusText[task._status] || task._status}</div>
+                        <div style="margin-top:6px;">Выполнено: <strong style="color:#fff;">${task.progress}%</strong></div>
+                    </div>
+                </div>
+            `;
+        },
+        
+        on_click: function(task) {
+            const op = AdminState.operations.find(o => o.op_number === task._op_number);
+            if (op) editOperation(op.id);
+        }
+    });
+    
+    // Кастомные стили цветов
+    injectGanttStyles();
+}
+
+function changeGanttView(mode) {
+    if (ganttChart) {
+        ganttChart.change_view_mode(mode);
+    }
+}
+
+function injectGanttStyles() {
+    if (document.getElementById('gantt-custom-styles')) return;
+    
+    const style = document.createElement('style');
+    style.id = 'gantt-custom-styles';
+    style.textContent = `
+        .gantt .bar-wrapper.gantt-critical .bar { fill: #ef4444 !important; }
+        .gantt .bar-wrapper.gantt-critical .bar-progress { fill: #b91c1c !important; }
+        .gantt .bar-wrapper.gantt-completed .bar { fill: #10b981 !important; }
+        .gantt .bar-wrapper.gantt-completed .bar-progress { fill: #059669 !important; }
+        .gantt .bar-wrapper.gantt-in_progress .bar { fill: #3b82f6 !important; }
+        .gantt .bar-wrapper.gantt-in_progress .bar-progress { fill: #2563eb !important; }
+        .gantt .bar-wrapper.gantt-pending .bar { fill: #94a3b8 !important; }
+        .gantt .bar-wrapper.gantt-pending .bar-progress { fill: #64748b !important; }
+        .gantt .bar-wrapper.gantt-blocked .bar { fill: #f59e0b !important; }
+        .gantt .bar-wrapper.gantt-blocked .bar-progress { fill: #d97706 !important; }
+        .gantt .bar-label { font-size: 11px; font-weight: 600; fill: #334155; }
+        .gantt .grid-header { fill: #f8fafc; }
+        .gantt .today-highlight { fill: #dbeafe; opacity: 0.4; }
+    `;
+    document.head.appendChild(style);
+}
 
 document.addEventListener('DOMContentLoaded', initAdmin);

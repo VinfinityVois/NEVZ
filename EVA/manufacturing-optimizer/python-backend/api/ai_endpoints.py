@@ -10,6 +10,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+try:
+    from db_adapter import build_ai_plan_from_db, get_historical_for_ml
+except ImportError:
+    build_ai_plan_from_db = None
+    get_historical_for_ml = None
+    
 # Импорт ИИ-движка
 try:
     from ai import AIEngine
@@ -270,6 +277,33 @@ def train_delay_model(req: TrainDelayModelRequest):
         logger.exception("Ошибка обучения модели задержек")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/train/delay-model-from-db")
+def train_delay_model_from_db():
+    """Обучить модель на данных из manufacturing.db (ai_training_data)"""
+    engine = get_engine()
+    if engine.predictor is None:
+        raise HTTPException(status_code=503, detail="Predictor не инициализирован")
+
+    if get_historical_for_ml is None:
+        raise HTTPException(status_code=503, detail="DB adapter не найден")
+
+    historical = get_historical_for_ml()
+
+    if len(historical) < 20:
+        return {
+            "success": False,
+            "message": f"Недостаточно данных ({len(historical)}). "
+                       f"Сначала заполните таблицу ai_training_data "
+                       f"(POST /ai/sync-training-data или POST /seed-test-data)",
+            "samples": len(historical)
+        }
+
+    result = engine.predictor.train_delay_model(historical=historical, save=True)
+    return {
+        "success": True,
+        **result,
+        "trained_at": datetime.now().isoformat()
+    }
 
 @router.get("/models/status")
 def models_status():
@@ -429,6 +463,47 @@ def run_scenario(req: RunScenarioRequest):
         }
     except Exception as e:
         logger.exception("Ошибка симуляции сценария")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/scenarios/run-from-db")
+def run_scenario_from_db(scenario: ScenarioRequest):
+    """
+    Запуск сценария на текущем плане из БД.
+    Не требует передачи base_plan — подтягивается автоматически.
+    """
+    if build_ai_plan_from_db is None:
+        raise HTTPException(status_code=503, detail="DB adapter не найден")
+
+    if not HAS_SIMULATOR:
+        raise HTTPException(status_code=503, detail="Модуль симуляции недоступен")
+
+    try:
+        base_plan = build_ai_plan_from_db()
+        simulator = ScenarioSimulator()
+
+        scenario_dict = {
+            "name": scenario.name,
+            "description": scenario.description,
+            "task_delays": scenario.task_delays,
+            "disabled_brigades": scenario.disabled_brigades,
+            "duration_multipliers": scenario.duration_multipliers,
+        }
+
+        result = simulator.run_scenario(
+            base_plan=base_plan,
+            scenario=scenario_dict,
+            brigades=base_plan.get("brigades", []),
+            resources=[]
+        )
+
+        return {
+            "success": True,
+            "source": "database",
+            **result
+        }
+    except Exception as e:
+        logger.exception("Ошибка симуляции из БД")
         raise HTTPException(status_code=400, detail=str(e))
 
 

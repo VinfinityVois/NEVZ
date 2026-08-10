@@ -4,6 +4,7 @@ console.log('[Preload] Starting...');
 
 try {
     contextBridge.exposeInMainWorld('electronAPI', {
+        dbUpdated: (callback) => ipcRenderer.on('db-updated', callback),
         app: {
             getVersion: () => ipcRenderer.invoke('get-app-version'),
             getPlatform: () => process.platform,
@@ -20,6 +21,8 @@ try {
             trainModel: (data) => ipcRenderer.invoke('python:train-model', data),
             getStatistics: () => ipcRenderer.invoke('python:statistics')
         },
+        dbUpdated: (callback) => ipcRenderer.on('db-updated', (event, ...args) => callback(...args)),
+
         cpm: {
             calculate: (ops) => ipcRenderer.invoke('python:calculate-cpm', ops)
         },

@@ -92,7 +92,7 @@ class Predictor:
         priority = float(task.get("priority", 1))
         skills_count = len(task.get("required_skills", []) or [])
         deps_count = len(task.get("dependencies", []) or [])
-        float_val = float(task.get("total_float", 5))
+        float_val = float(task.get("total_float", 5) or 5)
         progress = float(task.get("progress", 0.0))
 
         return np.array([

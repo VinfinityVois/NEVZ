@@ -31,6 +31,12 @@ import numpy as np
 import io
 import httpx
 
+from db_adapter import (
+    build_ai_plan_from_db,
+    sync_operation_history_to_training,
+    get_historical_for_ml
+)
+
 # ================================================================
 # КОНФИГУРАЦИЯ ПУТЕЙ
 # ================================================================
@@ -1885,6 +1891,7 @@ async def get_brigade_load_analysis():
 # ================================================================
 
 @app.post("/optimize")
+@app.post("/optimize/legacy")
 async def optimize():
     """
     Оптимизация производства путем перераспределения бригад между операциями
@@ -2230,6 +2237,58 @@ async def predict(data: Dict):
 async def train():
     return {"status": "success", "samples_available": 10}
 
+
+@app.post("/ai/sync-training-data")
+async def sync_training_data():
+    """Переносит operation_history в ai_training_data для ML-модели"""
+    count = sync_operation_history_to_training()
+    return {
+        "status": "success",
+        "synced_records": count,
+        "message": f"Синхронизировано {count} записей для обучения"
+    }
+
+@app.post("/ai/scenarios/run-from-db")
+async def run_scenario_from_db_endpoint(scenario: dict):
+    """
+    Запуск сценария на текущем плане из БД.
+    Тело запроса: {"scenario": {"name": "...", "task_delays": {"T3": 6}, ...}}
+    """
+    from ai.scenario_simulator import ScenarioSimulator
+    from api.ai_endpoints import BrigadeIn, ResourceIn, ScenarioRequest
+
+    base_plan = build_ai_plan_from_db()
+    sim = ScenarioSimulator()
+
+    sc = scenario.get("scenario", {})
+    scenario_dict = {
+        "name": sc.get("name", "Сценарий из БД"),
+        "description": sc.get("description"),
+        "task_delays": sc.get("task_delays", {}),
+        "disabled_brigades": sc.get("disabled_brigades", []),
+        "duration_multipliers": sc.get("duration_multipliers", {}),
+    }
+
+    brigades = base_plan.get("brigades", [])
+
+    result = sim.run_scenario(
+        base_plan=base_plan,
+        scenario=scenario_dict,
+        brigades=brigades,
+        resources=[]
+    )
+
+    # Опционально: красивый текст через Ollama
+    try:
+        delay = result.get("comparison", {}).get("delay_days", 0)
+        prompt = (f"Производственный сценарий: {scenario_dict['name']}. "
+                  f"Сдвиг срока: {delay} дней. Дай краткий вывод для руководителя.")
+        ai_text = await OllamaAssistant.get_recommendation(prompt)
+        result["ai_summary"] = ai_text
+    except Exception:
+        result["ai_summary"] = None
+
+    return result
 # ================================================================
 # ИМПОРТ EXCEL
 # ================================================================
@@ -2968,9 +3027,36 @@ async def seed_test_data():
                 )
                 WHERE id = ?
             """, (b["id"], b["id"]))
+
+                # Автозаполнение ai_training_data для демо
+        demo_training = []
+        cursor.execute("SELECT id, labor_hours, people_count, duration, time_reserve FROM operations")
+        for row in cursor.fetchall():
+            planned = row['labor_hours'] / row['people_count'] if row['people_count'] else 1
+            actual = row['duration'] or planned * (1 + (hash(row['id']) % 20) / 100)
+            demo_training.append({
+                "operation_id": row['id'],
+                "labor_hours": row['labor_hours'],
+                "people_count": row['people_count'],
+                "brigade_load": 50,
+                "time_reserve": row['time_reserve'],
+                "actual_duration": round(actual, 2),
+                "efficiency": 0.9
+            })
+        for dt in demo_training:
+            cursor.execute("""
+                INSERT OR IGNORE INTO ai_training_data 
+                (operation_id, labor_hours, people_count, brigade_load, time_reserve, actual_duration, efficiency)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (dt['operation_id'], dt['labor_hours'], dt['people_count'],
+                  dt['brigade_load'], dt['time_reserve'], dt['actual_duration'], dt['efficiency']))
         
+
+        sync_operation_history_to_training()
         conn.commit()
         conn.close()
+
+        
         
         return {
             "status": "success",
@@ -2986,29 +3072,6 @@ async def seed_test_data():
         conn.close()
         raise HTTPException(status_code=500, detail=f"Ошибка создания тестовых данных: {str(e)}")
 
-
-# from ai.scenario_simulator import ScenarioSimulator
-
-# simulator = ScenarioSimulator()
-
-# scenario = {
-#     "name": "Поломка сварочного на сборке секции",
-#     "description": "Оборудование встало на 6 дней",
-#     "task_delays": {
-#         "T3": 6          # id критической работы
-#     },
-#     "disabled_brigades": []
-# }
-
-# result = simulator.run_scenario(
-#     base_plan=current_plan,
-#     scenario=scenario,
-#     brigades=brigades
-# )
-
-# print("Сдвиг срока:", result["comparison"]["delay_days"], "дней")
-# print("Уровень влияния:", result["impact_level"])
-# print("Рекомендации:", result["recommendations"])
 
 # ================================================================
 # ЗАПУСК
