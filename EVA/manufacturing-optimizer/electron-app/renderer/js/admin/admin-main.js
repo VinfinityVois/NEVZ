@@ -1436,7 +1436,103 @@ window.deleteOperation = deleteOperation;
 window.runOptimization = runOptimization;
 window.trainAIModel = trainAIModel;
 
+window.goToOperation = function(opNumber) {
+    opNumber = String(opNumber).replace(/^T/i, '');
 
+    if (typeof switchTab === 'function') {
+        switchTab('operations');
+    }
+
+    const all = window.allOperationsCache || (typeof AdminState !== 'undefined' ? AdminState.operations : []) || [];
+    const op = all.find(o => String(o.op_number) === String(opNumber));
+
+    const search = document.getElementById('searchOperations');
+    if (search) {
+        search.value = opNumber;
+        if (typeof filterOperations === 'function') filterOperations();
+        if (typeof applyFilters === 'function') applyFilters();
+    }
+
+    setTimeout(() => {
+        const rows = document.querySelectorAll('#operationsTableBody tr, .operations-table tr, table tbody tr');
+        let found = false;
+        rows.forEach(tr => {
+            tr.style.outline = '';
+            tr.style.background = '';
+            const text = tr.textContent || '';
+            if (text.includes('#' + opNumber) || text.match(new RegExp('\\b' + opNumber + '\\b'))) {
+                tr.style.outline = '2px solid #dc2626';
+                tr.style.background = '#fef2f2';
+                tr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                found = true;
+            }
+        });
+        if (op && typeof selectOperation === 'function') {
+            selectOperation(op.id);
+        }
+        if (!found && typeof showNotification === 'function') {
+            showNotification('Операция', '#' + opNumber + (op ? ' — ' + op.name : ' не найдена на текущей странице'), 'info');
+        }
+    }, 350);
+};
+
+window.showBottleneckDetail = function(raw) {
+    let d;
+    try {
+        d = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    } catch (e) {
+        d = { name: String(raw), message: '', suggestion: '' };
+    }
+
+    const overlay = document.getElementById('modalOverlay');
+    if (overlay) overlay.style.display = 'flex';
+
+    const old = document.getElementById('bottleneckDetailModal');
+    if (old) old.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'bottleneckDetailModal';
+    modal.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:12px;padding:24px;max-width:480px;width:90%;z-index:10001;box-shadow:0 20px 50px rgba(0,0,0,.25);';
+
+    const opNum = String(d.task_id || '').replace(/^T/i, '');
+
+    modal.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h3 style="margin:0;font-size:16px;">Узкое место</h3>
+            <button type="button" id="bnCloseBtn" style="border:0;background:none;font-size:22px;cursor:pointer;line-height:1;">×</button>
+        </div>
+        <div style="font-size:13px;line-height:1.65;color:#334155;">
+            <div><b>Объект:</b> ${d.name || '—'}</div>
+            <div><b>Тип:</b> ${d.type || '—'}</div>
+            <div><b>Уровень:</b> ${d.severity || '—'}</div>
+            <div style="margin-top:12px;"><b>Проблема</b><br>${d.message || '—'}</div>
+            <div style="margin-top:12px;color:#0961f6;"><b>Рекомендация</b><br>${d.suggestion || '—'}</div>
+            ${opNum ? `
+            <div style="margin-top:16px;">
+                <button type="button" id="bnGoOpBtn" class="btn btn-primary btn-sm"
+                    style="padding:8px 14px;border-radius:8px;border:0;background:#0961f6;color:#fff;cursor:pointer;">
+                    Перейти к операции #${opNum}
+                </button>
+            </div>` : ''}
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    const close = () => {
+        modal.remove();
+        if (overlay) overlay.style.display = 'none';
+    };
+    document.getElementById('bnCloseBtn').onclick = close;
+    if (overlay) overlay.onclick = close;
+
+    const goBtn = document.getElementById('bnGoOpBtn');
+    if (goBtn) {
+        goBtn.onclick = () => {
+            close();
+            if (window.goToOperation) window.goToOperation(opNum);
+        };
+    }
+};
 
 // ================================================================
 // БРИГАДЫ (ПОЛНАЯ ПЕРЕРАБОТКА С ПОИСКОМ И СОРТИРОВКОЙ)

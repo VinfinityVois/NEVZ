@@ -99,7 +99,23 @@ export class AIPanel {
             }
             
             let recommendations = result.recommendations || [];
-            
+
+            // Если рекомендаций нет — берём из узких мест
+            // Если рекомендаций нет — берём из узких мест
+            if (recommendations.length === 0) {
+                const bns = (this.lastBottlenecks && this.lastBottlenecks.length)
+                    ? this.lastBottlenecks
+                    : (result.plan && result.plan.bottlenecks) ? result.plan.bottlenecks : [];
+                recommendations = bns.map(bn => ({
+                    type: bn.type || 'bottleneck',
+                    severity: bn.severity || 'medium',
+                    message: bn.message || bn.reason || 'Узкое место',
+                    suggestion: bn.suggestion || '',
+                    task_id: bn.task_id,
+                    task_name: bn.task_name,
+                    brigade_id: bn.brigade_id
+                }));
+            }           
             if (recommendations.length === 0 && result.plan?.critical_path_ids) {
                 const cpTasks = result.plan.tasks?.filter(t => 
                     result.plan.critical_path_ids.includes(t.id)
@@ -144,9 +160,11 @@ export class AIPanel {
                 recommendations: recommendations,
                 summary: {
                     totalOperations: result.plan?.tasks?.length || 0,
-                    projectDuration: result.plan?.project_duration_days || 0,
+                    projectDuration: result.plan?.total_duration_days
+                                  ?? result.plan?.project_duration_days
+                                  ?? 0,
                     criticalPath: result.plan?.critical_path_ids || [],
-                    leveled: result.plan?.leveled || false
+                    leveled: !!(result.plan?.leveling?.leveled || result.plan?.leveled)
                 }
             };
             
@@ -347,39 +365,53 @@ export class AIPanel {
         const container = document.getElementById(containerId);
         if (!container) return;
     
-        if (!plan || !plan.critical_path_ids || plan.critical_path_ids.length === 0) {
+        const ids = plan?.critical_path_ids || [];
+        const tasks = plan?.tasks || [];
+        const byId = Object.fromEntries(tasks.map(t => [t.id, t]));
+    
+        if (!ids.length) {
             container.innerHTML = `
-                <div style="text-align:center;padding:24px;color:#6b7280;font-size:13px;">
-                    Запустите оптимизацию для построения графика
+                <div style="padding:16px;color:#6b7280;font-size:13px;text-align:center;">
+                    Запустите AI для построения критического пути
                 </div>`;
             return;
         }
     
-        const tasks = plan.tasks || [];
-        const cpIds = new Set(plan.critical_path_ids);
-        const critical = tasks.filter(t => cpIds.has(t.id) || t.is_critical);
+        const top = ids.slice(0, 15);
+        const rest = ids.slice(15);
+        const duration = plan.total_duration_days ?? plan.project_duration_days ?? '—';
     
-        if (critical.length === 0) {
-            container.innerHTML = `<div style="padding:16px;color:#6b7280;">Критический путь: ${plan.critical_path_ids.join(' → ')}</div>`;
-            return;
-        }
-    
-        const items = critical.map(t => {
-            const name = t.name || t.id;
+        const row = (id) => {
+            const t = byId[id] || {};
+            const name = t.name || id;
             const dur = t.duration_days ?? t.duration ?? '—';
+            const opNum = String(id).replace(/^T/i, '');
             return `
-                <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#fef2f2;border-left:3px solid #ef4444;border-radius:6px;margin-bottom:6px;">
-                    <span style="font-weight:700;color:#dc2626;min-width:48px;">${t.id}</span>
-                    <span style="flex:1;font-size:13px;color:#111827;">${name}</span>
-                    <span style="font-size:12px;color:#64748b;">${dur} дн.</span>
+                <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid #fecaca;cursor:pointer;background:#fff;"
+                     onmouseover="this.style.background='#fef2f2'"
+                     onmouseout="this.style.background='#fff'"
+                     onclick="window.goToOperation && window.goToOperation('${opNum}')">
+                    <span style="font-weight:700;color:#dc2626;min-width:48px;font-size:12px;">${id}</span>
+                    <span style="flex:1;font-size:12px;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</span>
+                    <span style="font-size:11px;color:#64748b;">${typeof dur === 'number' ? dur.toFixed(2) : dur} дн</span>
                 </div>`;
-        }).join('');
+        };
     
         container.innerHTML = `
-            <div style="margin-bottom:8px;font-size:12px;color:#64748b;">
-                Критических работ: <b>${critical.length}</b> · Длительность проекта: <b>${plan.total_duration_days ?? plan.project_duration_days ?? '—'} дн.</b>
+            <div style="font-size:12px;color:#64748b;margin-bottom:8px;">
+                <b>${ids.length}</b> крит. · <b>${duration}</b> дн.
+                <span style="color:#94a3b8;margin-left:6px;">клик → Операции</span>
             </div>
-            ${items}`;
+            <div style="max-height:300px;overflow-y:auto;border:1px solid #fecaca;border-radius:8px;">
+                ${top.map(row).join('')}
+                ${rest.length ? `
+                    <details>
+                        <summary style="padding:8px 10px;cursor:pointer;font-size:12px;color:#64748b;background:#fef2f2;">
+                            Ещё ${rest.length}…
+                        </summary>
+                        ${rest.map(row).join('')}
+                    </details>` : ''}
+            </div>`;
     }
 
     /**
@@ -389,69 +421,93 @@ export class AIPanel {
         const container = document.getElementById(containerId);
         if (!container) return;
     
-        if (!bottlenecks || bottlenecks.length === 0) {
-            container.innerHTML = `
-                <div style="text-align:center;padding:24px;color:#6b7280;">
-                    Узких мест не обнаружено
-                </div>`;
+        if (!bottlenecks || !bottlenecks.length) {
+            container.innerHTML = `<div style="text-align:center;padding:24px;color:#6b7280;">Узких мест не обнаружено</div>`;
             return;
         }
     
         const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
-        const severityColors = {
-            critical: '#dc2626',
-            high: '#ef4444',
-            medium: '#f59e0b',
-            low: '#0961f6'
-        };
-        const severityLabels = {
-            critical: 'Критический',
-            high: 'Высокий',
-            medium: 'Средний',
-            low: 'Низкий'
-        };
+        const severityColors = { critical: '#dc2626', high: '#ef4444', medium: '#f59e0b', low: '#0961f6' };
+        const severityLabels = { critical: 'Критический', high: 'Высокий', medium: 'Средний', low: 'Низкий' };
     
         const sorted = [...bottlenecks].sort(
             (a, b) => (severityOrder[a.severity] ?? 9) - (severityOrder[b.severity] ?? 9)
         );
+    
+        const counts = {};
+        sorted.forEach(b => {
+            const s = b.severity || 'medium';
+            counts[s] = (counts[s] || 0) + 1;
+        });
     
         const rows = sorted.map((bn, i) => {
             const sev = bn.severity || 'medium';
             const color = severityColors[sev] || '#6b7280';
             const label = severityLabels[sev] || sev;
             const name = bn.task_name || bn.brigade_name || bn.task_id || `Пункт ${i + 1}`;
-            const msg = bn.message || bn.reason || '—';
-            const sug = bn.suggestion || '—';
+            const msg = (bn.message || bn.reason || '—').replace(/"/g, '&quot;');
+            const sug = (bn.suggestion || '—').replace(/"/g, '&quot;');
+            const payload = encodeURIComponent(JSON.stringify({
+                severity: sev,
+                name: name,
+                message: bn.message || bn.reason || '',
+                suggestion: bn.suggestion || '',
+                task_id: bn.task_id || '',
+                type: bn.type || '',
+                brigade_id: bn.brigade_id || ''
+            }));
     
             return `
-                <tr style="border-bottom:1px solid #e5e7eb;">
-                    <td style="padding:10px 12px;white-space:nowrap;">
-                        <span style="background:${color};color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;">
-                            ${label}
-                        </span>
+                <tr data-sev="${sev}" style="border-bottom:1px solid #e5e7eb;cursor:pointer;"
+                    onclick="window.showBottleneckDetail && window.showBottleneckDetail(decodeURIComponent('${payload}'))">
+                    <td style="padding:8px 10px;white-space:nowrap;">
+                        <span style="background:${color};color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;">${label}</span>
                     </td>
-                    <td style="padding:10px 12px;font-weight:600;color:#111827;max-width:200px;">${name}</td>
-                    <td style="padding:10px 12px;color:#4b5563;font-size:13px;">${msg}</td>
-                    <td style="padding:10px 12px;color:#0961f6;font-size:12px;">${sug}</td>
+                    <td style="padding:8px 10px;font-weight:600;max-width:160px;">${name}</td>
+                    <td style="padding:8px 10px;color:#4b5563;font-size:12px;">${msg}</td>
+                    <td style="padding:8px 10px;color:#0961f6;font-size:12px;">${sug}</td>
                 </tr>`;
         }).join('');
     
         container.innerHTML = `
-            <div style="overflow-x:auto;">
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+                <button data-sev="all" class="bn-filter"
+                    style="padding:4px 10px;border-radius:12px;border:1px solid #e5e7eb;background:#111827;color:#fff;font-size:11px;cursor:pointer;">
+                    Все (${sorted.length})
+                </button>
+                ${['critical','high','medium','low'].filter(s => counts[s]).map(s => `
+                    <button data-sev="${s}" class="bn-filter"
+                        style="padding:4px 10px;border-radius:12px;border:1px solid #e5e7eb;background:#fff;font-size:11px;cursor:pointer;">
+                        ${severityLabels[s]} (${counts[s]})
+                    </button>`).join('')}
+            </div>
+            <div style="overflow:auto;max-height:360px;">
                 <table style="width:100%;border-collapse:collapse;font-size:13px;">
                     <thead>
-                        <tr style="background:#f8fafc;text-align:left;">
-                            <th style="padding:10px 12px;color:#64748b;font-weight:600;">Уровень</th>
-                            <th style="padding:10px 12px;color:#64748b;font-weight:600;">Объект</th>
-                            <th style="padding:10px 12px;color:#64748b;font-weight:600;">Проблема</th>
-                            <th style="padding:10px 12px;color:#64748b;font-weight:600;">Рекомендация</th>
+                        <tr style="background:#f8fafc;text-align:left;position:sticky;top:0;">
+                            <th style="padding:8px 10px;color:#64748b;">Уровень</th>
+                            <th style="padding:8px 10px;color:#64748b;">Объект</th>
+                            <th style="padding:8px 10px;color:#64748b;">Проблема</th>
+                            <th style="padding:8px 10px;color:#64748b;">Рекомендация</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        ${rows}
-                    </tbody>
+                    <tbody>${rows}</tbody>
                 </table>
             </div>`;
+    
+        container.querySelectorAll('.bn-filter').forEach(btn => {
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                const sev = btn.dataset.sev;
+                container.querySelectorAll('.bn-filter').forEach(b => {
+                    b.style.background = b === btn ? '#111827' : '#fff';
+                    b.style.color = b === btn ? '#fff' : '#111';
+                });
+                container.querySelectorAll('tbody tr').forEach(tr => {
+                    tr.style.display = (sev === 'all' || tr.dataset.sev === sev) ? '' : 'none';
+                });
+            };
+        });
     }
 
     /**
@@ -493,7 +549,6 @@ export class AIPanel {
 formatRecommendation(rec) {
     if (!rec) return '';
 
-    // Готовый текст
     if (rec.message || rec.suggestion) {
         let html = '';
         if (rec.message) {
@@ -505,35 +560,26 @@ formatRecommendation(rec) {
         if (rec.task_id || rec.op_number) {
             html += `<div style="font-size:11px;color:#94a3b8;margin-top:2px;">Задача: ${rec.task_id || rec.op_number}</div>`;
         }
-        return html || JSON.stringify(rec);
+        return html;
     }
 
-    // По типу
     switch (rec.type) {
         case 'critical_path_task':
             return `<strong>🔥 ${rec.task_name || rec.op_number || rec.task_id || 'Задача'}</strong>
-                    <div style="color:#64748b;">На критическом пути${rec.duration ? ` · ${Number(rec.duration).toFixed(1)} дн.` : ''}</div>`;
-
+                    <div style="color:#64748b;">На критическом пути${rec.duration ? ` · ${Number(rec.duration).toFixed(2)} дн.` : ''}</div>`;
         case 'assign_operation':
             return `<strong>🎯 ${rec.operation_name || rec.op_number || ''}</strong>
                     <div>Назначить на бригаду <b>${rec.to_brigade_name || rec.to_brigade_id}</b></div>
                     ${rec.reason ? `<div style="color:#64748b;font-size:11px;">${rec.reason}</div>` : ''}`;
-
         case 'bottleneck':
         case 'dependency_bottleneck':
-        case 'critical_path_task':
         case 'brigade_overload':
         case 'near_critical':
         case 'long_task':
+        case 'overload':
             return `<strong>${rec.task_name || rec.brigade_name || rec.task_id || 'Узкое место'}</strong>
                     <div>${rec.message || rec.reason || 'Требует внимания'}</div>
                     ${rec.suggestion ? `<div style="color:#0961f6;">💡 ${rec.suggestion}</div>` : ''}`;
-
-        case 'overload':
-            return `<strong>⚠️ Перегрузка бригады</strong>
-                    <div>${rec.message || ''}</div>
-                    ${rec.suggestion ? `<div style="color:#0961f6;">💡 ${rec.suggestion}</div>` : ''}`;
-
         default:
             return rec.reason || rec.message || rec.suggestion ||
                    (typeof rec === 'string' ? rec : JSON.stringify(rec));
