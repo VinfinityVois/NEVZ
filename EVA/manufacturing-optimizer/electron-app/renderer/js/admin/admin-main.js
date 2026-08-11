@@ -454,6 +454,8 @@ async function loadAllData() {
       allOperationsCache = allOps.sort((a, b) => a.id - b.id);
       window.allOperationsCache = allOperationsCache;
       window.filteredOperationsCache = filteredOperationsCache;
+      window.allOperationsCache = allOperationsCache;
+      window.filteredOperationsCache = filteredOperationsCache;
       
       // Изначально отфильтрованный кэш = оригинальный
       filteredOperationsCache = [...allOperationsCache];

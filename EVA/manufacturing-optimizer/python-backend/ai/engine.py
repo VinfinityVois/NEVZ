@@ -199,6 +199,7 @@ class AIEngine:
         Возвращает рекомендации по улучшению текущего плана.
         Берёт данные из bottleneck-ов + перегрузки.
         """
+
         plan = plan or self.last_plan
         if not plan:
             return []

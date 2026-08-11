@@ -555,13 +555,13 @@ def generate_test_data(brigades_count=500, workers_count=1000, groups_count=10, 
     conn = get_db()
     cursor = conn.cursor()
 
-    # Очистка
-    for tbl in ['operation_history','brigade_tasks','brigade_schedule','operations',
-                'brigade_group_members','brigade_groups','workers','brigades']:
+        # Очистка
+    for tbl in ['operation_history', 'brigade_tasks', 'brigade_schedule', 'operations',
+                'brigade_group_members', 'brigade_groups', 'workers', 'brigades', 'ai_training_data']:
         try:
             cursor.execute(f"DELETE FROM {tbl}")
             cursor.execute(f"DELETE FROM sqlite_sequence WHERE name='{tbl}'")
-        except:
+        except Exception:
             pass
 
     print(f"[GEN] Генерация {brigades_count} бригад, {workers_count} рабочих, {ops_count} операций...")
@@ -668,15 +668,66 @@ def generate_test_data(brigades_count=500, workers_count=1000, groups_count=10, 
                     if operations[i]['op_number'] not in prev:
                         prev.append(operations[i]['op_number'])
                         operations[idx]['prev_ops'] = json.dumps(prev)
+    
+    
+    operations[i]['next_ops'] = json.dumps(nlist)
+    # Связи операций
+    for i in range(len(operations)):
+        if random.random() > 0.3:
+            nxt = random.sample(range(len(operations)), min(random.randint(1, 3), len(operations) - 1))
+            nlist = []
+            for idx in nxt:
+                if idx != i and operations[idx]['op_number'] > operations[i]['op_number']:
+                    nlist.append(operations[idx]['op_number'])
+                    prev = json.loads(operations[idx]['prev_ops'])
+                    if operations[i]['op_number'] not in prev:
+                        prev.append(operations[i]['op_number'])
+                        operations[idx]['prev_ops'] = json.dumps(prev)
             operations[i]['next_ops'] = json.dumps(nlist)
 
     for op in operations:
-                cursor.execute("""
+        cursor.execute("""
             INSERT INTO operations (id,post,op_number,prev_ops,next_ops,name,drawing,labor_hours,people_count,duration,brigade_id,location,time_reserve,status,priority,start_date,end_date)
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-        """, (op['id'],op['post'],op['op_number'],op['prev_ops'],op['next_ops'],op['name'],op['drawing'],
-              op['labor_hours'],op['people_count'],op['duration'],op['brigade_id'],op['location'],
-              op['time_reserve'],op['status'],op['priority'],op['start_date'],op['end_date']))
+        """, (op['id'], op['post'], op['op_number'], op['prev_ops'], op['next_ops'], op['name'], op['drawing'],
+              op['labor_hours'], op['people_count'], op['duration'], op['brigade_id'], op['location'],
+              op['time_reserve'], op['status'], op['priority'], op['start_date'], op['end_date']))
+
+    # Заполнение ai_training_data для обучения ML-модели
+    print(f"[GEN] Заполнение ai_training_data...")
+    for op in operations:
+        delay = round(random.uniform(-3, 8), 1)
+        is_critical = 1 if (op['priority'] == 'critical' or op['time_reserve'] == 0) else 0
+        cursor.execute("""
+            INSERT INTO ai_training_data
+            (operation_id, op_number, name, duration, labor_hours, people_count,
+             priority, status, brigade_id, start_date, end_date,
+             actual_delay_days, is_critical, total_float)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            op['id'], op['op_number'], op['name'], op['duration'],
+            op['labor_hours'], op['people_count'], op['priority'], op['status'],
+            op['brigade_id'], op['start_date'], op['end_date'],
+            delay, is_critical, op['time_reserve']
+        ))
+
+        # Заполнение ai_training_data для обучения ML-модели
+    print(f"[GEN] Заполнение ai_training_data...")
+    for op in operations:
+        delay = round(random.uniform(-3, 8), 1)
+        is_critical = 1 if (op['priority'] == 'critical' or op['time_reserve'] == 0) else 0
+        cursor.execute("""
+            INSERT INTO ai_training_data
+            (operation_id, op_number, name, duration, labor_hours, people_count,
+             priority, status, brigade_id, start_date, end_date,
+             actual_delay_days, is_critical, total_float)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            op['id'], op['op_number'], op['name'], op['duration'],
+            op['labor_hours'], op['people_count'], op['priority'], op['status'],
+            op['brigade_id'], op['start_date'], op['end_date'],
+            delay, is_critical, op['time_reserve']
+        ))
 
     # Админ
     cursor.execute("""
@@ -694,18 +745,15 @@ def generate_test_data(brigades_count=500, workers_count=1000, groups_count=10, 
 def clear_database():
     conn = get_db()
     cursor = conn.cursor()
-    for tbl in ['operation_history','brigade_tasks','brigade_schedule',
-                'brigade_group_members','brigade_groups','operations',
-                'workers','brigades']:
+    for tbl in ['operation_history', 'brigade_tasks', 'brigade_schedule',
+                'brigade_group_members', 'brigade_groups', 'operations',
+                'workers', 'brigades', 'ai_training_data']:
         try:
             cursor.execute(f"DELETE FROM {tbl}")
             cursor.execute(f"DELETE FROM sqlite_sequence WHERE name='{tbl}'")
             print(f"  [CLEAR] {tbl}")
-        except:
+        except Exception:
             pass
-    conn.commit()
-    conn.close()
-    print("[OK] Все таблицы очищены")
 
 # ================================================================
 # CLI

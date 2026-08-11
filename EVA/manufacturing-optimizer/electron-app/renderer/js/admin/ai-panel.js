@@ -16,115 +16,11 @@ export class AIPanel {
     /**
      * Форматирование одной рекомендации в читаемый текст
      */
-    formatRecommendation(rec) {
-        if (!rec || typeof rec !== 'object') {
-            return String(rec);
-        }
-
-        const type = rec.type || 'recommendation';
-
-        switch (type) {
-            case 'assign_operation':
-                const opName = rec.operation_name || `Операция #${rec.op_number || rec.operation_id}`;
-                const brigadeName = rec.to_brigade_name || `Бригада #${rec.to_brigade_id}`;
-                const reason = rec.reason || 'Операция не назначена на бригаду';
-                const people = rec.people_count ? ` (${rec.people_count} чел.)` : '';
-                const duration = rec.current_duration ? `, длительность ${rec.current_duration} ч` : '';
-                return `<strong>🎯 Назначить операцию</strong><br>
-                        <span style="color:#0961f6;font-weight:600;">${opName}</span>${people}${duration}<br>
-                        <span style="color:#059669;">→ ${brigadeName}</span><br>
-                        <span style="color:#6b7280;font-size:11px;">💡 ${reason}</span>`;
-
-                        case 'critical_path_task':
-                const taskName = rec.task_name || rec.name || rec.operation_name || `Операция #${rec.op_number || '?'}`;
-                const durVal = parseFloat(rec.duration);
-                const durationDays = (!isNaN(durVal) && durVal > 0) ? durVal.toFixed(1) : 'не указана';
-                return `<strong>🔥 ${taskName}</strong><br>
-                        <span style="color:#6b7280;font-size:11px;">Длительность: <strong style="color:#dc2626;">${durationDays}</strong> ${durVal > 0 ? 'дн' : ''}</span>`;
-
-            case 'reorder':
-                return `<strong>🔄 Изменить порядок</strong><br>
-                        ${rec.message || rec.description || 'Рекомендуется изменить последовательность операций'}`;
-
-            case 'split':
-                return `<strong>✂️ Разделить задачу</strong><br>
-                        ${rec.message || rec.description || 'Рекомендуется разделить задачу на части'}`;
-
-            case 'add_resource':
-                return `<strong>➕ Добавить ресурсы</strong><br>
-                        ${rec.message || rec.description || 'Требуется увеличить ресурсы'}`;
-
-            case 'reduce_scope':
-                return `<strong>📉 Сократить объём</strong><br>
-                        ${rec.message || rec.description || 'Рекомендуется сократить объём работ'}`;
-
-            case 'parallelize':
-                return `<strong>⚡ Параллелизация</strong><br>
-                        ${rec.message || rec.description || 'Операции можно выполнять параллельно'}`;
-
-            case 'delay_risk':
-                return `<strong>⚠️ Риск задержки</strong><br>
-                        ${rec.message || rec.description || 'Высокий риск задержки'}`;
-
-            default:
-                if (rec.message || rec.description) {
-                    return `<strong>📌 ${rec.type || 'Рекомендация'}</strong><br>
-                            ${rec.message || rec.description}`;
-                }
-                const keyFields = ['name', 'task_name', 'operation_name', 'brigade_name', 'reason', 'suggestion'];
-                const parts = [];
-                for (const key of keyFields) {
-                    if (rec[key]) {
-                        parts.push(`${key}: ${rec[key]}`);
-                    }
-                }
-                if (parts.length > 0) {
-                    return `<strong>📌 ${type}</strong><br>${parts.join('<br>')}`;
-                }
-                return `<strong>📌 ${type}</strong><br>
-                        <code style="font-size:11px;background:#f3f4f6;padding:4px;border-radius:4px;">
-                            ${JSON.stringify(rec, null, 2).substring(0, 200)}
-                        </code>`;
-        }
-    }
-
+    
     /**
      * Локальная генерация рекомендаций (fallback)
      */
-    generateLocalRecommendations(operations, brigades) {
-        const recs = [];
-        const activeOps = (operations || []).filter(op => op.status !== 'completed');
-
-        const criticalOps = activeOps.filter(op => (op.time_reserve || 0) === 0);
-        for (const op of criticalOps.slice(0, 5)) {
-            recs.push({
-                type: 'critical_path_task',
-                task_name: op.name,
-                duration: (op.duration || 0) / 8
-            });
-        }
-
-        const unassigned = activeOps.filter(op => !op.brigade_id);
-        for (const op of unassigned.slice(0, 5)) {
-            const brigade = brigades.find(b => (b.current_load || 0) < 80);
-            if (brigade) {
-                recs.push({
-                    type: 'assign_operation',
-                    operation_id: op.id,
-                    op_number: op.op_number,
-                    operation_name: op.name,
-                    to_brigade_id: brigade.id,
-                    to_brigade_name: brigade.name,
-                    current_duration: op.duration,
-                    people_count: op.people_count,
-                    priority: op.priority || 'MEDIUM',
-                    reason: `Операция не назначена на бригаду. Бригада '${brigade.name}' имеет свободные ресурсы.`
-                });
-            }
-        }
-
-        return recs;
-    }
+   
 
     /**
      * Форматирование одной рекомендации в читаемый текст
@@ -449,68 +345,41 @@ export class AIPanel {
      */
     renderCriticalPathChart(containerId, plan) {
         const container = document.getElementById(containerId);
-        if (!container || !plan || !plan.tasks) return;
-        
-        const tasks = plan.tasks || [];
-        const criticalIds = new Set(plan.critical_path_ids || []);
-        
-        if (tasks.length === 0) {
-            container.innerHTML = '<p style="color:#6b7280;">Нет данных для построения графика</p>';
+        if (!container) return;
+    
+        if (!plan || !plan.critical_path_ids || plan.critical_path_ids.length === 0) {
+            container.innerHTML = `
+                <div style="text-align:center;padding:24px;color:#6b7280;font-size:13px;">
+                    Запустите оптимизацию для построения графика
+                </div>`;
             return;
         }
-
-        const sortedTasks = [...tasks].sort((a, b) => (a.start_day || 0) - (b.start_day || 0));
-        const maxDay = Math.max(...tasks.map(t => (t.start_day || 0) + (t.duration_days || 1)));
-        const dayWidth = Math.min(40, Math.max(20, 600 / (maxDay || 1)));
-        const barHeight = 28;
-        const rowHeight = 40;
-        const leftMargin = 160;
-        const topMargin = 20;
-        
-        const svgWidth = leftMargin + (maxDay * dayWidth) + 60;
-        const svgHeight = topMargin + (sortedTasks.length * rowHeight) + 40;
-        
-        let svg = `<svg width="100%" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}" style="font-family:system-ui,sans-serif;font-size:12px;">`;
-        
-        for (let d = 0; d <= maxDay; d += 5) {
-            const x = leftMargin + d * dayWidth;
-            svg += `<line x1="${x}" y1="${topMargin}" x2="${x}" y2="${svgHeight - 30}" stroke="#e5e7eb" stroke-width="1"/>`;
-            svg += `<text x="${x}" y="${topMargin - 5}" fill="#9ca3af" font-size="10">Д${d}</text>`;
+    
+        const tasks = plan.tasks || [];
+        const cpIds = new Set(plan.critical_path_ids);
+        const critical = tasks.filter(t => cpIds.has(t.id) || t.is_critical);
+    
+        if (critical.length === 0) {
+            container.innerHTML = `<div style="padding:16px;color:#6b7280;">Критический путь: ${plan.critical_path_ids.join(' → ')}</div>`;
+            return;
         }
-        
-        sortedTasks.forEach((task, i) => {
-            const y = topMargin + i * rowHeight;
-            const start = task.start_day || 0;
-            const duration = task.duration_days || 1;
-            const x = leftMargin + start * dayWidth;
-            const width = Math.max(dayWidth * 0.5, duration * dayWidth);
-            const isCritical = criticalIds.has(task.id);
-            
-            const color = isCritical ? '#ef4444' : task.leveled ? '#f59e0b' : '#0961f6';
-            const label = task.name?.length > 18 ? task.name.substring(0, 18) + '...' : (task.name || task.id);
-            
-            svg += `<text x="${leftMargin - 8}" y="${y + barHeight/2 + 4}" text-anchor="end" fill="#374151" font-size="11">${label}</text>`;
-            svg += `<rect x="${x}" y="${y}" width="${width}" height="${barHeight}" rx="4" fill="${color}" opacity="0.85"/>`;
-            
-            if (width > 30) {
-                svg += `<text x="${x + width/2}" y="${y + barHeight/2 + 4}" text-anchor="middle" fill="white" font-size="10" font-weight="500">${duration}д</text>`;
-            }
-            
-            if (isCritical) {
-                svg += `<circle cx="${x - 8}" cy="${y + barHeight/2}" r="3" fill="#ef4444"/>`;
-            }
-        });
-        
-        const legendY = svgHeight - 20;
-        svg += `<rect x="${leftMargin}" y="${legendY}" width="12" height="12" rx="2" fill="#ef4444"/>`;
-        svg += `<text x="${leftMargin + 18}" y="${legendY + 10}" fill="#374151" font-size="11">Критический путь</text>`;
-        svg += `<rect x="${leftMargin + 130}" y="${legendY}" width="12" height="12" rx="2" fill="#0961f6"/>`;
-        svg += `<text x="${leftMargin + 148}" y="${legendY + 10}" fill="#374151" font-size="11">Обычная задача</text>`;
-        svg += `<rect x="${leftMargin + 260}" y="${legendY}" width="12" height="12" rx="2" fill="#f59e0b"/>`;
-        svg += `<text x="${leftMargin + 278}" y="${legendY + 10}" fill="#374151" font-size="11">Сдвинута (leveling)</text>`;
-        
-        svg += '</svg>';
-        container.innerHTML = svg;
+    
+        const items = critical.map(t => {
+            const name = t.name || t.id;
+            const dur = t.duration_days ?? t.duration ?? '—';
+            return `
+                <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#fef2f2;border-left:3px solid #ef4444;border-radius:6px;margin-bottom:6px;">
+                    <span style="font-weight:700;color:#dc2626;min-width:48px;">${t.id}</span>
+                    <span style="flex:1;font-size:13px;color:#111827;">${name}</span>
+                    <span style="font-size:12px;color:#64748b;">${dur} дн.</span>
+                </div>`;
+        }).join('');
+    
+        container.innerHTML = `
+            <div style="margin-bottom:8px;font-size:12px;color:#64748b;">
+                Критических работ: <b>${critical.length}</b> · Длительность проекта: <b>${plan.total_duration_days ?? plan.project_duration_days ?? '—'} дн.</b>
+            </div>
+            ${items}`;
     }
 
     /**
@@ -519,39 +388,70 @@ export class AIPanel {
     renderBottleneckAnalysis(containerId, bottlenecks) {
         const container = document.getElementById(containerId);
         if (!container) return;
-        
+    
         if (!bottlenecks || bottlenecks.length === 0) {
             container.innerHTML = `
-                <div style="text-align:center;padding:24px;">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" style="margin-bottom:12px;">
-                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                        <polyline points="22 4 12 14.01 9 11.01"/>
-                    </svg>
-                    <p style="color:#6b7280;">Узких мест не обнаружено. Производство работает оптимально!</p>
+                <div style="text-align:center;padding:24px;color:#6b7280;">
+                    Узких мест не обнаружено
                 </div>`;
             return;
         }
-        
-        const severityColors = { high: '#ef4444', medium: '#f59e0b', low: '#0961f6' };
-        const severityLabels = { high: 'Высокий', medium: 'Средний', low: 'Низкий' };
-        
-        container.innerHTML = bottlenecks.map((bn, i) => {
-            const color = severityColors[bn.severity] || '#6b7280';
-            const label = severityLabels[bn.severity] || bn.severity;
-            const taskName = bn.task_name || bn.task_id || `Задача ${i+1}`;
-            
+    
+        const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+        const severityColors = {
+            critical: '#dc2626',
+            high: '#ef4444',
+            medium: '#f59e0b',
+            low: '#0961f6'
+        };
+        const severityLabels = {
+            critical: 'Критический',
+            high: 'Высокий',
+            medium: 'Средний',
+            low: 'Низкий'
+        };
+    
+        const sorted = [...bottlenecks].sort(
+            (a, b) => (severityOrder[a.severity] ?? 9) - (severityOrder[b.severity] ?? 9)
+        );
+    
+        const rows = sorted.map((bn, i) => {
+            const sev = bn.severity || 'medium';
+            const color = severityColors[sev] || '#6b7280';
+            const label = severityLabels[sev] || sev;
+            const name = bn.task_name || bn.brigade_name || bn.task_id || `Пункт ${i + 1}`;
+            const msg = bn.message || bn.reason || '—';
+            const sug = bn.suggestion || '—';
+    
             return `
-                <div style="border-left:4px solid ${color};padding:12px 16px;margin-bottom:10px;background:#f9fafb;border-radius:8px;">
-                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-                        <span style="background:${color};color:white;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;">${label}</span>
-                        <strong style="color:#111827;font-size:14px;">${taskName}</strong>
-                    </div>
-                    <p style="color:#4b5563;font-size:13px;margin:0 0 6px 0;">${bn.reason || 'Узкое место в производстве'}</p>
-                    ${bn.suggestion ? `<p style="color:#0961f6;font-size:12px;margin:0;font-weight:500;">💡 ${bn.suggestion}</p>` : ''}
-                    ${bn.impact_days ? `<p style="color:#6b7280;font-size:11px;margin:4px 0 0 0;">Влияние: +${bn.impact_days.toFixed(1)} дн.</p>` : ''}
-                </div>
-            `;
+                <tr style="border-bottom:1px solid #e5e7eb;">
+                    <td style="padding:10px 12px;white-space:nowrap;">
+                        <span style="background:${color};color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;">
+                            ${label}
+                        </span>
+                    </td>
+                    <td style="padding:10px 12px;font-weight:600;color:#111827;max-width:200px;">${name}</td>
+                    <td style="padding:10px 12px;color:#4b5563;font-size:13px;">${msg}</td>
+                    <td style="padding:10px 12px;color:#0961f6;font-size:12px;">${sug}</td>
+                </tr>`;
         }).join('');
+    
+        container.innerHTML = `
+            <div style="overflow-x:auto;">
+                <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                    <thead>
+                        <tr style="background:#f8fafc;text-align:left;">
+                            <th style="padding:10px 12px;color:#64748b;font-weight:600;">Уровень</th>
+                            <th style="padding:10px 12px;color:#64748b;font-weight:600;">Объект</th>
+                            <th style="padding:10px 12px;color:#64748b;font-weight:600;">Проблема</th>
+                            <th style="padding:10px 12px;color:#64748b;font-weight:600;">Рекомендация</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows}
+                    </tbody>
+                </table>
+            </div>`;
     }
 
     /**
@@ -585,6 +485,60 @@ export class AIPanel {
             </div>
         `;
     }
+
+
+/**
+ * Форматирование одной рекомендации в читаемый HTML
+ */
+formatRecommendation(rec) {
+    if (!rec) return '';
+
+    // Готовый текст
+    if (rec.message || rec.suggestion) {
+        let html = '';
+        if (rec.message) {
+            html += `<div style="font-weight:600;margin-bottom:2px;">${rec.message}</div>`;
+        }
+        if (rec.suggestion) {
+            html += `<div style="color:#64748b;">💡 ${rec.suggestion}</div>`;
+        }
+        if (rec.task_id || rec.op_number) {
+            html += `<div style="font-size:11px;color:#94a3b8;margin-top:2px;">Задача: ${rec.task_id || rec.op_number}</div>`;
+        }
+        return html || JSON.stringify(rec);
+    }
+
+    // По типу
+    switch (rec.type) {
+        case 'critical_path_task':
+            return `<strong>🔥 ${rec.task_name || rec.op_number || rec.task_id || 'Задача'}</strong>
+                    <div style="color:#64748b;">На критическом пути${rec.duration ? ` · ${Number(rec.duration).toFixed(1)} дн.` : ''}</div>`;
+
+        case 'assign_operation':
+            return `<strong>🎯 ${rec.operation_name || rec.op_number || ''}</strong>
+                    <div>Назначить на бригаду <b>${rec.to_brigade_name || rec.to_brigade_id}</b></div>
+                    ${rec.reason ? `<div style="color:#64748b;font-size:11px;">${rec.reason}</div>` : ''}`;
+
+        case 'bottleneck':
+        case 'dependency_bottleneck':
+        case 'critical_path_task':
+        case 'brigade_overload':
+        case 'near_critical':
+        case 'long_task':
+            return `<strong>${rec.task_name || rec.brigade_name || rec.task_id || 'Узкое место'}</strong>
+                    <div>${rec.message || rec.reason || 'Требует внимания'}</div>
+                    ${rec.suggestion ? `<div style="color:#0961f6;">💡 ${rec.suggestion}</div>` : ''}`;
+
+        case 'overload':
+            return `<strong>⚠️ Перегрузка бригады</strong>
+                    <div>${rec.message || ''}</div>
+                    ${rec.suggestion ? `<div style="color:#0961f6;">💡 ${rec.suggestion}</div>` : ''}`;
+
+        default:
+            return rec.reason || rec.message || rec.suggestion ||
+                   (typeof rec === 'string' ? rec : JSON.stringify(rec));
+    }
+}
 
     /**
      * Рендер рекомендаций
