@@ -613,12 +613,19 @@ function renderAll() {
 // ================================================================
 
 function updateStats(stats) {
+    // Не перезаписываем карточки, если уже есть полный кэш операций
+    if (window.allOperationsCache && window.allOperationsCache.length) {
+        updateDashboardCards(window.allOperationsCache, AdminState.brigades || []);
+        return;
+    }
     const DOM = getDOM();
-    if (DOM.totalOps) DOM.totalOps.textContent = stats.total_operations || 0;
-    if (DOM.completedOps) DOM.completedOps.textContent = stats.completed_operations || 0;
-    if (DOM.inProgressOps) DOM.inProgressOps.textContent = stats.in_progress_operations || 0;
-    if (DOM.activeBrigadesCount) DOM.activeBrigadesCount.textContent = stats.active_brigades || 0;
+    if (DOM.totalOps) DOM.totalOps.textContent = stats?.total_operations ?? 0;
+    if (DOM.completedOps) DOM.completedOps.textContent = stats?.completed_operations ?? 0;
+    if (DOM.inProgressOps) DOM.inProgressOps.textContent = stats?.in_progress_operations ?? 0;
+    if (DOM.activeBrigadesCount) DOM.activeBrigadesCount.textContent = stats?.active_brigades ?? 0;
 }
+
+
 
 function updateCriticalPathUI(cpm) {
     const DOM = getDOM();
@@ -705,85 +712,220 @@ function updateCriticalPathUI(cpm) {
 }
 
 function renderCharts() {
-    const DOM = getDOM();
-    if (AdminState.operations.length) renderProgressChart(DOM.progressCanvas, AdminState.operations);
-    if (AdminState.brigades.length) renderBrigadeChart(DOM.brigadeLoadCanvas, AdminState.brigades);
+    const ops = window.allOperationsCache || AdminState.operations || [];
+    const brigades = AdminState.brigades || [];
+    updateDashboardCards(ops, brigades);
+    renderProgressChart(ops);
+    renderBrigadeLoadChart(brigades);
+    renderDashboardAlerts(collectDashboardAlerts(ops, brigades, AdminState.criticalPath || []));
 }
 
-function renderProgressChart(canvas, ops) {
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const w = canvas.width = canvas.offsetWidth || 400;
-    const h = canvas.height = 200;
-    ctx.clearRect(0, 0, w, h);
-    
-    const counts = {
-        completed: ops.filter(o => o.status === 'completed').length,
-        in_progress: ops.filter(o => o.status === 'in_progress').length,
-        pending: ops.filter(o => o.status === 'pending').length
-    };
-    const total = ops.length || 1;
-    const data = [
-        { label: 'Завершено', value: counts.completed, color: '#10b981' },
-        { label: 'В работе', value: counts.in_progress, color: '#0961f6' },
-        { label: 'Ожидает', value: counts.pending, color: '#f59e0b' }
-    ].filter(d => d.value > 0);
-    
-    if (!data.length) return;
-    
-    let start = 0;
-    const cx = w / 2, cy = h / 2, r = Math.min(w, h) / 2 - 30;
-    
-    data.forEach(d => {
-        const angle = (d.value / total) * 2 * Math.PI;
-        ctx.beginPath();
-        ctx.fillStyle = d.color;
-        ctx.moveTo(cx, cy);
-        ctx.arc(cx, cy, r, start, start + angle);
-        ctx.closePath();
-        ctx.fill();
-        
-        const mid = start + angle / 2;
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 11px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(`${Math.round(d.value / total * 100)}%`, cx + Math.cos(mid) * r * 0.7, cy + Math.sin(mid) * r * 0.7);
-        start += angle;
+
+function renderProgressChart(ops) {
+    const canvas = document.getElementById('progressCanvas');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    const list = ops || window.allOperationsCache || [];
+    const total = list.length || 1;
+    const completed = list.filter(o => o.status === 'completed').length;
+    const inProgress = list.filter(o => o.status === 'in_progress').length;
+    const blocked = list.filter(o => o.status === 'blocked').length;
+    const pending = Math.max(0, list.length - completed - inProgress - blocked);
+
+    const pctDone = ((completed / total) * 100).toFixed(1);
+    const elBig = document.getElementById('progressPctBig');
+    if (elBig) elBig.textContent = pctDone + '%';
+
+    const legend = document.getElementById('progressLegend');
+    // if (legend) {
+    //     const rows = [
+    //         { c: '#22c55e', t: 'Завершено', n: completed, key: 'completed' },
+    //         { c: '#3b82f6', t: 'В работе', n: inProgress, key: 'in_progress' },
+    //         { c: '#94a3b8', t: 'Ожидает', n: pending, key: 'pending' },
+    //         { c: '#f59e0b', t: 'Блок', n: blocked, key: 'blocked' }
+    //     ];
+    //     legend.innerHTML = rows.map(r =>
+    //         `<div style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px 0;" data-status-filter="${r.key}">
+    //             <span style="width:10px;height:10px;border-radius:50%;background:${r.c};flex-shrink:0;"></span>
+    //             <span style="flex:1;">${r.t}</span>
+    //             <span style="font-weight:600;font-variant-numeric:tabular-nums;">${r.n}</span>
+    //             <span style="color:#64748b;min-width:44px;text-align:right;">${((r.n / total) * 100).toFixed(1)}%</span>
+    //         </div>`
+    //     ).join('');
+    //     legend.querySelectorAll('[data-status-filter]').forEach(el => {
+    //         el.onclick = () => goToOperationsWithStatus(el.getAttribute('data-status-filter'));
+    //     });
+    // }
+
+    if (window._progressChart) {
+        window._progressChart.destroy();
+        window._progressChart = null;
+    }
+
+    window._progressChart = new Chart(canvas, {
+        type: 'doughnut',
+        data: {
+            labels: ['Завершено', 'В работе', 'Ожидает', 'Блок'],
+            datasets: [{
+                data: [completed, inProgress, pending, blocked],
+                backgroundColor: ['#22c55e', '#3b82f6', '#94a3b8', '#f59e0b'],
+                borderWidth: 0,
+                hoverOffset: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            cutout: '72%',
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label(ctx) {
+                            const v = ctx.raw || 0;
+                            return `${ctx.label}: ${v} (${((v / total) * 100).toFixed(1)}%)`;
+                        }
+                    }
+                }
+            },
+            onClick(_e, elements) {
+                if (!elements.length) return;
+                const map = ['completed', 'in_progress', 'pending', 'blocked'];
+                goToOperationsWithStatus(map[elements[0].index]);
+            }
+        }
+    });
+
+    renderStatusMiniBars({ completed, inProgress, pending, blocked, total });
+}
+
+function renderStatusMiniBars({ completed, inProgress, pending, blocked, total }) {
+    const box = document.getElementById('statusMiniBars');
+    if (!box) return;
+    const t = total || 1;
+    const items = [
+        { key: 'completed', label: 'Завершено', n: completed, color: '#22c55e' },
+        { key: 'in_progress', label: 'В работе', n: inProgress, color: '#3b82f6' },
+        { key: 'pending', label: 'Ожидает', n: pending, color: '#94a3b8' },
+        { key: 'blocked', label: 'Блок', n: blocked, color: '#f59e0b' }
+    ];
+    box.innerHTML = items.map(it => {
+        const p = ((it.n / t) * 100).toFixed(1);
+        return `
+        <div style="cursor:pointer;" onclick="window.goToOperationsWithStatus('${it.key}')" title="Открыть операции">
+            <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;">
+                <span style="font-weight:600;color:#1e293b;">${it.label}</span>
+                <span style="color:#64748b;font-variant-numeric:tabular-nums;">${it.n} · ${p}%</span>
+            </div>
+            <div style="height:12px;background:#f1f5f9;border-radius:6px;overflow:hidden;">
+                <div style="height:100%;width:${p}%;background:${it.color};border-radius:6px;transition:width .5s ease;"></div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+window.goToOperationsWithStatus = function(status) {
+    if (typeof switchTab === 'function') switchTab('operations');
+    const sel = document.getElementById('filterStatus');
+    if (sel) {
+        sel.value = status || '';
+        if (typeof filterOperations === 'function') filterOperations();
+        else if (typeof applyFilters === 'function') applyFilters();
+    }
+    showNotification('Фильтр', status ? `Операции: ${status}` : 'Все статусы', 'info');
+};
+
+function renderBrigadeLoadChart(brigades) {
+    const canvas = document.getElementById('brigadeLoadCanvas');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    const ops = window.allOperationsCache || [];
+    const byBrigade = {};
+    ops.forEach(op => {
+        if (!op.brigade_id) return;
+        if (!byBrigade[op.brigade_id]) byBrigade[op.brigade_id] = { total: 0, active: 0 };
+        byBrigade[op.brigade_id].total++;
+        if (op.status === 'in_progress' || op.status === 'pending') {
+            byBrigade[op.brigade_id].active++;
+        }
+    });
+
+    const top = [...(brigades || [])]
+        .map(b => {
+            const fromApi = Number(b.current_load);
+            let load = (Number.isFinite(fromApi) && fromApi > 0) ? fromApi : 0;
+            if (load === 0 && byBrigade[b.id]) {
+                const cap = Math.max(1, Number(b.workers_count) || Number(b.max_workers) || 5);
+                // грубая оценка: активные операции / ёмкость * 20 (подстрой под завод)
+                load = Math.min(100, Math.round((byBrigade[b.id].active / cap) * 40 + byBrigade[b.id].total * 2));
+            }
+            return {
+                name: String(b.name || ('Бр.' + b.id)).slice(0, 22),
+                load: Math.min(100, Math.max(0, load)),
+                id: b.id
+            };
+        })
+        .filter(t => t.load > 0 || byBrigade[t.id])
+        .sort((a, b) => b.load - a.load)
+        .slice(0, 12);
+
+    // если всё ещё пусто — покажи топ по числу операций
+    if (!top.length) {
+        const fallback = Object.entries(byBrigade)
+            .map(([id, v]) => {
+                const b = (brigades || []).find(x => String(x.id) === String(id));
+                return {
+                    name: String(b?.name || ('Бр.' + id)).slice(0, 22),
+                    load: Math.min(100, v.active * 15 + v.total),
+                    id
+                };
+            })
+            .sort((a, b) => b.load - a.load)
+            .slice(0, 12);
+        top.push(...fallback);
+    }
+
+    if (window._brigadeChart) {
+        window._brigadeChart.destroy();
+        window._brigadeChart = null;
+    }
+
+    window._brigadeChart = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: top.map(t => t.name),
+            datasets: [{
+                label: 'Загрузка %',
+                data: top.map(t => t.load),
+                backgroundColor: top.map(t =>
+                    t.load >= 90 ? '#ef4444' : t.load >= 70 ? '#f59e0b' : '#3b82f6'
+                ),
+                borderRadius: 4,
+                barThickness: 14
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y',
+            animation: { duration: 700, easing: 'easeOutQuart' },
+            scales: {
+                x: { min: 0, max: 100, grid: { color: '#f1f5f9' }, ticks: { font: { size: 11 } } },
+                y: { ticks: { font: { size: 11 } }, grid: { display: false } }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => `Загрузка: ${ctx.raw}%`
+                    }
+                }
+            }
+        }
     });
 }
 
-function renderBrigadeChart(canvas, brigades) {
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const w = canvas.width = canvas.offsetWidth || 500;
-    const h = canvas.height = 200;
-    ctx.clearRect(0, 0, w, h);
-    
-    const display = brigades.slice(0, 6);
-    if (!display.length) return;
-    
-    const barW = Math.min(50, (w - 80) / display.length - 10);
-    const maxLoad = Math.max(...display.map(b => b.current_load || 0), 100);
-    
-    display.forEach((b, i) => {
-        const x = 50 + i * (barW + 15);
-        const barH = ((b.current_load || 0) / maxLoad) * (h - 50);
-        const y = h - 20 - barH;
-        
-        let color = '#10b981';
-        if (b.current_load > 80) color = '#ef4444';
-        else if (b.current_load > 60) color = '#f59e0b';
-        else if (b.current_load > 30) color = '#0961f6';
-        
-        ctx.fillStyle = color;
-        ctx.fillRect(x, y, barW, barH);
-        ctx.fillStyle = '#414B4E';
-        ctx.font = '10px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(b.name.substring(0, 8), x + barW / 2, h - 5);
-        ctx.fillText(`${Math.round(b.current_load || 0)}%`, x + barW / 2, y - 5);
-    });
-}
+
 
 // ================================================================
 // ИМПОРТ EXCEL
@@ -1221,6 +1363,9 @@ function goToPage(page) {
 // В setupEventListeners добавьте:
 document.getElementById('prevPage')?.addEventListener('click', prevPage);
 document.getElementById('nextPage')?.addEventListener('click', nextPage);
+document.getElementById('cardCompleted')?.addEventListener('click', () => {
+    if (window.showPeriodComparisonModal) window.showPeriodComparisonModal();
+});
 
 
 
@@ -5908,5 +6053,180 @@ function injectGanttStyles() {
     `;
     document.head.appendChild(style);
 }
+
+// ================================================================
+// ДАШБОРД: % , периоды, графики, алерты
+// ================================================================
+
+function snapshotKey(date = new Date()) {
+    return 'dash_snap_' + date.toISOString().slice(0, 10);
+}
+
+function saveAndCompareSnapshot(stats) {
+    const todayKey = snapshotKey();
+    localStorage.setItem(todayKey, JSON.stringify({ ...stats, ts: Date.now() }));
+    const y = new Date();
+    y.setDate(y.getDate() - 1);
+    const yRaw = localStorage.getItem(snapshotKey(y));
+    if (!yRaw) return null;
+    try {
+        const yesterday = JSON.parse(yRaw);
+        return (stats.completed || 0) - (yesterday.completed || 0);
+    } catch {
+        return null;
+    }
+}
+
+function getPeriodStats() {
+    const todayRaw = localStorage.getItem(snapshotKey());
+    const today = todayRaw ? JSON.parse(todayRaw) : null;
+    const loadDaysAgo = (n) => {
+        const d = new Date();
+        d.setDate(d.getDate() - n);
+        const raw = localStorage.getItem(snapshotKey(d));
+        return raw ? JSON.parse(raw) : null;
+    };
+    const diff = (a, b, field) => {
+        if (!a || !b) return null;
+        return (a[field] || 0) - (b[field] || 0);
+    };
+    const d1 = loadDaysAgo(1), d7 = loadDaysAgo(7), d30 = loadDaysAgo(30);
+    const d180 = loadDaysAgo(180), d365 = loadDaysAgo(365);
+    return {
+        day:   { label: 'Сутки',   completed: diff(today, d1, 'completed'), inProgress: diff(today, d1, 'inProgress') },
+        week:  { label: 'Неделя',  completed: diff(today, d7, 'completed'), inProgress: diff(today, d7, 'inProgress') },
+        month: { label: 'Месяц',   completed: diff(today, d30, 'completed'), inProgress: diff(today, d30, 'inProgress') },
+        half:  { label: 'Полгода', completed: diff(today, d180, 'completed'), inProgress: diff(today, d180, 'inProgress') },
+        year:  { label: 'Год',     completed: diff(today, d365, 'completed'), inProgress: diff(today, d365, 'inProgress') }
+    };
+}
+
+window.showPeriodComparisonModal = function() {
+    const data = getPeriodStats();
+    const fmt = (v) => v === null ? 'нет данных' : (v > 0 ? `+${v}` : String(v));
+    const overlay = document.getElementById('modalOverlay');
+    if (overlay) overlay.style.display = 'flex';
+    document.getElementById('periodCompareModal')?.remove();
+    const modal = document.createElement('div');
+    modal.id = 'periodCompareModal';
+    modal.className = 'modal';
+    modal.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:12px;padding:24px;max-width:420px;width:92%;z-index:10001;box-shadow:0 20px 50px rgba(0,0,0,.25);';
+    modal.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+            <h3 style="margin:0;font-size:16px;">Активность по периодам</h3>
+            <button type="button" id="periodClose" style="border:0;background:none;font-size:22px;cursor:pointer;">×</button>
+        </div>
+        <p style="font-size:12px;color:#64748b;margin:0 0 12px;">Δ завершённых / в работе относительно снимка на дату. Снимки пишутся при обновлении дашборда.</p>
+        <table style="width:100%;font-size:13px;border-collapse:collapse;">
+            <tr style="text-align:left;color:#64748b;"><th style="padding:6px 0;">Период</th><th>Завершено</th><th>В работе</th></tr>
+            ${['day','week','month','half','year'].map(k => `
+                <tr style="border-top:1px solid #e5e7eb;">
+                    <td style="padding:8px 0;">${data[k].label}</td>
+                    <td>${fmt(data[k].completed)}</td>
+                    <td>${fmt(data[k].inProgress)}</td>
+                </tr>`).join('')}
+        </table>`;
+    document.body.appendChild(modal);
+    const close = () => { modal.remove(); if (overlay) overlay.style.display = 'none'; };
+    document.getElementById('periodClose').onclick = close;
+};
+
+function updateDashboardCards(ops, brigades) {
+    const list = ops || [];
+    const total = list.length;
+    const completed = list.filter(o => o.status === 'completed').length;
+    const inProgress = list.filter(o => o.status === 'in_progress').length;
+    const pct = (n) => total ? ((n / total) * 100).toFixed(1) : '0.0';
+
+    const elTotal = document.getElementById('totalOps');
+    const elDone = document.getElementById('completedOps');
+    const elProg = document.getElementById('inProgressOps');
+    const elBrig = document.getElementById('activeBrigadesCount');
+    const elDoneTrend = document.getElementById('completedTrend');
+    const elProgTrend = document.getElementById('inProgressTrend');
+    const elOpsTrend = document.getElementById('opsTrend');
+
+    if (elTotal) elTotal.textContent = total;
+    if (elDone) elDone.textContent = completed;
+    if (elProg) elProg.textContent = inProgress;
+    if (elBrig) elBrig.textContent = (brigades || []).length;
+    if (elOpsTrend) elOpsTrend.textContent = total ? `100%` : '—';
+    if (elProgTrend) elProgTrend.textContent = `${pct(inProgress)}%`;
+
+    const dayDelta = saveAndCompareSnapshot({ total, completed, inProgress, pending: total - completed - inProgress });
+    if (elDoneTrend) {
+        const p = pct(completed);
+        if (dayDelta === null) {
+            elDoneTrend.textContent = `${p}% · нет вчера`;
+            elDoneTrend.style.color = '#64748b';
+        } else if (dayDelta > 0) {
+            elDoneTrend.textContent = `${p}% · ↑ +${dayDelta} за сутки`;
+            elDoneTrend.style.color = '#16a34a';
+        } else if (dayDelta < 0) {
+            elDoneTrend.textContent = `${p}% · ↓ ${dayDelta} за сутки`;
+            elDoneTrend.style.color = '#dc2626';
+        } else {
+            elDoneTrend.textContent = `${p}% · → 0 за сутки`;
+            elDoneTrend.style.color = '#64748b';
+        }
+    }
+}
+
+
+
+
+
+function collectDashboardAlerts(ops, brigades, criticalPathIds = []) {
+    const alerts = [];
+    const list = ops || [];
+    const br = brigades || [];
+    const blocked = list.filter(o => o.status === 'blocked');
+    if (blocked.length) {
+        alerts.push({
+            level: 'high',
+            title: `Заблокировано: ${blocked.length}`,
+            text: 'Открыть операции со статусом «Блок»',
+            filterStatus: 'blocked'
+        });
+    }
+    const overloaded = br.filter(b => (Number(b.current_load) || 0) >= 90);
+    if (overloaded.length) {
+        alerts.push({
+            level: 'high',
+            title: `Перегруз бригад: ${overloaded.length}`,
+            text: overloaded.slice(0, 3).map(b => b.name).join(', ') + (overloaded.length > 3 ? '…' : ''),
+            tab: 'brigades'
+        });
+    }
+    const idle = br.filter(b => (Number(b.current_load) || 0) < 15);
+    if (idle.length >= 5) {
+        alerts.push({ level: 'low', title: `Простой: ${idle.length} бригад (<15%)`, text: 'Можно перекинуть работы с перегруженных.', tab: 'brigades' });
+    }
+    if ((criticalPathIds || []).length > 50) {
+        alerts.push({ level: 'medium', title: `Крит. путь: ${criticalPathIds.length} работ`, text: 'Высокий риск срыва срока.', tab: 'ai' });
+    }
+    return alerts;
+}
+
+function renderDashboardAlerts(alerts) {
+    const box = document.getElementById('dashboardAlerts');
+    if (!box) return;
+    if (!alerts || !alerts.length) {
+        box.innerHTML = `<div style="font-size:12px;color:#16a34a;padding:8px 0;">Нет критических алертов</div>`;
+        return;
+    }
+    const colors = { high: '#ef4444', medium: '#f59e0b', low: '#0961f6' };
+    box.innerHTML = `<div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:8px;">Алерты</div>` + alerts.map(a => `
+        <div style="border-left:3px solid ${colors[a.level]||'#64748b'};padding:8px 10px;margin-bottom:6px;background:#f8fafc;border-radius:6px;cursor:pointer;"
+             onclick="${a.filterStatus
+                 ? `window.goToOperationsWithStatus('${a.filterStatus}')`
+                 : (a.tab === 'brigades'
+                     ? `window.switchTab('brigades')`
+                     : `window.switchTab('${a.tab || 'dashboard'}')`)}">
+            <div style="font-weight:600;font-size:12px;">${a.title}</div>
+            <div style="font-size:11px;color:#64748b;">${a.text}</div>
+        </div>`).join('');
+}
+
 
 document.addEventListener('DOMContentLoaded', initAdmin);

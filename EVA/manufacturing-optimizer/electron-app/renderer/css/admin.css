@@ -1945,3 +1945,105 @@ input:checked + .slider:before {
     color: #64748b;
     font-size: 14px;
   }
+
+  /* ===== ДАШБОРД: компактные графики ===== */
+#dashboard-tab .charts-row {
+    display: grid !important;
+    grid-template-columns: minmax(240px, 300px) 1fr !important;
+    gap: 16px !important;
+    margin-bottom: 16px;
+    align-items: stretch;
+}
+
+#dashboard-tab .chart-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+#dashboard-tab #progressCanvas {
+    max-width: 200px !important;
+    max-height: 200px !important;
+    margin: 0 auto;
+}
+
+#dashboard-tab #progressCenterLabel {
+    padding-top: 0 !important;
+}
+
+#dashboard-tab #progressLegend {
+    margin-top: 10px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 12px;
+}
+
+#dashboard-tab #statusMiniBars {
+    flex: 1;
+    gap: 14px !important;
+}
+
+#dashboard-tab #statusMiniBars > div {
+    transition: transform 0.15s ease, background 0.15s ease;
+    padding: 8px 10px;
+    border-radius: 10px;
+}
+
+#dashboard-tab #statusMiniBars > div:hover {
+    background: #f8fafc;
+    transform: translateX(2px);
+}
+
+#dashboard-tab #dashboardAlerts {
+    margin-top: auto;
+    padding-top: 12px;
+    border-top: 1px solid #f1f5f9;
+}
+
+#dashboard-tab .chart-card:has(#brigadeLoadCanvas) {
+    min-height: 320px;
+}
+
+#dashboard-tab #brigadeLoadCanvas {
+    width: 100% !important;
+    height: 280px !important;
+}
+
+/* анимация появления полосок */
+@keyframes barGrow {
+    from { width: 0 !important; }
+}
+#dashboard-tab #statusMiniBars [style*="width:"] {
+    animation: barGrow 0.6s ease-out;
+}
+
+#dashboard-tab .charts-row {
+    display: grid !important;
+    grid-template-columns: minmax(320px, 420px) 1fr !important;
+    gap: 16px !important;
+    margin-bottom: 16px;
+}
+
+#dashboard-tab #progressLegend {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+#dashboard-tab #progressLegend > div:hover {
+    background: #f8fafc;
+    border-radius: 8px;
+}
+
+#dashboard-tab .charts-row {
+    grid-template-columns: minmax(260px, 320px) 1fr !important;
+}
+
+#dashboard-tab .chart-card:has(#progressCanvas) {
+    min-height: 300px;
+}
+
+#dashboard-tab #progressCanvas {
+    max-width: 280px !important;
+    width: 100% !important;
+}

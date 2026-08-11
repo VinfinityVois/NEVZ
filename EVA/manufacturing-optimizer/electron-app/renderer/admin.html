@@ -20,7 +20,7 @@
     
     <!-- Иконка -->
     <link rel="icon" type="image/png" href="assets/icons/admin-icon.png">
-
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/frappe-gantt@0.6.1/dist/frappe-gantt.css">
 </head>
 <body>
@@ -232,6 +232,7 @@
                 <div class="tab-pane active" id="dashboard-tab">
                     
                     <!-- Карточки статистики -->
+                    <!-- Карточки статистики -->
                     <div class="stats-grid">
                         <div class="stat-card">
                             <div class="stat-icon blue">
@@ -243,11 +244,11 @@
                             <div class="stat-content">
                                 <span class="stat-value" id="totalOps">--</span>
                                 <span class="stat-label">Всего операций</span>
-                                <span class="stat-trend positive" id="opsTrend">+0%</span>
+                                <span class="stat-trend positive" id="opsTrend">—</span>
                             </div>
                         </div>
                         
-                        <div class="stat-card">
+                        <div class="stat-card" id="cardCompleted" style="cursor:pointer;" title="Сравнение по периодам">
                             <div class="stat-icon green">
                                 <svg viewBox="0 0 24 24" fill="none">
                                     <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
@@ -257,7 +258,7 @@
                             <div class="stat-content">
                                 <span class="stat-value" id="completedOps">--</span>
                                 <span class="stat-label">Завершено</span>
-                                <span class="stat-trend" id="completedTrend">--</span>
+                                <span class="stat-trend" id="completedTrend">—</span>
                             </div>
                         </div>
                         
@@ -271,6 +272,7 @@
                             <div class="stat-content">
                                 <span class="stat-value" id="inProgressOps">--</span>
                                 <span class="stat-label">В процессе</span>
+                                <span class="stat-trend" id="inProgressTrend">—</span>
                             </div>
                         </div>
                         
@@ -287,30 +289,50 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Алерты -->
+                    
                     
                     <!-- Графики -->
-                    <div class="charts-row">
-                        <div class="chart-card">
-                            <div class="chart-header">
-                                <h3>Прогресс производства</h3>
-                                <select class="chart-select" id="progressPeriod">
-                                    <option value="day">День</option>
-                                    <option value="week" selected>Неделя</option>
-                                    <option value="month">Месяц</option>
-                                </select>
+                    <!-- Верх: прогресс + сводка -->
+                    <div class="charts-row" style="display:grid;grid-template-columns:minmax(260px,340px) 1fr;gap:16px;align-items:stretch;">
+                        <div class="chart-card" style="padding:16px;">
+                            <div class="chart-header" style="margin-bottom:12px;">
+                                <h3 style="margin:0;font-size:15px;">Прогресс производства</h3>
                             </div>
-                            <div class="chart-container" id="progressChart">
-                                <canvas id="progressCanvas" width="600" height="250"></canvas>
+                            <div style="display:flex;align-items:center;gap:20px;flex-wrap:nowrap;">
+                                <div style="position:relative;width:180px;height:180px;flex-shrink:0;">
+                                    <canvas id="progressCanvas" width="180" height="180"></canvas>
+                                    <div id="progressCenterLabel" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;">
+                                        <span id="progressPctBig" style="font-size:26px;font-weight:700;color:#111827;line-height:1;">—</span>
+                                        <span style="font-size:11px;color:#64748b;">завершено</span>
+                                    </div>
+                                </div>
+                                <!-- <div id="progressLegend" style="flex:1;min-width:140px;font-size:13px;line-height:1.8;color:#334155;"></div> -->
                             </div>
                         </div>
-                        
-                        <div class="chart-card">
-                            <div class="chart-header">
-                                <h3>Загрузка бригад</h3>
+
+                        <div class="chart-card" style="padding:16px;">
+                            <div class="chart-header" style="margin-bottom:10px;">
+                                <h3 style="margin:0;font-size:15px;">Статусы и алерты</h3>
                             </div>
-                            <div class="chart-container" id="brigadeLoadChart">
-                                <canvas id="brigadeLoadCanvas" width="400" height="250"></canvas>
-                            </div>
+                            <div id="statusMiniBars" style="display:flex;flex-direction:column;gap:10px;"></div>
+                            <div id="dashboardAlerts" style="margin-top:14px;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Низ: загрузка бригад на всю ширину -->
+                    <div class="chart-card" style="margin-top:16px;margin-bottom:24px;padding:16px;">
+                        <div class="chart-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                            <h3 style="margin:0;font-size:15px;">Загрузка бригад (топ-12)</h3>
+                            <span style="font-size:11px;color:#64748b;">
+                                <span style="color:#ef4444;">●</span> ≥90%
+                                <span style="color:#f59e0b;margin-left:6px;">●</span> 70–89%
+                                <span style="color:#3b82f6;margin-left:6px;">●</span> &lt;70%
+                            </span>
+                        </div>
+                        <div style="height:280px;">
+                            <canvas id="brigadeLoadCanvas"></canvas>
                         </div>
                     </div>
                     
