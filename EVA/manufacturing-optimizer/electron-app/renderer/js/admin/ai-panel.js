@@ -115,43 +115,16 @@ export class AIPanel {
                     task_name: bn.task_name,
                     brigade_id: bn.brigade_id
                 }));
-            }           
-            if (recommendations.length === 0 && result.plan?.critical_path_ids) {
-                const cpTasks = result.plan.tasks?.filter(t => 
-                    result.plan.critical_path_ids.includes(t.id)
-                ) || [];
-                
-                // Карта длительностей из исходных данных (на случай если AI Engine не вернул duration_days)
-                const durationMap = new Map(activeOps.map(op => [
-                    `T${op.op_number}`, 
-                    Math.max(0.1, ((op.duration || (op.labor_hours && op.people_count ? op.labor_hours / op.people_count : 0)) || 1)) / 8.0
-                ]));
-                
-                recommendations = cpTasks.map(t => ({
+            }
+            if (recommendations.length === 0 && result.plan && result.plan.critical_path_ids) {
+                const cp = (result.plan.tasks || []).filter(t => result.plan.critical_path_ids.includes(t.id));
+                recommendations = cp.slice(0, 20).map(t => ({
                     type: 'critical_path_task',
-                    task_name: t.name || t.id || 'Без названия',
-                    op_number: String(t.id || '').replace('T',''),
-                    duration: t.duration_days || durationMap.get(t.id) || 0.1
+                    task_name: t.name || t.id,
+                    task_id: t.id,
+                    op_number: String(t.id || '').replace(/^T/i, ''),
+                    duration: t.duration_days ?? t.duration
                 }));
-                
-                const unassigned = activeOps.filter(op => !op.brigade_id);
-                for (const op of unassigned.slice(0, 5)) {
-                    const availableBrigade = brigades.find(b => (b.current_load || 0) < 80);
-                    if (availableBrigade) {
-                        recommendations.push({
-                            type: 'assign_operation',
-                            operation_id: op.id,
-                            op_number: op.op_number,
-                            operation_name: op.name,
-                            to_brigade_id: availableBrigade.id,
-                            to_brigade_name: availableBrigade.name,
-                            current_duration: op.duration,
-                            people_count: op.people_count,
-                            priority: op.priority || 'MEDIUM',
-                            reason: `Операция не назначена на бригаду. Бригада '${availableBrigade.name}' имеет свободные ресурсы.`
-                        });
-                    }
-                }
             }
             
             return {
@@ -161,8 +134,8 @@ export class AIPanel {
                 summary: {
                     totalOperations: result.plan?.tasks?.length || 0,
                     projectDuration: result.plan?.total_duration_days
-                                  ?? result.plan?.project_duration_days
-                                  ?? 0,
+                                ?? result.plan?.project_duration_days
+                                ?? 0,
                     criticalPath: result.plan?.critical_path_ids || [],
                     leveled: !!(result.plan?.leveling?.leveled || result.plan?.leveled)
                 }
@@ -546,45 +519,28 @@ export class AIPanel {
 /**
  * Форматирование одной рекомендации в читаемый HTML
  */
-formatRecommendation(rec) {
-    if (!rec) return '';
-
-    if (rec.message || rec.suggestion) {
-        let html = '';
-        if (rec.message) {
-            html += `<div style="font-weight:600;margin-bottom:2px;">${rec.message}</div>`;
+    formatRecommendation(rec) {
+        if (!rec) return '';
+        if (rec.message || rec.suggestion) {
+            let html = '';
+            if (rec.message) html += `<div style="font-weight:600;margin-bottom:2px;">${rec.message}</div>`;
+            if (rec.suggestion) html += `<div style="color:#64748b;">💡 ${rec.suggestion}</div>`;
+            if (rec.task_id || rec.op_number) html += `<div style="font-size:11px;color:#94a3b8;">Задача: ${rec.task_id || rec.op_number}</div>`;
+            return html;
         }
-        if (rec.suggestion) {
-            html += `<div style="color:#64748b;">💡 ${rec.suggestion}</div>`;
+        switch (rec.type) {
+            case 'critical_path_task':
+                return `<strong>🔥 ${rec.task_name || rec.op_number || rec.task_id || 'Задача'}</strong>
+                        <div style="color:#64748b;">Критический путь${rec.duration != null ? ' · ' + Number(rec.duration).toFixed(2) + ' дн.' : ''}</div>`;
+            case 'assign_operation':
+                return `<strong>🎯 ${rec.operation_name || rec.op_number || ''}</strong>
+                        <div>Назначить: <b>${rec.to_brigade_name || rec.to_brigade_id}</b></div>`;
+            default:
+                return `<strong>${rec.task_name || rec.brigade_name || rec.task_id || 'Пункт'}</strong>
+                        <div>${rec.message || rec.reason || ''}</div>
+                        ${rec.suggestion ? `<div style="color:#0961f6;">💡 ${rec.suggestion}</div>` : ''}`;
         }
-        if (rec.task_id || rec.op_number) {
-            html += `<div style="font-size:11px;color:#94a3b8;margin-top:2px;">Задача: ${rec.task_id || rec.op_number}</div>`;
-        }
-        return html;
     }
-
-    switch (rec.type) {
-        case 'critical_path_task':
-            return `<strong>🔥 ${rec.task_name || rec.op_number || rec.task_id || 'Задача'}</strong>
-                    <div style="color:#64748b;">На критическом пути${rec.duration ? ` · ${Number(rec.duration).toFixed(2)} дн.` : ''}</div>`;
-        case 'assign_operation':
-            return `<strong>🎯 ${rec.operation_name || rec.op_number || ''}</strong>
-                    <div>Назначить на бригаду <b>${rec.to_brigade_name || rec.to_brigade_id}</b></div>
-                    ${rec.reason ? `<div style="color:#64748b;font-size:11px;">${rec.reason}</div>` : ''}`;
-        case 'bottleneck':
-        case 'dependency_bottleneck':
-        case 'brigade_overload':
-        case 'near_critical':
-        case 'long_task':
-        case 'overload':
-            return `<strong>${rec.task_name || rec.brigade_name || rec.task_id || 'Узкое место'}</strong>
-                    <div>${rec.message || rec.reason || 'Требует внимания'}</div>
-                    ${rec.suggestion ? `<div style="color:#0961f6;">💡 ${rec.suggestion}</div>` : ''}`;
-        default:
-            return rec.reason || rec.message || rec.suggestion ||
-                   (typeof rec === 'string' ? rec : JSON.stringify(rec));
-    }
-}
 
     /**
      * Рендер рекомендаций

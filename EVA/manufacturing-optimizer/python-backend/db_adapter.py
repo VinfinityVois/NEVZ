@@ -5,7 +5,14 @@ import json
 from pathlib import Path
 from typing import Dict, List
 
-DB_PATH = Path(__file__).parent / "data" / "manufacturing.db"
+# Тот же путь, что api.py / db_unified: .../manufacturing-optimizer/data/manufacturing.db
+_BASE = Path(__file__).resolve().parent       # python-backend
+_ROOT = _BASE.parent                          # manufacturing-optimizer
+DB_PATH = _ROOT / "data" / "manufacturing.db"
+if not DB_PATH.exists():
+    alt = _BASE / "data" / "manufacturing.db"
+    if alt.exists():
+        DB_PATH = alt
 
 def get_db():
     conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
@@ -80,38 +87,46 @@ def get_historical_for_ml() -> List[Dict]:
     """Данные из ai_training_data для Predictor.train_delay_model()"""
     conn = get_db()
     cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='ai_training_data'")
+        if not cursor.fetchone():
+            conn.close()
+            return []
 
-    cursor.execute("""
-        SELECT labor_hours, people_count, time_reserve, actual_duration, efficiency
-        FROM ai_training_data
-        WHERE actual_duration IS NOT NULL
-    """)
-    rows = cursor.fetchall()
-    conn.close()
+        cursor.execute("PRAGMA table_info(ai_training_data)")
+        cols = {r[1] for r in cursor.fetchall()}
 
-    historical = []
-    for r in rows:
-        labor = r[0] or 0
-        people = r[1] or 1
-        time_reserve = r[2] or 0
-        actual = r[3] or 0
-        efficiency = r[4] or 1.0
+        cursor.execute("SELECT * FROM ai_training_data")
+        rows = cursor.fetchall()
+        conn.close()
 
-        planned = labor / people if people > 0 else 1.0
-        delay = max(0.0, actual - planned)
-
-        historical.append({
-            "duration_days": planned,
-            "priority": 2,
-            "required_skills": [],
-            "dependencies": [],
-            "total_float": time_reserve,
-            "is_critical": time_reserve < 0.5,
-            "progress": 1.0,
-            "actual_delay_days": round(delay, 2)
-        })
-    return historical
-
+        historical = []
+        for r in rows:
+            d = dict(r)
+            labor = float(d.get('labor_hours') or 0)
+            people = float(d.get('people_count') or 1) or 1
+            planned = labor / people if labor else float(d.get('duration') or 1)
+            if 'actual_delay_days' in cols and d.get('actual_delay_days') is not None:
+                delay = max(0.0, float(d['actual_delay_days']))
+            elif 'actual_duration' in cols and d.get('actual_duration') is not None:
+                delay = max(0.0, float(d['actual_duration']) - planned)
+            else:
+                delay = 0.0
+            historical.append({
+                "duration_days": planned,
+                "priority": 2,
+                "required_skills": [],
+                "dependencies": [],
+                "total_float": float(d.get('time_reserve') or d.get('total_float') or 0),
+                "is_critical": bool(d.get('is_critical') or (float(d.get('time_reserve') or 0) < 0.5)),
+                "progress": 1.0,
+                "actual_delay_days": round(delay, 2),
+            })
+        return historical
+    except Exception as e:
+        conn.close()
+        print("get_historical_for_ml error:", e)
+        return []
 def sync_operation_history_to_training() -> int:
     """Переносит operation_history → ai_training_data (одноразовый/повторный)"""
     conn = get_db()

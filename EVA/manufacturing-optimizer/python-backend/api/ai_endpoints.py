@@ -36,17 +36,39 @@ router = APIRouter(prefix="/ai", tags=["AI"])
 _engine: Optional[AIEngine] = None
 
 
+# def get_db_path() -> str:
+#     """Единый путь к manufacturing.db — тот же, что у api.py / db_unified"""
+#     here = os.path.dirname(os.path.abspath(__file__))
+#     # api/ → python-backend → manufacturing-optimizer/data/manufacturing.db
+#     candidates = [
+#         os.path.join(here, "..", "..", "data", "manufacturing.db"),  # EVA/.../data/
+#         os.path.join(here, "..", "data", "manufacturing.db"),         # python-backend/data/
+#         os.path.join(here, "..", "manufacturing.db"),
+#         os.path.join(here, "manufacturing.db"),
+#         "manufacturing.db",
+#     ]
+#     for c in candidates:
+#         path = os.path.normpath(c)
+#         if os.path.exists(path):
+#             logger.info(f"DB path: {path}")
+#             return path
+#     # fallback — как в db_unified
+#     fallback = os.path.normpath(os.path.join(here, "..", "..", "data", "manufacturing.db"))
+#     logger.warning(f"DB not found, using fallback: {fallback}")
+#     return fallback
 def get_db_path() -> str:
-    """Найти путь к manufacturing.db"""
+    """Путь к manufacturing.db — как у api.py / db_unified"""
+    here = os.path.dirname(os.path.abspath(__file__))
     candidates = [
+        os.path.normpath(os.path.join(here, "..", "..", "data", "manufacturing.db")),
+        os.path.normpath(os.path.join(here, "..", "data", "manufacturing.db")),
+        os.path.normpath(os.path.join(here, "..", "manufacturing.db")),
         "manufacturing.db",
-        os.path.join(os.path.dirname(__file__), "..", "manufacturing.db"),
-        os.path.join(os.path.dirname(__file__), "manufacturing.db"),
     ]
-    for c in candidates:
-        if os.path.exists(c):
-            return c
-    return "manufacturing.db"
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+    return candidates[0]
 
 def get_engine() -> AIEngine:
     global _engine

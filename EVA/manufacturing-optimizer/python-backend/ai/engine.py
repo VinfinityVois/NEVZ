@@ -264,9 +264,18 @@ class AIEngine:
         return {
             "has_plan": self.last_plan is not None,
             "plan_horizon": self.last_plan.get("horizon") if self.last_plan else None,
-            "plan_duration_days": self.last_plan.get("total_duration_days") if self.last_plan else None,
+            "project_duration_days": (
+                self.last_plan.get("total_duration_days")
+                or self.last_plan.get("project_duration_days")
+                if self.last_plan else None
+            ),
+            "plan_duration_days": (
+                self.last_plan.get("total_duration_days")
+                or self.last_plan.get("project_duration_days")
+                if self.last_plan else None
+            ),
             "critical_tasks": self.last_plan.get("stats", {}).get("critical_tasks") if self.last_plan else 0,
             "bottlenecks": len(self.last_plan.get("bottlenecks", [])) if self.last_plan else 0,
             "last_anomalies_status": self.last_anomalies.get("status") if self.last_anomalies else "unknown",
-            "generated_at": self.last_plan.get("generated_at") if self.last_plan else None
+            "generated_at": self.last_plan.get("generated_at") if self.last_plan else None,
         }
