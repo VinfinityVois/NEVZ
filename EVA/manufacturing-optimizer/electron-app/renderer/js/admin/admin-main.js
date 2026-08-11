@@ -132,6 +132,14 @@ const getDOM = () => ({
     criticalPathLength: document.getElementById('criticalPathLength'),
     criticalPathInfo: document.getElementById('criticalPathInfo'),
     
+    // AI Panel elements
+    aiPlanSummary: document.getElementById('aiPlanSummary'),
+    aiCriticalPathChart: document.getElementById('aiCriticalPathChart'),
+    aiBottleneckList: document.getElementById('aiBottleneckList'),
+    aiRecommendations: document.getElementById('aiRecommendations'),
+    aiModelStatus: document.getElementById('aiModelStatus'),
+    aiEngineStatus: document.getElementById('aiEngineStatus'),
+    
     cyGraph: document.getElementById('cyGraph'),
     graphLoading: document.getElementById('graphLoading'),
     
@@ -279,6 +287,7 @@ function setupEventListeners() {
   document.getElementById('logoutBtn')?.addEventListener('click', logout);
   document.getElementById('runOptimizationBtn')?.addEventListener('click', runOptimization);
   document.getElementById('runAIOptimizationBtn')?.addEventListener('click', runOptimization);
+  document.getElementById('trainModelBtn')?.addEventListener('click', trainAIModel);
   document.getElementById('importExcelBtn')?.addEventListener('click', () => {
       document.getElementById('fileInput')?.click();
   });
@@ -443,6 +452,8 @@ async function loadAllData() {
       
       // Сохраняем в оригинальный кэш (сортируем по ID)
       allOperationsCache = allOps.sort((a, b) => a.id - b.id);
+      window.allOperationsCache = allOperationsCache;
+      window.filteredOperationsCache = filteredOperationsCache;
       
       // Изначально отфильтрованный кэш = оригинальный
       filteredOperationsCache = [...allOperationsCache];
@@ -608,13 +619,85 @@ function updateStats(stats) {
 
 function updateCriticalPathUI(cpm) {
     const DOM = getDOM();
-    if (DOM.criticalPathLength) DOM.criticalPathLength.textContent = `${cpm.critical_path?.length || 0} оп.`;
-    if (DOM.criticalPathInfo && cpm.critical_path?.length) {
-        const pathStr = cpm.critical_path.join(' → ');
-        const totalDuration = AdminState.operations
-            .filter(op => cpm.critical_path.includes(op.op_number))
-            .reduce((sum, op) => sum + (op.duration || 0), 0);
-        DOM.criticalPathInfo.innerHTML = `<p><strong>Длительность:</strong> ${totalDuration.toFixed(1)} ч</p><p><strong>Путь:</strong> ${pathStr}</p>`;
+    const cp = cpm.critical_path || [];
+    
+    if (DOM.criticalPathLength) {
+        DOM.criticalPathLength.textContent = `${cp.length} оп.`;
+    }
+    
+    if (DOM.criticalPathInfo && cp.length > 0) {
+        // Собираем полные данные по операциям критического пути
+        const cpOps = cp.map(opNum => {
+            const op = allOperationsCache.find(o => o.op_number === opNum);
+            return op || { op_number: opNum, name: '—', duration: 0, time_reserve: 0, brigade_id: null };
+        });
+        
+        const totalDuration = cpOps.reduce((sum, op) => sum + (op.duration || 0), 0);
+        const totalDays = (totalDuration / 8).toFixed(1);
+        const totalReserve = cpOps.reduce((sum, op) => sum + (op.time_reserve || 0), 0);
+        
+        // Таблица операций критического пути
+        const tableRows = cpOps.slice(0, 15).map((op, i) => {
+            const brigade = AdminState.brigades.find(b => b.id === op.brigade_id);
+            const dur = (op.duration || 0).toFixed(1);
+            const res = (op.time_reserve || 0).toFixed(1);
+            const isZeroReserve = (op.time_reserve || 0) === 0;
+            
+            return `
+                <tr style="border-bottom:1px solid #f1f5f9;">
+                    <td style="padding:6px 8px;font-size:12px;color:#64748b;">${i+1}</td>
+                    <td style="padding:6px 8px;font-size:12px;font-weight:600;color:#0961f6;">#${op.op_number}</td>
+                    <td style="padding:6px 8px;font-size:12px;color:#1e293b;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${op.name || ''}">${op.name || '—'}</td>
+                    <td style="padding:6px 8px;font-size:12px;color:#374151;text-align:right;">${dur} ч</td>
+                    <td style="padding:6px 8px;font-size:12px;text-align:right;">
+                        <span style="color:${isZeroReserve ? '#ef4444' : '#10b981'};font-weight:500;">${res} ч</span>
+                    </td>
+                    <td style="padding:6px 8px;font-size:11px;color:#64748b;">${brigade?.name || '—'}</td>
+                </tr>
+            `;
+        }).join('');
+        
+        const moreCount = cpOps.length > 15 ? `<p style="text-align:center;color:#64748b;font-size:12px;margin-top:8px;">... и ещё ${cpOps.length - 15} операций</p>` : '';
+        
+        DOM.criticalPathInfo.innerHTML = `
+            <div style="margin-bottom:12px;">
+                <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;">
+                    <div style="background:#fef2f2;border-radius:8px;padding:10px 14px;flex:1;min-width:120px;">
+                        <div style="font-size:20px;font-weight:700;color:#ef4444;">${totalDuration.toFixed(1)}</div>
+                        <div style="font-size:11px;color:#7f1d1d;">часов всего</div>
+                    </div>
+                    <div style="background:#f0fdf4;border-radius:8px;padding:10px 14px;flex:1;min-width:120px;">
+                        <div style="font-size:20px;font-weight:700;color:#22c55e;">${totalDays}</div>
+                        <div style="font-size:11px;color:#166534;">раб. дней (при 8ч)</div>
+                    </div>
+                    <div style="background:#eff6ff;border-radius:8px;padding:10px 14px;flex:1;min-width:120px;">
+                        <div style="font-size:20px;font-weight:700;color:#0961f6;">${cpOps.length}</div>
+                        <div style="font-size:11px;color:#1e3a5f;">операций в пути</div>
+                    </div>
+                    <div style="background:#fffbeb;border-radius:8px;padding:10px 14px;flex:1;min-width:120px;">
+                        <div style="font-size:20px;font-weight:700;color:#f59e0b;">${totalReserve.toFixed(1)}</div>
+                        <div style="font-size:11px;color:#92400e;">ч резерва суммарно</div>
+                    </div>
+                </div>
+                
+                <table style="width:100%;border-collapse:collapse;font-family:system-ui,sans-serif;">
+                    <thead>
+                        <tr style="border-bottom:2px solid #e2e8f0;">
+                            <th style="padding:8px;text-align:left;font-size:11px;color:#64748b;font-weight:600;">#</th>
+                            <th style="padding:8px;text-align:left;font-size:11px;color:#64748b;font-weight:600;">Операция</th>
+                            <th style="padding:8px;text-align:left;font-size:11px;color:#64748b;font-weight:600;">Название</th>
+                            <th style="padding:8px;text-align:right;font-size:11px;color:#64748b;font-weight:600;">Длит.</th>
+                            <th style="padding:8px;text-align:right;font-size:11px;color:#64748b;font-weight:600;">Резерв</th>
+                            <th style="padding:8px;text-align:left;font-size:11px;color:#64748b;font-weight:600;">Бригада</th>
+                        </tr>
+                    </thead>
+                    <tbody>${tableRows}</tbody>
+                </table>
+                ${moreCount}
+            </div>
+        `;
+    } else if (DOM.criticalPathInfo) {
+        DOM.criticalPathInfo.innerHTML = '<p style="color:#6b7280;">Критический путь не определён</p>';
     }
 }
 
@@ -1348,7 +1431,8 @@ window.prevPage = prevPage;
 window.filterOperations = filterOperations;
 window.deleteOperation = deleteOperation;
 
-
+window.runOptimization = runOptimization;
+window.trainAIModel = trainAIModel;
 
 
 
@@ -5260,7 +5344,13 @@ window.changeGanttView = changeGanttView;
 
 async function runOptimization() {
     showLoading('AI оптимизация...');
+    
     try {
+        if (!allOperationsCache || allOperationsCache.length === 0) {
+            showNotification('Внимание', 'Нет операций для оптимизации. Импортируйте данные.', 'warning');
+            return;
+        }
+        
         const result = await aiPanel.runOptimization(
             allOperationsCache,
             AdminState.brigades,
@@ -5285,37 +5375,65 @@ async function runOptimization() {
             aiPanel.renderRecommendations('aiRecommendations', result.recommendations);
         }
         
-        showNotification('Успех', 
-            `Проект: ${result.summary.projectDuration.toFixed(1)} дн, Критических: ${result.summary.criticalPath.length}`, 
-            'success');
+        await loadAIRecommendations();
+        
+        if (result.success) {
+            showNotification('Успех', 
+                `Проект: ${result.summary.projectDuration.toFixed(1)} дн, Критических: ${result.summary.criticalPath.length}`, 
+                'success');
+        } else if (result.error) {
+            showNotification('Предупреждение', 
+                `Оптимизация выполнена с ограничениями: ${result.error}`, 
+                'warning');
+        }
             
     } catch (e) { 
-        showNotification('Ошибка', e.message, 'error'); 
+        console.error('Ошибка оптимизации:', e);
+        showNotification('Ошибка', e.message || 'Не удалось выполнить оптимизацию', 'error'); 
     } finally { 
         hideLoading(); 
     }
 }
 
 async function loadAIRecommendations() {
+    const DOM = getDOM();
+    
     try {
-        const modelStatus = await aiPanel.getModelStatus();
-        const DOM = getDOM();
+        let modelStatus;
+        try {
+            modelStatus = await aiPanel.getModelStatus();
+        } catch (e) {
+            console.warn('AI model status unavailable:', e);
+            modelStatus = aiPanel.getDefaultModelStatus();
+        }
+        
         if (DOM.aiModelStatus) {
             aiPanel.renderModelStatus('aiModelStatus', modelStatus);
         }
         
-        const engineStatus = await aiPanel.getEngineStatus();
-        if (DOM.aiEngineStatus && engineStatus) {
-            const hasPlan = engineStatus.engine?.has_plan;
-            DOM.aiEngineStatus.innerHTML = hasPlan 
-                ? `<span style="color:#22c55e;font-weight:600;">✓ План построен</span> (${engineStatus.engine?.project_duration_days?.toFixed(1) || 0} дн)`
-                : `<span style="color:#6b7280;">План не построен</span>`;
+        let engineStatus = null;
+        try {
+            engineStatus = await aiPanel.getEngineStatus();
+        } catch (e) {
+            console.warn('AI engine status unavailable:', e);
         }
         
-        const result = await api.optimize();
-        if (DOM.aiRecommendations && (!aiPanel.lastPlan)) {
-            aiPanel.renderRecommendations('aiRecommendations', result.recommendations || []);
+        if (DOM.aiEngineStatus) {
+            if (engineStatus) {
+                const hasPlan = engineStatus.engine?.has_plan;
+                DOM.aiEngineStatus.innerHTML = hasPlan 
+                    ? `<span style="color:#22c55e;font-weight:600;">✓ План построен</span> (${engineStatus.engine?.project_duration_days?.toFixed(1) || 0} дн)`
+                    : `<span style="color:#6b7280;">План не построен</span>`;
+            } else {
+                DOM.aiEngineStatus.innerHTML = `<span style="color:#ef4444;">AI Engine недоступен</span>`;
+            }
         }
+        
+        const systemStatusEl = document.getElementById('aiSystemStatus');
+        if (systemStatusEl) {
+            aiPanel.renderSystemStatus('aiSystemStatus', engineStatus, modelStatus);
+        }
+        
     } catch (e) {
         console.warn('AI recommendations load failed:', e);
     }
@@ -5323,24 +5441,37 @@ async function loadAIRecommendations() {
 
 async function trainAIModel() {
     showLoading('Обучение модели...');
+    
     try {
         const result = await aiPanel.trainDelayModel();
         
-        if (result.status === 'success' || result.status === 'already_running') {
+        if (result.status === 'success') {
             showNotification('Успех', 
                 result.message || `Модель обучена на ${result.samples} примерах`, 
                 'success');
-            
+        } else if (result.status === 'already_running') {
+            showNotification('Информация', 
+                result.message || 'Обучение уже выполняется', 
+                'info');
+        } else {
+            showNotification('Предупреждение', 
+                result.message || 'Недостаточно данных для обучения', 
+                'warning');
+        }
+        
+        try {
             const modelStatus = await aiPanel.getModelStatus();
             const DOM = getDOM();
             if (DOM.aiModelStatus) {
                 aiPanel.renderModelStatus('aiModelStatus', modelStatus);
             }
-        } else {
-            showNotification('Предупреждение', result.message || 'Недостаточно данных', 'warning');
+        } catch (statusErr) {
+            console.warn('Не удалось обновить статус моделей:', statusErr);
         }
+        
     } catch (e) {
-        showNotification('Ошибка', e.message, 'error');
+        console.error('Ошибка обучения модели:', e);
+        showNotification('Ошибка', e.message || 'Не удалось обучить модель', 'error');
     } finally {
         hideLoading();
     }

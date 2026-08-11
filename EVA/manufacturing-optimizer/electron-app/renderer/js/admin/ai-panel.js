@@ -10,24 +10,143 @@ export class AIPanel {
         this.trainingInProgress = false;
         this.lastPlan = null;
         this.lastBottlenecks = [];
+        this.API_BASE = 'http://127.0.0.1:8000';
     }
 
     /**
+     * Форматирование одной рекомендации в читаемый текст
+     */
+    formatRecommendation(rec) {
+        if (!rec || typeof rec !== 'object') {
+            return String(rec);
+        }
+
+        const type = rec.type || 'recommendation';
+
+        switch (type) {
+            case 'assign_operation':
+                const opName = rec.operation_name || `Операция #${rec.op_number || rec.operation_id}`;
+                const brigadeName = rec.to_brigade_name || `Бригада #${rec.to_brigade_id}`;
+                const reason = rec.reason || 'Операция не назначена на бригаду';
+                const people = rec.people_count ? ` (${rec.people_count} чел.)` : '';
+                const duration = rec.current_duration ? `, длительность ${rec.current_duration} ч` : '';
+                return `<strong>🎯 Назначить операцию</strong><br>
+                        <span style="color:#0961f6;font-weight:600;">${opName}</span>${people}${duration}<br>
+                        <span style="color:#059669;">→ ${brigadeName}</span><br>
+                        <span style="color:#6b7280;font-size:11px;">💡 ${reason}</span>`;
+
+                        case 'critical_path_task':
+                const taskName = rec.task_name || rec.name || rec.operation_name || `Операция #${rec.op_number || '?'}`;
+                const durVal = parseFloat(rec.duration);
+                const durationDays = (!isNaN(durVal) && durVal > 0) ? durVal.toFixed(1) : 'не указана';
+                return `<strong>🔥 ${taskName}</strong><br>
+                        <span style="color:#6b7280;font-size:11px;">Длительность: <strong style="color:#dc2626;">${durationDays}</strong> ${durVal > 0 ? 'дн' : ''}</span>`;
+
+            case 'reorder':
+                return `<strong>🔄 Изменить порядок</strong><br>
+                        ${rec.message || rec.description || 'Рекомендуется изменить последовательность операций'}`;
+
+            case 'split':
+                return `<strong>✂️ Разделить задачу</strong><br>
+                        ${rec.message || rec.description || 'Рекомендуется разделить задачу на части'}`;
+
+            case 'add_resource':
+                return `<strong>➕ Добавить ресурсы</strong><br>
+                        ${rec.message || rec.description || 'Требуется увеличить ресурсы'}`;
+
+            case 'reduce_scope':
+                return `<strong>📉 Сократить объём</strong><br>
+                        ${rec.message || rec.description || 'Рекомендуется сократить объём работ'}`;
+
+            case 'parallelize':
+                return `<strong>⚡ Параллелизация</strong><br>
+                        ${rec.message || rec.description || 'Операции можно выполнять параллельно'}`;
+
+            case 'delay_risk':
+                return `<strong>⚠️ Риск задержки</strong><br>
+                        ${rec.message || rec.description || 'Высокий риск задержки'}`;
+
+            default:
+                if (rec.message || rec.description) {
+                    return `<strong>📌 ${rec.type || 'Рекомендация'}</strong><br>
+                            ${rec.message || rec.description}`;
+                }
+                const keyFields = ['name', 'task_name', 'operation_name', 'brigade_name', 'reason', 'suggestion'];
+                const parts = [];
+                for (const key of keyFields) {
+                    if (rec[key]) {
+                        parts.push(`${key}: ${rec[key]}`);
+                    }
+                }
+                if (parts.length > 0) {
+                    return `<strong>📌 ${type}</strong><br>${parts.join('<br>')}`;
+                }
+                return `<strong>📌 ${type}</strong><br>
+                        <code style="font-size:11px;background:#f3f4f6;padding:4px;border-radius:4px;">
+                            ${JSON.stringify(rec, null, 2).substring(0, 200)}
+                        </code>`;
+        }
+    }
+
+    /**
+     * Локальная генерация рекомендаций (fallback)
+     */
+    generateLocalRecommendations(operations, brigades) {
+        const recs = [];
+        const activeOps = (operations || []).filter(op => op.status !== 'completed');
+
+        const criticalOps = activeOps.filter(op => (op.time_reserve || 0) === 0);
+        for (const op of criticalOps.slice(0, 5)) {
+            recs.push({
+                type: 'critical_path_task',
+                task_name: op.name,
+                duration: (op.duration || 0) / 8
+            });
+        }
+
+        const unassigned = activeOps.filter(op => !op.brigade_id);
+        for (const op of unassigned.slice(0, 5)) {
+            const brigade = brigades.find(b => (b.current_load || 0) < 80);
+            if (brigade) {
+                recs.push({
+                    type: 'assign_operation',
+                    operation_id: op.id,
+                    op_number: op.op_number,
+                    operation_name: op.name,
+                    to_brigade_id: brigade.id,
+                    to_brigade_name: brigade.name,
+                    current_duration: op.duration,
+                    people_count: op.people_count,
+                    priority: op.priority || 'MEDIUM',
+                    reason: `Операция не назначена на бригаду. Бригада '${brigade.name}' имеет свободные ресурсы.`
+                });
+            }
+        }
+
+        return recs;
+    }
+
+    /**
+     * Форматирование одной рекомендации в читаемый текст
+     */
+        /**
      * Запуск оптимизации через AI Engine
      */
     async runOptimization(operations, brigades, options = {}) {
         if (this.optimizationInProgress) {
             console.warn('Оптимизация уже выполняется');
-            return;
+            return { success: false, error: 'Оптимизация уже выполняется' };
         }
         this.optimizationInProgress = true;
         
         try {
+            const activeOps = (operations || []).filter(op => op.status !== 'completed');
+            
             const planData = {
-                tasks: (operations || []).filter(op => op.status !== 'completed').map(op => ({
+                tasks: activeOps.map(op => ({
                     id: `T${op.op_number}`,
                     name: op.name,
-                    duration_days: op.duration || 1,
+                    duration_days: Math.max(0.1, ((op.duration || (op.labor_hours && op.people_count ? op.labor_hours / op.people_count : 0)) || 1)) / 8.0,
                     dependencies: (op.prev_ops || []).map(p => `T${p}`),
                     priority: op.priority === 'critical' ? 1 : op.priority === 'high' ? 2 : 3,
                     brigade_id: op.brigade_id ? String(op.brigade_id) : null,
@@ -44,35 +163,89 @@ export class AIPanel {
                 horizon: 'month'
             };
 
-            const response = await fetch('http://127.0.0.1:8000/ai/build-plan', {
+            console.log('📤 Отправка запроса на /ai/build-plan:', planData);
+
+            const response = await fetch(`${this.API_BASE}/ai/build-plan`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(planData)
             });
             
-            if (!response.ok) throw new Error(`AI Engine error: ${response.status}`);
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`AI Engine error ${response.status}: ${errorText}`);
+            }
+            
             const result = await response.json();
+            console.log('📥 Ответ от /ai/build-plan:', result);
             
             this.lastPlan = result.plan;
             
-            const bnResponse = await fetch('http://127.0.0.1:8000/ai/bottlenecks', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    plan: result.plan,
-                    brigades: planData.brigades
-                })
-            });
+            try {
+                const bnResponse = await fetch(`${this.API_BASE}/ai/bottlenecks`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        plan: result.plan,
+                        brigades: planData.brigades
+                    })
+                });
+                
+                if (bnResponse.ok) {
+                    const bnResult = await bnResponse.json();
+                    this.lastBottlenecks = bnResult.bottlenecks || [];
+                } else {
+                    this.lastBottlenecks = [];
+                }
+            } catch (bnErr) {
+                console.warn('Bottleneck analysis failed:', bnErr);
+                this.lastBottlenecks = [];
+            }
             
-            if (bnResponse.ok) {
-                const bnResult = await bnResponse.json();
-                this.lastBottlenecks = bnResult.bottlenecks || [];
+            let recommendations = result.recommendations || [];
+            
+            if (recommendations.length === 0 && result.plan?.critical_path_ids) {
+                const cpTasks = result.plan.tasks?.filter(t => 
+                    result.plan.critical_path_ids.includes(t.id)
+                ) || [];
+                
+                // Карта длительностей из исходных данных (на случай если AI Engine не вернул duration_days)
+                const durationMap = new Map(activeOps.map(op => [
+                    `T${op.op_number}`, 
+                    Math.max(0.1, ((op.duration || (op.labor_hours && op.people_count ? op.labor_hours / op.people_count : 0)) || 1)) / 8.0
+                ]));
+                
+                recommendations = cpTasks.map(t => ({
+                    type: 'critical_path_task',
+                    task_name: t.name || t.id || 'Без названия',
+                    op_number: String(t.id || '').replace('T',''),
+                    duration: t.duration_days || durationMap.get(t.id) || 0.1
+                }));
+                
+                const unassigned = activeOps.filter(op => !op.brigade_id);
+                for (const op of unassigned.slice(0, 5)) {
+                    const availableBrigade = brigades.find(b => (b.current_load || 0) < 80);
+                    if (availableBrigade) {
+                        recommendations.push({
+                            type: 'assign_operation',
+                            operation_id: op.id,
+                            op_number: op.op_number,
+                            operation_name: op.name,
+                            to_brigade_id: availableBrigade.id,
+                            to_brigade_name: availableBrigade.name,
+                            current_duration: op.duration,
+                            people_count: op.people_count,
+                            priority: op.priority || 'MEDIUM',
+                            reason: `Операция не назначена на бригаду. Бригада '${availableBrigade.name}' имеет свободные ресурсы.`
+                        });
+                    }
+                }
             }
             
             return {
-                success: result.success,
+                success: result.success !== false,
                 plan: result.plan,
-                recommendations: result.recommendations || [],
+                recommendations: recommendations,
                 summary: {
                     totalOperations: result.plan?.tasks?.length || 0,
                     projectDuration: result.plan?.project_duration_days || 0,
@@ -82,12 +255,29 @@ export class AIPanel {
             };
             
         } catch (error) {
-            console.error('AI Engine недоступен, fallback на legacy:', error);
-            const result = await window.electronAPI?.ai?.optimize({
-                operations: (operations || []).filter(op => op.status !== 'completed'),
-                available_workers: options.availableWorkers || 50
-            }) || await this.fallbackOptimize(operations, brigades);
-            return this.processOptimizationResult(result);
+            console.error('AI Engine недоступен, пробуем fallback:', error);
+            
+            try {
+                const legacyResult = await this.fallbackOptimize(operations, brigades);
+                return this.processOptimizationResult(legacyResult);
+            } catch (legacyErr) {
+                console.error('Fallback тоже не сработал:', legacyErr);
+                
+                const localRecs = this.generateLocalRecommendations(operations, brigades);
+                
+                return {
+                    success: true,
+                    plan: null,
+                    recommendations: localRecs,
+                    summary: {
+                        totalOperations: (operations || []).length,
+                        projectDuration: 0,
+                        criticalPath: [],
+                        leveled: false,
+                        error: error.message
+                    }
+                };
+            }
         } finally {
             this.optimizationInProgress = false;
         }
@@ -114,40 +304,67 @@ export class AIPanel {
     }
 
     /**
+     * Локальная генерация рекомендаций (fallback)
+     */
+        /**
      * Обучение модели задержек
      */
     async trainDelayModel() {
         if (this.trainingInProgress) {
             console.warn('Обучение уже выполняется');
-            return { status: 'already_running' };
+            return { status: 'already_running', message: 'Обучение уже выполняется' };
         }
         this.trainingInProgress = true;
         
         try {
-            await fetch('http://127.0.0.1:8000/ai/sync-training-data', { method: 'POST' });
+            try {
+                const syncRes = await fetch(`${this.API_BASE}/ai/sync-training-data`, { 
+                    method: 'POST',
+                    signal: AbortSignal.timeout(5000)
+                });
+                if (syncRes.ok) {
+                    console.log('✅ Данные синхронизированы');
+                }
+            } catch (syncErr) {
+                console.warn('Синхронизация пропущена:', syncErr);
+            }
             
-            const response = await fetch('http://127.0.0.1:8000/ai/train/delay-model-from-db', {
-                method: 'POST'
+            const response = await fetch(`${this.API_BASE}/ai/train/delay-model-from-db`, {
+                method: 'POST',
+                signal: AbortSignal.timeout(60000)
             });
             
-            if (!response.ok) throw new Error(`Training error: ${response.status}`);
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Training error ${response.status}: ${errorText}`);
+            }
+            
             const result = await response.json();
             
             return {
-                status: result.status,
-                message: result.message,
+                status: result.success ? 'success' : 'failed',
+                message: result.message || (result.success ? 'Модель обучена' : 'Ошибка обучения'),
                 samples: result.samples || 0,
                 modelAvailable: result.model_available || false
             };
             
         } catch (error) {
             console.error('Ошибка обучения модели:', error);
+            
             try {
-                const legacy = await window.electronAPI?.ai?.trainModel({}) 
-                    || await (await fetch('http://127.0.0.1:8000/train', { method: 'POST' })).json();
-                return { status: legacy.status, message: 'Legacy model trained', samples: legacy.samples_available || 0 };
-            } catch (e) {
-                throw error;
+                const legacy = await fetch(`${this.API_BASE}/train`, { method: 'POST' });
+                const legacyResult = await legacy.json();
+                return { 
+                    status: legacyResult.status || 'success', 
+                    message: 'Legacy model trained', 
+                    samples: legacyResult.samples_available || 0 
+                };
+            } catch (legacyErr) {
+                return {
+                    status: 'error',
+                    message: error.message,
+                    samples: 0
+                };
             }
         } finally {
             this.trainingInProgress = false;
@@ -180,7 +397,9 @@ export class AIPanel {
      */
     async getEngineStatus() {
         try {
-            const response = await fetch('http://127.0.0.1:8000/ai/status');
+            const response = await fetch(`${this.API_BASE}/ai/status`, {
+                signal: AbortSignal.timeout(5000)
+            });
             if (!response.ok) return null;
             return await response.json();
         } catch (error) {
@@ -188,6 +407,43 @@ export class AIPanel {
         }
     }
 
+    /**
+     * Рендер статуса системы (AI Engine + ML Модели)
+     */
+    renderSystemStatus(containerId, engineStatus, modelStatus) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        const engineOk = engineStatus?.status === 'ok';
+        const engineColor = engineOk ? '#22c55e' : '#ef4444';
+        const predictorOk = modelStatus?.predictor_available;
+        const predictorColor = predictorOk ? '#22c55e' : '#f59e0b';
+        const planDays = engineStatus?.engine?.project_duration_days;
+
+        container.innerHTML = `
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <div style="flex:1;min-width:100px;background:${engineColor}08;border:1px solid ${engineColor}30;border-radius:8px;padding:8px 10px;text-align:center;">
+                    <div style="font-size:11px;color:#64748b;margin-bottom:2px;">🤖 AI Engine</div>
+                    <div style="font-size:13px;font-weight:700;color:${engineColor};">${engineOk ? 'Работает' : 'Нет'}</div>
+                </div>
+                <div style="flex:1;min-width:100px;background:${predictorColor}08;border:1px solid ${predictorColor}30;border-radius:8px;padding:8px 10px;text-align:center;">
+                    <div style="font-size:11px;color:#64748b;margin-bottom:2px;">🧠 ML</div>
+                    <div style="font-size:13px;font-weight:700;color:${predictorColor};">${predictorOk ? 'Готовы' : 'Нет'}</div>
+                </div>
+                ${planDays ? `
+                <div style="flex:1;min-width:100px;background:#eff6ff;border:1px solid #0961f630;border-radius:8px;padding:8px 10px;text-align:center;">
+                    <div style="font-size:11px;color:#64748b;margin-bottom:2px;">📅 План</div>
+                    <div style="font-size:13px;font-weight:700;color:#0961f6;">${planDays.toFixed(1)} дн</div>
+                </div>
+                ` : ''}
+            </div>
+        `;
+    }
+
+    /**
+     * Рендер SVG-графика критического пути
+     */
+    
     /**
      * Рендер SVG-графика критического пути
      */
@@ -305,23 +561,26 @@ export class AIPanel {
         const container = document.getElementById(containerId);
         if (!container) return;
         
+        const pd = parseFloat(summary.projectDuration);
+        const hasDuration = !isNaN(pd) && pd > 0;
+        
         container.innerHTML = `
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;">
-                <div style="background:#f0f9ff;border-radius:8px;padding:12px;text-align:center;">
-                    <div style="font-size:24px;font-weight:700;color:#0961f6;">${summary.totalOperations}</div>
-                    <div style="font-size:12px;color:#6b7280;">Операций</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <div style="flex:1;min-width:80px;background:#f0f9ff;border-radius:8px;padding:10px;text-align:center;">
+                    <div style="font-size:18px;font-weight:700;color:#0961f6;">${summary.totalOperations || 0}</div>
+                    <div style="font-size:11px;color:#6b7280;">Операций</div>
                 </div>
-                <div style="background:#fef2f2;border-radius:8px;padding:12px;text-align:center;">
-                    <div style="font-size:24px;font-weight:700;color:#ef4444;">${summary.criticalPath.length}</div>
-                    <div style="font-size:12px;color:#6b7280;">Критических</div>
+                <div style="flex:1;min-width:80px;background:#fef2f2;border-radius:8px;padding:10px;text-align:center;">
+                    <div style="font-size:18px;font-weight:700;color:#ef4444;">${summary.criticalPath?.length || 0}</div>
+                    <div style="font-size:11px;color:#6b7280;">Критических</div>
                 </div>
-                <div style="background:#f0fdf4;border-radius:8px;padding:12px;text-align:center;">
-                    <div style="font-size:24px;font-weight:700;color:#22c55e;">${summary.projectDuration.toFixed(1)}</div>
-                    <div style="font-size:12px;color:#6b7280;">Дней проект</div>
+                <div style="flex:1;min-width:80px;background:#f0fdf4;border-radius:8px;padding:10px;text-align:center;">
+                    <div style="font-size:18px;font-weight:700;color:#22c55e;">${hasDuration ? pd.toFixed(1) : '—'}</div>
+                    <div style="font-size:11px;color:#6b7280;">Дней проект</div>
                 </div>
-                <div style="background:#fffbeb;border-radius:8px;padding:12px;text-align:center;">
-                    <div style="font-size:24px;font-weight:700;color:#f59e0b;">${summary.leveled ? 'Да' : 'Нет'}</div>
-                    <div style="font-size:12px;color:#6b7280;">Leveling</div>
+                <div style="flex:1;min-width:80px;background:#fffbeb;border-radius:8px;padding:10px;text-align:center;">
+                    <div style="font-size:18px;font-weight:700;color:#f59e0b;">${summary.leveled ? 'Да' : 'Нет'}</div>
+                    <div style="font-size:11px;color:#6b7280;">Leveling</div>
                 </div>
             </div>
         `;
@@ -335,16 +594,68 @@ export class AIPanel {
         if (!container) return;
         
         if (!recommendations || recommendations.length === 0) {
-            container.innerHTML = '<p style="color:#6b7280;">Нет рекомендаций</p>';
+            container.innerHTML = `
+                <div style="text-align:center;padding:24px;color:#6b7280;font-size:13px;">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="2" style="margin-bottom:8px;">
+                        <circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>
+                    </svg>
+                    <p>Нет рекомендаций. Запустите оптимизацию.</p>
+                </div>`;
             return;
         }
         
-        container.innerHTML = recommendations.map((rec, i) => `
-            <div style="padding:12px;background:#f8f9fa;border-radius:8px;margin-bottom:8px;border-left:3px solid #0961f6;">
-                <div style="font-weight:600;color:#111827;font-size:13px;margin-bottom:4px;">${i+1}. ${rec.type || 'Рекомендация'}</div>
-                <p style="color:#4b5563;font-size:12px;margin:0;">${rec.message || rec.description || JSON.stringify(rec)}</p>
-            </div>
-        `).join('');
+        const typeConfig = {
+            assign_operation: { color: '#0961f6', icon: '🎯', label: 'Назначения' },
+            critical_path_task: { color: '#dc2626', icon: '🔥', label: 'Критический путь' },
+            reorder: { color: '#f59e0b', icon: '🔄', label: 'Изменение порядка' },
+            split: { color: '#8b5cf6', icon: '✂️', label: 'Разделение' },
+            add_resource: { color: '#10b981', icon: '➕', label: 'Ресурсы' },
+            reduce_scope: { color: '#ef4444', icon: '📉', label: 'Сокращение' },
+            parallelize: { color: '#06b6d4', icon: '⚡', label: 'Параллелизация' },
+            delay_risk: { color: '#f97316', icon: '⚠️', label: 'Риски задержки' }
+        };
+        
+        // Группируем по типу
+        const groups = {};
+        recommendations.forEach(rec => {
+            const type = rec.type || 'recommendation';
+            if (!groups[type]) groups[type] = [];
+            groups[type].push(rec);
+        });
+        
+        const groupKeys = Object.keys(groups);
+        
+        container.innerHTML = groupKeys.map((type, gi) => {
+            const cfg = typeConfig[type] || { color: '#0961f6', icon: '📌', label: type.replace(/_/g, ' ') };
+            const items = groups[type];
+            const groupId = `rec-group-${type}`;
+            
+            const itemsHtml = items.map((rec, i) => {
+                const formatted = this.formatRecommendation(rec);
+                return `
+                    <div style="padding:8px 10px;background:#f8f9fa;border-radius:6px;margin-bottom:5px;border-left:3px solid ${cfg.color};font-size:12px;line-height:1.4;">
+                        ${formatted}
+                    </div>
+                `;
+            }).join('');
+            
+            return `
+                <div style="margin-bottom:8px;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+                    <div onclick="document.getElementById('${groupId}').style.display=document.getElementById('${groupId}').style.display==='none'?'block':'none'; this.querySelector('.rec-chevron').style.transform=document.getElementById('${groupId}').style.display==='none'?'rotate(-90deg)':'rotate(0deg)';"
+                         style="padding:8px 12px;background:#f8fafc;cursor:pointer;display:flex;align-items:center;gap:8px;user-select:none;">
+                        <span style="font-size:14px;">${cfg.icon}</span>
+                        <span style="font-weight:600;font-size:12px;color:#374151;flex:1;text-transform:capitalize;">${cfg.label}</span>
+                        <span style="background:${cfg.color}15;color:${cfg.color};padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600;">${items.length}</span>
+                        <svg class="rec-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" style="transition:transform 0.2s;">
+                            <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                    </div>
+                    <div id="${groupId}" style="padding:8px;display:block;">
+                        ${itemsHtml}
+                    </div>
+                </div>
+            `;
+        }).join('');
     }
 
     /**

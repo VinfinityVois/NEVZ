@@ -145,16 +145,23 @@ SQL_CREATE_TABLES = {
             FOREIGN KEY (worker_id) REFERENCES workers(id) ON DELETE SET NULL
         )
     ''',
-    "ai_training_data": '''
+        "ai_training_data": '''
         CREATE TABLE IF NOT EXISTS ai_training_data (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             operation_id INTEGER,
+            op_number INTEGER,
+            name TEXT,
+            duration REAL,
             labor_hours REAL,
             people_count INTEGER,
-            brigade_load REAL,
-            time_reserve REAL,
-            actual_duration REAL,
-            efficiency REAL,
+            priority TEXT DEFAULT 'medium',
+            status TEXT,
+            brigade_id INTEGER,
+            start_date TEXT,
+            end_date TEXT,
+            actual_delay_days REAL DEFAULT 0,
+            is_critical INTEGER DEFAULT 0,
+            total_float REAL DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (operation_id) REFERENCES operations(id) ON DELETE CASCADE
         )

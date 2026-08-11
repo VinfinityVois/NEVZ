@@ -7,6 +7,8 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, Body
 from pydantic import BaseModel, Field
 import logging
+import sqlite3
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +35,18 @@ router = APIRouter(prefix="/ai", tags=["AI"])
 # Глобальный экземпляр движка (можно заменить на dependency injection)
 _engine: Optional[AIEngine] = None
 
+
+def get_db_path() -> str:
+    """Найти путь к manufacturing.db"""
+    candidates = [
+        "manufacturing.db",
+        os.path.join(os.path.dirname(__file__), "..", "manufacturing.db"),
+        os.path.join(os.path.dirname(__file__), "manufacturing.db"),
+    ]
+    for c in candidates:
+        if os.path.exists(c):
+            return c
+    return "manufacturing.db"
 
 def get_engine() -> AIEngine:
     global _engine
@@ -217,8 +231,63 @@ def explain_last_decision(decision_id: Optional[str] = None):
     engine = get_engine()
     return engine.explain_decision(decision_id)
 
+# ====================== Синхронизация данных ======================
 
-
+@router.post("/sync-training-data")
+def sync_training_data():
+    db_path = get_db_path()
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Проверяем структуру таблицы operations
+        cursor.execute("PRAGMA table_info(operations)")
+        columns = [c[1] for c in cursor.fetchall()]
+        
+        if not columns:
+            conn.close()
+            return {"success": False, "error": "Таблица operations не найдена"}
+        
+        # Адаптивный INSERT — только существующие колонки
+        available_cols = [c for c in ['id','op_number','name','duration','labor_hours',
+                         'people_count','status','brigade_id','start_date','end_date'] 
+                         if c in columns]
+        
+    # Удаляем старую таблицу если схема не совпадает (пересоздаём)
+        cursor.execute("DROP TABLE IF EXISTS ai_training_data")
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ai_training_data (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                operation_id INTEGER, op_number INTEGER, name TEXT,
+                duration REAL, labor_hours REAL, people_count INTEGER,
+                priority TEXT DEFAULT 'medium', status TEXT, brigade_id INTEGER,
+                start_date TEXT, end_date TEXT, actual_delay_days REAL DEFAULT 0,
+                is_critical INTEGER DEFAULT 0, total_float REAL DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        cursor.execute("SELECT COUNT(*) FROM ai_training_data")
+        count = cursor.fetchone()[0]
+        
+        if count < 20 and 'id' in columns:
+            # Безопасный INSERT
+            cursor.execute(f"""
+                INSERT INTO ai_training_data 
+                (operation_id, op_number, name, {','.join(available_cols[3:])})
+                SELECT id, op_number, name, {','.join(available_cols[3:])}
+                FROM operations WHERE id IS NOT NULL LIMIT 1000
+            """)
+            conn.commit()
+            cursor.execute("SELECT COUNT(*) FROM ai_training_data")
+            count = cursor.fetchone()[0]
+        
+        conn.close()
+        return {"success": True, "samples": count, "message": f"Данные синхронизированы. Записей: {count}"}
+    except Exception as e:
+        logger.exception("sync_training_data error")
+        return {"success": False, "error": str(e), "detail": "Проверьте структуру таблицы operations"}
 # ====================== Обучение моделей ======================
 
 class HistoricalTask(BaseModel):
@@ -280,12 +349,86 @@ def train_delay_model(req: TrainDelayModelRequest):
 @router.post("/train/delay-model-from-db")
 def train_delay_model_from_db():
     """Обучить модель на данных из manufacturing.db (ai_training_data)"""
+    # Создаём таблицу если её нет (защита от "no such table")
+    db_path = get_db_path()
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ai_training_data (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            operation_id INTEGER,
+            op_number INTEGER,
+            name TEXT,
+            duration REAL,
+            labor_hours REAL,
+            people_count INTEGER,
+            priority TEXT DEFAULT 'medium',
+            status TEXT,
+            brigade_id INTEGER,
+            start_date TEXT,
+            end_date TEXT,
+            actual_delay_days REAL DEFAULT 0,
+            is_critical INTEGER DEFAULT 0,
+            total_float REAL DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    conn.close()
+    
     engine = get_engine()
     if engine.predictor is None:
         raise HTTPException(status_code=503, detail="Predictor не инициализирован")
 
     if get_historical_for_ml is None:
-        raise HTTPException(status_code=503, detail="DB adapter не найден")
+        # Fallback — читаем напрямую из БД
+        try:
+            db_path = get_db_path()
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT operation_id, duration, priority, status, 
+                       actual_delay_days, is_critical, total_float
+                FROM ai_training_data
+                LIMIT 1000
+            """)
+            rows = cursor.fetchall()
+            conn.close()
+            
+            historical = []
+            for row in rows:
+                historical.append({
+                    "id": str(row[0]),
+                    "duration_days": float(row[1] or 1),
+                    "priority": 1,
+                    "required_skills": [],
+                    "dependencies": [],
+                    "total_float": float(row[6] or 5),
+                    "is_critical": bool(row[5]),
+                    "progress": 1.0,
+                    "actual_delay_days": float(row[4] or 0)
+                })
+            
+            if len(historical) < 20:
+                return {
+                    "success": False,
+                    "message": f"Недостаточно данных ({len(historical)}). "
+                               f"Сначала заполните таблицу ai_training_data "
+                               f"(POST /ai/sync-training-data)",
+                    "samples": len(historical)
+                }
+            
+            result = engine.predictor.train_delay_model(historical=historical, save=True)
+            return {
+                "success": True,
+                **result,
+                "trained_at": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.exception("DB training fallback error")
+            raise HTTPException(status_code=503, detail=f"DB adapter не найден и fallback ошибка: {e}")
 
     historical = get_historical_for_ml()
 
@@ -472,9 +615,6 @@ def run_scenario_from_db(scenario: ScenarioRequest):
     Запуск сценария на текущем плане из БД.
     Не требует передачи base_plan — подтягивается автоматически.
     """
-    if build_ai_plan_from_db is None:
-        raise HTTPException(status_code=503, detail="DB adapter не найден")
-
     if not HAS_SIMULATOR:
         raise HTTPException(status_code=503, detail="Модуль симуляции недоступен")
 
@@ -505,7 +645,6 @@ def run_scenario_from_db(scenario: ScenarioRequest):
     except Exception as e:
         logger.exception("Ошибка симуляции из БД")
         raise HTTPException(status_code=400, detail=str(e))
-
 
 @router.post("/scenarios/run-multiple")
 def run_multiple_scenarios(req: RunMultipleScenariosRequest):
