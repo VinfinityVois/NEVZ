@@ -311,6 +311,39 @@ class Predictor:
             "actual_delay_days": 2.5          # ← целевая переменная
         }
         """
+
+        # Обучение детектора аномалий (IsolationForest)
+        try:
+            import numpy as np
+            from sklearn.ensemble import IsolationForest
+
+            X_anom = []
+            for row in historical:
+                delay = float(row.get("actual_delay_days", 0) or 0)
+                dur = float(row.get("duration_days", 1) or 1)
+                progress = float(row.get("progress", 1.0) or 1.0)
+                X_anom.append([
+                    progress,
+                    1.0 - progress,
+                    delay,
+                    delay / max(dur, 0.01),
+                ])
+            X_anom = np.array(X_anom, dtype=float)
+
+            if len(X_anom) >= 20:
+                self.anomaly_model = IsolationForest(
+                    contamination=0.1,
+                    random_state=42,
+                    n_estimators=100,
+                )
+                self.anomaly_model.fit(X_anom)
+                if save:
+                    self.save_models()
+                logger.info("Anomaly model (IsolationForest) trained on %s samples", len(X_anom))
+        except Exception as e:
+            logger.warning("Anomaly model training skipped: %s", e)
+            
+
         if not HAS_SKLEARN:
             return {"success": False, "message": "scikit-learn не установлен"}
 

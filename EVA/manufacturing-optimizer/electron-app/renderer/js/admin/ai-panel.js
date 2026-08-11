@@ -352,7 +352,10 @@ export class AIPanel {
     
         const top = ids.slice(0, 15);
         const rest = ids.slice(15);
-        const duration = plan.total_duration_days ?? plan.project_duration_days ?? '—';
+        let duration = plan.total_duration_days ?? plan.project_duration_days ?? '—';
+        if (typeof duration === 'number' && !isNaN(duration)) {
+            duration = Math.round(duration * 100) / 100; // 7.49, не 7.48749...
+        }
     
         const row = (id) => {
             const t = byId[id] || {};
@@ -504,7 +507,7 @@ export class AIPanel {
                     <div style="font-size:11px;color:#6b7280;">Критических</div>
                 </div>
                 <div style="flex:1;min-width:80px;background:#f0fdf4;border-radius:8px;padding:10px;text-align:center;">
-                    <div style="font-size:18px;font-weight:700;color:#22c55e;">${hasDuration ? pd.toFixed(1) : '—'}</div>
+                    <div style="font-size:18px;font-weight:700;color:#22c55e;">${hasDuration ? pd.toFixed(2) : '—'}</div>
                     <div style="font-size:11px;color:#6b7280;">Дней проект</div>
                 </div>
                 <div style="flex:1;min-width:80px;background:#fffbeb;border-radius:8px;padding:10px;text-align:center;">
@@ -548,70 +551,98 @@ export class AIPanel {
     renderRecommendations(containerId, recommendations) {
         const container = document.getElementById(containerId);
         if (!container) return;
-        
+    
         if (!recommendations || recommendations.length === 0) {
             container.innerHTML = `
                 <div style="text-align:center;padding:24px;color:#6b7280;font-size:13px;">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="2" style="margin-bottom:8px;">
-                        <circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>
-                    </svg>
                     <p>Нет рекомендаций. Запустите оптимизацию.</p>
                 </div>`;
             return;
         }
-        
+    
         const typeConfig = {
             assign_operation: { color: '#0961f6', icon: '🎯', label: 'Назначения' },
             critical_path_task: { color: '#dc2626', icon: '🔥', label: 'Критический путь' },
+            bottleneck: { color: '#ef4444', icon: '⚠️', label: 'Узкие места' },
+            dependency_bottleneck: { color: '#f97316', icon: '🔗', label: 'Зависимости' },
+            near_critical: { color: '#f59e0b', icon: '⚡', label: 'Почти критические' },
+            brigade_overload: { color: '#ea580c', icon: '👥', label: 'Перегрузка бригад' },
+            overload: { color: '#ea580c', icon: '👥', label: 'Перегрузка' },
             reorder: { color: '#f59e0b', icon: '🔄', label: 'Изменение порядка' },
-            split: { color: '#8b5cf6', icon: '✂️', label: 'Разделение' },
-            add_resource: { color: '#10b981', icon: '➕', label: 'Ресурсы' },
-            reduce_scope: { color: '#ef4444', icon: '📉', label: 'Сокращение' },
             parallelize: { color: '#06b6d4', icon: '⚡', label: 'Параллелизация' },
             delay_risk: { color: '#f97316', icon: '⚠️', label: 'Риски задержки' }
         };
-        
-        // Группируем по типу
+    
         const groups = {};
         recommendations.forEach(rec => {
             const type = rec.type || 'recommendation';
             if (!groups[type]) groups[type] = [];
             groups[type].push(rec);
         });
-        
-        const groupKeys = Object.keys(groups);
-        
-        container.innerHTML = groupKeys.map((type, gi) => {
+    
+        container.innerHTML = Object.keys(groups).map((type, gi) => {
             const cfg = typeConfig[type] || { color: '#0961f6', icon: '📌', label: type.replace(/_/g, ' ') };
             const items = groups[type];
-            const groupId = `rec-group-${type}`;
-            
+            const groupId = `rec-group-${containerId}-${type}-${gi}`;
+    
             const itemsHtml = items.map((rec, i) => {
                 const formatted = this.formatRecommendation(rec);
+                const payload = encodeURIComponent(JSON.stringify(rec));
                 return `
-                    <div style="padding:8px 10px;background:#f8f9fa;border-radius:6px;margin-bottom:5px;border-left:3px solid ${cfg.color};font-size:12px;line-height:1.4;">
+                    <div class="rec-item"
+                         data-payload="${payload}"
+                         style="padding:8px 10px;background:#f8f9fa;border-radius:6px;margin-bottom:5px;border-left:3px solid ${cfg.color};font-size:12px;line-height:1.4;cursor:pointer;"
+                         title="Нажмите для подробностей">
                         ${formatted}
-                    </div>
-                `;
+                    </div>`;
             }).join('');
-            
+    
             return `
                 <div style="margin-bottom:8px;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
-                    <div onclick="document.getElementById('${groupId}').style.display=document.getElementById('${groupId}').style.display==='none'?'block':'none'; this.querySelector('.rec-chevron').style.transform=document.getElementById('${groupId}').style.display==='none'?'rotate(-90deg)':'rotate(0deg)';"
+                    <div class="rec-group-header"
+                         data-group="${groupId}"
                          style="padding:8px 12px;background:#f8fafc;cursor:pointer;display:flex;align-items:center;gap:8px;user-select:none;">
                         <span style="font-size:14px;">${cfg.icon}</span>
-                        <span style="font-weight:600;font-size:12px;color:#374151;flex:1;text-transform:capitalize;">${cfg.label}</span>
+                        <span style="font-weight:600;font-size:12px;color:#374151;flex:1;">${cfg.label}</span>
                         <span style="background:${cfg.color}15;color:${cfg.color};padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600;">${items.length}</span>
                         <svg class="rec-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" style="transition:transform 0.2s;">
                             <polyline points="6 9 12 15 18 9"/>
                         </svg>
                     </div>
-                    <div id="${groupId}" style="padding:8px;display:block;">
+                    <div id="${groupId}" class="rec-group-body" style="padding:8px;display:block;">
                         ${itemsHtml}
                     </div>
-                </div>
-            `;
+                </div>`;
         }).join('');
+    
+        // Свернуть / развернуть группу
+        container.querySelectorAll('.rec-group-header').forEach(header => {
+            header.addEventListener('click', () => {
+                const id = header.getAttribute('data-group');
+                const body = document.getElementById(id);
+                const chevron = header.querySelector('.rec-chevron');
+                if (!body) return;
+                const open = body.style.display !== 'none';
+                body.style.display = open ? 'none' : 'block';
+                if (chevron) chevron.style.transform = open ? 'rotate(-90deg)' : 'rotate(0deg)';
+            });
+        });
+    
+        // Клик по рекомендации → модалка
+        container.querySelectorAll('.rec-item').forEach(el => {
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                try {
+                    const raw = decodeURIComponent(el.getAttribute('data-payload') || '{}');
+                    const rec = JSON.parse(raw);
+                    if (window.showRecommendationDetail) {
+                        window.showRecommendationDetail(rec);
+                    }
+                } catch (err) {
+                    console.warn('rec detail', err);
+                }
+            });
+        });
     }
 
     /**

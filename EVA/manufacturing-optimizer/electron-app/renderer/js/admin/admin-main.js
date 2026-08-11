@@ -137,6 +137,7 @@ const getDOM = () => ({
     aiCriticalPathChart: document.getElementById('aiCriticalPathChart'),
     aiBottleneckList: document.getElementById('aiBottleneckList'),
     aiRecommendations: document.getElementById('aiRecommendations'),
+    aiRecommendationsDash: document.getElementById('aiRecommendationsDash'),
     aiModelStatus: document.getElementById('aiModelStatus'),
     aiEngineStatus: document.getElementById('aiEngineStatus'),
     
@@ -1530,6 +1531,94 @@ window.showBottleneckDetail = function(raw) {
         goBtn.onclick = () => {
             close();
             if (window.goToOperation) window.goToOperation(opNum);
+        };
+    }
+};
+
+window.showRecommendationDetail = function(rec) {
+    if (!rec) return;
+    if (typeof rec === 'string') {
+        try { rec = JSON.parse(rec); } catch (e) { rec = { message: rec }; }
+    }
+
+    const overlay = document.getElementById('modalOverlay');
+    if (overlay) overlay.style.display = 'flex';
+
+    const old = document.getElementById('recommendationDetailModal');
+    if (old) old.remove();
+
+    const typeLabels = {
+        critical_path_task: 'Критический путь',
+        near_critical: 'Почти критическая работа',
+        bottleneck: 'Узкое место',
+        dependency_bottleneck: 'Узкое место по зависимостям',
+        brigade_overload: 'Перегрузка бригады',
+        overload: 'Перегрузка',
+        assign_operation: 'Назначение операции',
+        parallelize: 'Параллелизация',
+        delay_risk: 'Риск задержки'
+    };
+
+    const whatIs = {
+        critical_path_task: 'Работа на критическом пути: любой срыв сразу сдвигает срок всего проекта. Резерва времени нет.',
+        near_critical: 'Резерв времени очень мал. Небольшой сбой может сделать работу критической.',
+        bottleneck: 'Ограничение, которое тормозит поток работ (ресурсы, зависимости, длительность).',
+        dependency_bottleneck: 'Много входящих или исходящих связей — задержка здесь бьёт по многим следующим операциям.',
+        brigade_overload: 'Бригада загружена выше нормы — риск срыва сроков и качества.',
+        overload: 'Перегрузка ресурса или бригады.',
+        assign_operation: 'Операция без бригады или выгоднее переназначить.',
+        parallelize: 'Часть работ можно выполнять параллельно и сократить срок.',
+        delay_risk: 'По прогнозу высока вероятность задержки.'
+    };
+
+    const type = rec.type || 'recommendation';
+    const title = typeLabels[type] || type.replace(/_/g, ' ');
+    const about = whatIs[type] || 'Рекомендация системы планирования по текущему плану и загрузке.';
+    const name = rec.task_name || rec.operation_name || rec.brigade_name || rec.task_id || rec.op_number || '—';
+    const message = rec.message || rec.reason || '—';
+    const suggestion = rec.suggestion || 'Следовать тексту рекомендации; при необходимости открыть операцию и скорректировать план.';
+    const opNum = String(rec.task_id || rec.op_number || '').replace(/^T/i, '');
+
+    const modal = document.createElement('div');
+    modal.id = 'recommendationDetailModal';
+    modal.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:12px;padding:24px;max-width:520px;width:92%;z-index:10001;box-shadow:0 20px 50px rgba(0,0,0,.25);max-height:90vh;overflow:auto;';
+    modal.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+            <h3 style="margin:0;font-size:16px;">${title}</h3>
+            <button type="button" id="recCloseBtn" style="border:0;background:none;font-size:22px;cursor:pointer;line-height:1;">×</button>
+        </div>
+        <div style="font-size:13px;line-height:1.65;color:#334155;">
+            <div style="margin-bottom:12px;padding:10px 12px;background:#f8fafc;border-radius:8px;border-left:3px solid #0961f6;">
+                <div style="font-size:11px;color:#64748b;margin-bottom:4px;">ЧТО ЭТО</div>
+                ${about}
+            </div>
+            <div><b>Объект:</b> ${name}</div>
+            ${rec.duration != null ? `<div><b>Длительность:</b> ${Number(rec.duration).toFixed(2)} дн.</div>` : ''}
+            ${opNum ? `<div><b>Операция:</b> #${opNum}</div>` : ''}
+            ${rec.brigade_id ? `<div><b>Бригада:</b> ${rec.brigade_id}</div>` : ''}
+            <div style="margin-top:12px;"><b>Суть</b><br>${message}</div>
+            <div style="margin-top:12px;color:#0961f6;"><b>Что сделать</b><br>${suggestion}</div>
+            <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;">
+                ${opNum ? `<button type="button" id="recGoOpBtn" style="padding:8px 14px;border-radius:8px;border:0;background:#0961f6;color:#fff;cursor:pointer;font-size:13px;">Перейти к операции #${opNum}</button>` : ''}
+                <button type="button" id="recCloseBtn2" style="padding:8px 14px;border-radius:8px;border:1px solid #e5e7eb;background:#fff;cursor:pointer;font-size:13px;">Закрыть</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    const close = () => {
+        modal.remove();
+        if (overlay) overlay.style.display = 'none';
+    };
+    document.getElementById('recCloseBtn').onclick = close;
+    document.getElementById('recCloseBtn2').onclick = close;
+    if (overlay) overlay.onclick = close;
+
+    const goBtn = document.getElementById('recGoOpBtn');
+    if (goBtn && window.goToOperation) {
+        goBtn.onclick = () => {
+            close();
+            window.goToOperation(opNum);
         };
     }
 };
@@ -5469,9 +5558,12 @@ async function runOptimization() {
             aiPanel.renderBottleneckAnalysis('aiBottleneckList', aiPanel.lastBottlenecks);
         }
         
-        if (DOM.aiRecommendations) {
-            aiPanel.renderRecommendations('aiRecommendations', result.recommendations);
-        }
+        const recs = result.recommendations || [];
+        ['aiRecommendations', 'aiRecommendationsDash'].forEach(id => {
+            if (document.getElementById(id)) {
+                aiPanel.renderRecommendations(id, recs);
+            }
+        });
         
         await loadAIRecommendations();
         
