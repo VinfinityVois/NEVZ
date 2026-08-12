@@ -296,19 +296,16 @@
                     <!-- Графики -->
                     <!-- Верх: прогресс + сводка -->
                     <div class="charts-row" style="display:grid;grid-template-columns:minmax(260px,340px) 1fr;gap:16px;align-items:stretch;">
-                        <div class="chart-card" style="padding:16px;">
-                            <div class="chart-header" style="margin-bottom:12px;">
-                                <h3 style="margin:0;font-size:15px;">Прогресс производства</h3>
+                        <div class="chart-card progress-card" id="progressCard">
+                            <div class="chart-header">
+                                <h3>Прогресс производства</h3>
                             </div>
-                            <div style="display:flex;align-items:center;gap:20px;flex-wrap:nowrap;">
-                                <div style="position:relative;width:180px;height:180px;flex-shrink:0;">
-                                    <canvas id="progressCanvas" width="180" height="180"></canvas>
-                                    <div id="progressCenterLabel" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;">
-                                        <span id="progressPctBig" style="font-size:26px;font-weight:700;color:#111827;line-height:1;">—</span>
-                                        <span style="font-size:11px;color:#64748b;">завершено</span>
-                                    </div>
+                            <div class="progress-chart-wrap">
+                                <canvas id="progressCanvas"></canvas>
+                                <div id="progressCenterLabel" class="progress-center">
+                                    <span id="progressPctBig">—</span>
+                                    <span class="progress-center-sub">завершено</span>
                                 </div>
-                                <!-- <div id="progressLegend" style="flex:1;min-width:140px;font-size:13px;line-height:1.8;color:#334155;"></div> -->
                             </div>
                         </div>
 
@@ -406,9 +403,8 @@
                             </div>
                             
                             <div class="graph-toolbar-group">
-                                <label class="graph-checkbox">
-                                    <input type="checkbox" id="showCriticalOnly" onchange="toggleCriticalOnly(this.checked)"> Только критический путь
-                                </label>
+                                <label class="graph-filter"><input type="checkbox" id="toggleCriticalPath" checked> Критический путь</label>
+                                <label class="graph-filter"><input type="checkbox" id="toggleAdvantagePath"> Выгодный (кратчайший) путь</label>
                                 <label class="graph-checkbox">
                                     <input type="checkbox" id="showCompleted" checked onchange="toggleCompleted(this.checked)"> Показывать завершённые
                                 </label>

@@ -15,6 +15,9 @@ from .optimizer import Optimizer
 from .anomaly_detector import AnomalyDetector
 from .bottleneck_analyzer import BottleneckAnalyzer
 
+from .learning.data_collector import DataCollector
+from .learning.repository import LearningRepository
+
 # Predictor пока опциональный
 try:
     from .predictor import Predictor
@@ -44,7 +47,14 @@ class AIEngine:
         self.bottleneck_analyzer = BottleneckAnalyzer(self.config)
         
         self.predictor = Predictor(self.config) if HAS_PREDICTOR else None
-        
+        self.learning_collector = DataCollector(
+            LearningRepository(
+                db_path=self.config.get(
+                    "db_path",
+                    "manufacturing.db"
+                )
+            )
+        )
         self.last_plan: Optional[Dict] = None
         self.last_analysis: Optional[Dict] = None
         self.last_anomalies: Optional[Dict] = None
