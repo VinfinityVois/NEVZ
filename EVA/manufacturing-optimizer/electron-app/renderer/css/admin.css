@@ -531,9 +531,13 @@
 }
 
 #cyGraph {
-    background: radial-gradient(ellipse at 50% 35%, #1a2744 0%, #0b1220 65%) !important;
+    background: #f1f5f9 !important;
+    /* лёгкая сетка как у skill-tree */
+    background-image:
+      radial-gradient(circle, #cbd5e1 1px, transparent 1px) !important;
+    background-size: 24px 24px !important;
     border-radius: 12px;
-    position: relative;
+    border: 1px solid #e2e8f0;
   }
 
 #graph-tab .graph-container,

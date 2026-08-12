@@ -323,9 +323,8 @@ function setupEventListeners() {
   
   // Модалки
   document.getElementById('modalOverlay')?.addEventListener('click', closeAllModals);
-}
 
-document.getElementById('toggleCriticalPath')?.addEventListener('change', (e) => {
+  document.getElementById('toggleCriticalPath')?.addEventListener('change', (e) => {
     graphFilters.highlightCritical = e.target.checked;
     if (!cy) return;
     if (e.target.checked) markCriticalPathContinuous(AdminState.criticalPath || []);
@@ -338,6 +337,10 @@ document.getElementById('toggleCriticalPath')?.addEventListener('change', (e) =>
     graphFilters.highlightAdvantage = e.target.checked;
     highlightAdvantagePath(e.target.checked);
   });
+
+}
+
+
 
 function addFilterInfoToUI() {
   const toolbarRight = document.querySelector('.toolbar-right');
@@ -4560,7 +4563,7 @@ function renderGraph() {
             layout: { name: 'preset' },
             minZoom: 0.08,
             maxZoom: 2.5,
-            wheelSensitivity: 0.15,
+            // wheelSensitivity: 0.15,
             selectionType: 'single',
             boxSelectionEnabled: false,
             textureOnViewport: true,
@@ -4573,14 +4576,15 @@ function renderGraph() {
         cy.layout({
             name: 'dagre',
             rankDir: 'LR',
-            nodeSep: 28,
-            rankSep: 70,
-            edgeSep: 8,
-            spacingFactor: 1.15,
-            animate: nodeCount < 120,
-            animationDuration: 400,
+            nodeSep: 36,
+            rankSep: 80,
+            edgeSep: 16,
+            spacingFactor: 1.35,
+            ranker: 'tight-tree',
+            align: 'UL',
+            animate: false,
             fit: true,
-            padding: 40
+            padding: 48
         }).run();
   
         applyGraphFilters();
@@ -4615,40 +4619,47 @@ function renderGraph() {
 
 function buildGraphElements() {
   const elements = [];
+
+  // полные данные (как Операции / Гантт / CPM), не страница таблицы
+  const ops = (window.allOperationsCache && window.allOperationsCache.length)
+      ? window.allOperationsCache
+      : (AdminState.operations || []);
+  const brigades = AdminState.brigades || [];
+  const cp = AdminState.criticalPath || [];
   
   // ===== 1. УЗЛЫ ОПЕРАЦИЙ =====
-  AdminState.operations.forEach(op => {
-      const isCritical = AdminState.criticalPath.includes(op.op_number);
-      const brigade = AdminState.brigades.find(b => b.id === op.brigade_id);
-      const brigadeGroup = findBrigadeGroup(op.brigade_id);
-      
-      // Определяем статус
-      let nodeStatus = op.status;
-      if (op.status === 'in_progress') nodeStatus = 'progress';
-      
-      // Проверяем зависимости
-      const depsCompleted = checkDependenciesCompleted(op);
-      const isBlocked = op.status === 'pending' && !depsCompleted;
-      
-      // Цвет узла
-      let bgColor = '#94a3b8'; // pending
-      if (op.status === 'completed') bgColor = '#10b981';
-      else if (op.status === 'in_progress') bgColor = '#3b82f6';
-      else if (isBlocked) bgColor = '#ef4444';
-      
-      // Размер узла
-      const importance = brigade?.importance || 'medium';
-      const importanceSizes = { critical: 80, high: 70, medium: 60, low: 50 };
-      const baseSize = importanceSizes[importance] || 60;
-      const durationBonus = Math.min(20, (op.duration || 1) * 1.5);
-      const nodeSize = Math.round(baseSize + durationBonus);
-      
-      // Формируем label
-      elements.push({
+  ops.forEach(op => {
+    const isCritical = cp.includes(op.op_number);
+    const brigade = brigades.find(b => b.id === op.brigade_id);
+    const brigadeGroup = typeof findBrigadeGroup === 'function' ? findBrigadeGroup(op.brigade_id) : null;
+
+    let nodeStatus = op.status || 'pending';
+    if (op.status === 'in_progress') nodeStatus = 'in_progress';
+
+    const depsCompleted = typeof checkDependenciesCompleted === 'function'
+        ? checkDependenciesCompleted(op)
+        : true;
+    const isBlocked = op.status === 'blocked' || (op.status === 'pending' && !depsCompleted);
+
+    const statusIcon = {
+        completed: '✅',
+        in_progress: '🔄',
+        pending: '⏳',
+        blocked: '🔒'
+    }[op.status] || '📋';
+
+    const blockLabel = [
+        `${statusIcon} #${op.op_number}`,
+        truncate(op.name || '—', 16),
+        `${op.duration || 0}ч · ${brigade?.name ? truncate(brigade.name, 10) : '—'}`
+    ].join('\n');
+
+    elements.push({
         data: {
             id: `op${op.op_number}`,
             label: `#${op.op_number}`,
-            fullLabel: `${op.name || '—'} · ${op.duration || 0}ч`,
+            blockLabel: blockLabel,
+            fullLabel: op.name || '—',
             op_number: op.op_number,
             name: op.name,
             status: nodeStatus,
@@ -4665,13 +4676,13 @@ function buildGraphElements() {
         },
         classes: `operation ${nodeStatus} ${isCritical ? 'critical' : ''} ${isBlocked ? 'blocked' : ''}`
     });
-  });
+});
   
   // ===== 2. УЗЛЫ БРИГАД =====
   if (graphFilters.showBrigades) {
       AdminState.brigades.forEach(brigade => {
           const workers = AdminState.workers.filter(w => w.brigade_id === brigade.id);
-          const brigadeOps = AdminState.operations.filter(op => op.brigade_id === brigade.id);
+          const brigadeOps = ops.filter(o => o.brigade_id === brigade.id);
           
           // Статус бригады по загрузке
           let brigadeStatus = 'pending';
@@ -4769,37 +4780,38 @@ function buildGraphElements() {
   }
   
   // ===== 4. СВЯЗИ МЕЖДУ ОПЕРАЦИЯМИ =====
-  AdminState.operations.forEach(op => {
-      (op.next_ops || []).forEach(targetId => {
-          const sourceOp = AdminState.operations.find(o => o.op_number === op.op_number);
-          const targetOp = AdminState.operations.find(o => o.op_number === targetId);
-          
-          if (sourceOp && targetOp) {
-              const sourceCritical = AdminState.criticalPath.includes(op.op_number);
-              const targetCritical = AdminState.criticalPath.includes(targetId);
-              const isCriticalEdge = sourceCritical && targetCritical;
-              const sourceCompleted = sourceOp.status === 'completed';
-              
-              let edgeClass = 'dependency';
-              if (sourceCompleted) edgeClass += ' completed';
-              if (isCriticalEdge) edgeClass += ' critical';
-              
-              elements.push({
-                  data: {
-                      id: `edge_${op.op_number}_${targetId}`,
-                      source: `op${op.op_number}`,
-                      target: `op${targetId}`,
-                      type: 'dependency',
-                      isCritical: isCriticalEdge,
-                      sourceCompleted: sourceCompleted,
-                      sourceOp: op.op_number,
-                      targetOp: targetId
-                  },
-                  classes: edgeClass
-              });
-          }
-      });
-  });
+  ops.forEach(op => {
+    (op.next_ops || []).forEach(targetId => {
+        const targetOp = ops.find(o => o.op_number === targetId);
+        if (!targetOp) return;
+
+        const sourceCompleted = op.status === 'completed';
+        const sourceBlocked = op.status === 'blocked';
+        const targetBlocked = targetOp.status === 'blocked';
+
+        // легенда:
+        // зелёная стрелка = путь открыт (источник завершён)
+        // пунктир = путь заблокирован
+        // янтарный = критический (вешает markCriticalPathContinuous)
+        let edgeClass = 'dependency';
+        if (sourceCompleted) edgeClass += ' path-open';
+        if (sourceBlocked || targetBlocked || (!sourceCompleted && (op.status === 'pending'))) {
+            // не завершённый «вход» в блоке/ожидании — пунктир
+            if (!sourceCompleted) edgeClass += ' path-blocked';
+        }
+
+        elements.push({
+            data: {
+                id: `edge_${op.op_number}_${targetId}`,
+                source: `op${op.op_number}`,
+                target: `op${targetId}`,
+                type: 'dependency',
+                sourceCompleted: sourceCompleted
+            },
+            classes: edgeClass
+        });
+    });
+});
   
   return elements;
 }
@@ -4808,230 +4820,241 @@ function buildGraphElements() {
 function getGraphStyle() {
     return [
       {
-        selector: 'node',
+        
+            selector: 'node',
+            style: {
+              'shape': 'round-rectangle',
+              'width': 120,
+              'height': 52,
+              'background-color': '#ffffff',
+              'border-width': 1.5,
+              'border-color': '#cbd5e1',
+              'color': '#0f172a',
+              'label': 'data(label)',
+              'text-wrap': 'wrap',
+              'text-max-width': 110,
+              'text-valign': 'center',
+              'text-halign': 'center',
+              'font-size': 10,
+              'font-family': 'system-ui, Segoe UI, sans-serif',
+              'font-weight': 600,
+              'overlay-padding': 4,
+              'overlay-opacity': 0,
+              'z-index': 10
+            }
+          },
+          {
+            selector: 'node.operation',
+            style: {
+              'background-color': '#f8fafc',
+              'border-color': '#94a3b8',
+              'label': 'data(blockLabel)'
+            }
+          },
+          {
+            selector: 'node.operation:selected',
+            style: {
+              'border-width': 3,
+              'border-color': '#2563eb',
+              'background-color': '#eff6ff',
+              'z-index': 30
+            }
+          },
+          {
+            selector: 'node.operation.completed',
+            style: {
+              'background-color': '#ecfdf5',
+              'border-color': '#10b981',
+              'color': '#065f46'
+            }
+          },
+          {
+            selector: 'node.operation.in_progress',
+            style: {
+              'background-color': '#eff6ff',
+              'border-color': '#3b82f6',
+              'color': '#1e40af'
+            }
+          },
+          {
+            selector: 'node.operation.pending',
+            style: {
+              'background-color': '#f8fafc',
+              'border-color': '#94a3b8'
+            }
+          },
+          {
+            selector: 'node.operation.blocked',
+            style: {
+              'background-color': '#fef2f2',
+              'border-color': '#ef4444',
+              'color': '#991b1b'
+            }
+          },
+          // критический — «золотая» обводка как в skill-tree
+          {
+            selector: 'node.operation.critical',
+            style: {
+              'border-width': 3,
+              'border-color': '#d97706',
+              'background-color': '#fffbeb',
+              'color': '#92400e'
+            }
+          },
+          // выгодный путь
+          {
+            selector: 'node.operation.advantage',
+            style: {
+              'border-width': 3,
+              'border-color': '#0284c7',
+              'background-color': '#e0f2fe'
+            }
+          },
+          {
+            selector: 'node.brigade',
+            style: {
+              'shape': 'round-rectangle',
+              'width': 100,
+              'height': 40,
+              'background-color': '#f5f3ff',
+              'border-color': '#8b5cf6',
+              'font-size': 9
+            }
+          },
+          // ---- рёбра ----
+          {
+            selector: 'edge',
+            style: {
+              'curve-style': 'bezier',
+              'width': 1.5,
+              'line-color': '#94a3b8',
+              'target-arrow-shape': 'triangle',
+              'target-arrow-color': '#94a3b8',
+              'arrow-scale': 0.85,
+              'opacity': 0.65,
+              'z-index': 1
+            }
+          },
+          {
+            selector: 'edge.dependency',
+            style: {
+                'curve-style': 'bezier',
+                'width': 2,
+                'line-color': '#94a3b8',
+                'target-arrow-shape': 'triangle',
+                'target-arrow-color': '#94a3b8',
+                'opacity': 0.6
+              }
+          },
+          // зелёная стрелка — «Путь открыт»
+    {
+        selector: 'edge.path-open',
         style: {
-          'background-color': '#1e293b',
-          'border-width': 2,
-          'border-color': '#475569',
-          'color': '#e2e8f0',
-          'text-valign': 'bottom',
-          'text-halign': 'center',
-          'text-margin-y': 8,
-          'font-size': 9,
-          'font-family': 'system-ui, sans-serif',
-          'text-outline-width': 0,
-          'overlay-padding': 3,
-          'z-index': 10
+          'width': 2.5,
+          'line-color': '#10b981',
+          'target-arrow-shape': 'triangle',
+          'target-arrow-color': '#10b981',
+          'line-style': 'solid',
+          'opacity': 0.95,
+          'z-index': 12
         }
       },
+      // пунктир — «Путь заблокирован»
       {
-        selector: 'node.operation',
+        selector: 'edge.path-blocked',
         style: {
-          'shape': 'ellipse',
-          'width': 34,
-          'height': 34,
-          'label': 'data(label)',
-          'text-max-width': 56,
-          'text-wrap': 'ellipsis'
+          'width': 1.8,
+          'line-color': '#94a3b8',
+          'target-arrow-shape': 'triangle',
+          'target-arrow-color': '#94a3b8',
+          'line-style': 'dashed',
+          'opacity': 0.55,
+          'z-index': 2
         }
       },
-      {
-        selector: 'node.operation:selected, node.operation:hover',
-        style: {
-          'label': 'data(fullLabel)',
-          'font-size': 11,
-          'text-max-width': 120,
-          'z-index': 20,
-          'border-width': 3,
-          'border-color': '#fbbf24'
-        }
-      },
-      {
-        selector: 'node.operation.completed',
-        style: {
-          'background-color': '#14532d',
-          'border-color': '#22c55e'
-        }
-      },
-      {
-        selector: 'node.operation.in_progress',
-        style: {
-          'background-color': '#1e3a5f',
-          'border-color': '#3b82f6'
-        }
-      },
-      {
-        selector: 'node.operation.pending',
-        style: {
-          'background-color': '#1e293b',
-          'border-color': '#64748b'
-        }
-      },
-      {
-        selector: 'node.operation.blocked',
-        style: {
-          'background-color': '#3f2e00',
-          'border-color': '#f59e0b'
-        }
-      },
-      {
-        selector: 'node.operation.critical',
-        style: {
-          'border-width': 3,
-          'border-color': '#fbbf24',
-          'background-color': '#422006'
-        }
-      },
-      {
-        selector: 'node.operation.advantage',
-        style: {
-          'border-width': 3,
-          'border-color': '#38bdf8',
-          'background-color': '#0c4a6e'
-        }
-      },
-      {
-        selector: 'node.brigade, node.group',
-        style: {
-          'shape': 'round-rectangle',
-          'width': 48,
-          'height': 36,
-          'font-size': 10,
-          'background-color': '#312e81',
-          'border-color': '#818cf8'
-        }
-      },
-      {
-        selector: 'edge',
-        style: {
-          'curve-style': 'haystack',
-          'haystack-radius': 0,
-          'width': 1.4,
-          'line-color': '#334155',
-          'opacity': 0.4,
-          'target-arrow-shape': 'none',
-          'z-index': 1
-        }
-      },
-      {
-        selector: 'edge.dependency',
-        style: {
-          'line-color': '#475569',
-          'opacity': 0.5
-        }
-      },
+      // янтарный — «Критический путь»
       {
         selector: 'edge.critical',
         style: {
-          'curve-style': 'bezier',
           'width': 4,
-          'line-color': '#fbbf24',
+          'line-color': '#d97706',
           'target-arrow-shape': 'triangle',
-          'target-arrow-color': '#fbbf24',
-          'arrow-scale': 1.1,
+          'target-arrow-color': '#d97706',
+          'line-style': 'solid',
           'opacity': 1,
-          'z-index': 15
+          'z-index': 25
         }
       },
-      {
-        selector: 'edge.advantage',
-        style: {
-          'curve-style': 'bezier',
-          'width': 3.5,
-          'line-color': '#38bdf8',
-          'target-arrow-shape': 'triangle',
-          'target-arrow-color': '#38bdf8',
-          'arrow-scale': 1.05,
-          'opacity': 1,
-          'z-index': 14
-        }
-      },
-      {
-        selector: 'node.hidden, edge.hidden',
-        style: {
-          'display': 'none'
-        }
-      }
-    ];
+          {
+            selector: 'edge.critical',
+            style: {
+                'width': 4,
+                'line-color': '#d97706',
+                'opacity': 1,
+                'z-index': 20
+              }
+          },
+          {
+            selector: 'edge.advantage',
+            style: {
+                'width': 3.5,
+                'line-color': '#0284c7',
+                'target-arrow-color': '#0284c7',
+                'target-arrow-shape': 'triangle',
+                'line-style': 'solid',
+                'opacity': 1,
+                'z-index': 20
+              }
+          },
+          {
+            selector: 'node.hidden, edge.hidden',
+            style: { 'display': 'none' }
+          },
+
+          {
+            selector: '.dimmed',
+            style: {
+              'opacity': 0.15,
+              'z-index': 0
+            }
+          },
+          { selector: '.dimmed', style: { 'opacity': 0.18, 'z-index': 0 } },
+    { selector: 'node.path-hl', style: {
+        'opacity': 1, 'border-width': 4, 'border-color': '#2563eb',
+        'background-color': '#dbeafe', 'z-index': 40
+    }},
+    { selector: 'edge.path-hl', style: {
+        'opacity': 1, 'width': 4, 'line-color': '#2563eb',
+        'target-arrow-color': '#2563eb', 'target-arrow-shape': 'triangle',
+        'curve-style': 'bezier', 'z-index': 35
+    }},
+        ];
+        
   }
 
-function setupGraphEvents(cy) {
-  // Клик по узлу
-  cy.on('tap', 'node', (evt) => {
+  function setupGraphEvents(cy) {
+    cy.off('tap'); // сброс старых, чтобы не дублировать
+  
+    // клик по операции — путь + панель
+    cy.on('tap', 'node.operation', function (evt) {
+      evt.stopPropagation();
       const node = evt.target;
-      const data = node.data();
-      
-      // Снимаем выделение с других
-      cy.elements().removeClass('selected');
-      node.addClass('selected');
-      
-      // Показываем информацию
-      if (data.type === 'brigade') {
-          showBrigadeInfo(data);
-      } else if (data.type === 'group') {
-          showGroupInfo(data);
-      } else {
-          showNodeInfo(data);
-      }
-  });
+      highlightPathForNode(node);
+      showNodeInfo(node.data());
+    });
   
-  // Клик по ребру
-  cy.on('tap', 'edge', (evt) => {
-      const edge = evt.target;
-      const data = edge.data();
-      
-      cy.elements().removeClass('selected');
-      edge.addClass('selected');
-      
-      showEdgeInfo(data);
-  });
-  
-  // Клик по фону
-  cy.on('tap', (evt) => {
+    // клик по пустому месту — всё как было
+    cy.on('tap', function (evt) {
       if (evt.target === cy) {
-          cy.elements().removeClass('selected');
-          hideNodeInfo();
+        clearPathHighlight();
+        if (typeof hideNodeInfo === 'function') hideNodeInfo();
       }
-  });
+    });
   
-  // Двойной клик — фокусировка
-  cy.on('dblclick', 'node', (evt) => {
-      const node = evt.target;
-      cy.animate({
-          center: { eles: node },
-          zoom: 1.5,
-          duration: 400,
-          easing: 'ease-out-cubic'
-      });
-  });
-  
-  // Наведение
-  cy.on('mouseover', 'node', (evt) => {
-      const node = evt.target;
-      node.addClass('hover');
-      
-      // Подсвечиваем связанные рёбра
-      node.connectedEdges().addClass('hover');
-      node.connectedEdges().connectedNodes().addClass('hover');
-  });
-  
-  cy.on('mouseout', 'node', (evt) => {
-      cy.elements().removeClass('hover');
-  });
-  
-  cy.on('mouseover', 'edge', (evt) => {
-      evt.target.addClass('hover');
-  });
-  
-  cy.on('mouseout', 'edge', (evt) => {
-      evt.target.removeClass('hover');
-  });
-  
-  // Зум колёсиком
-  cy.on('zoom', () => {
-      // Можно добавить индикатор зума
-  });
-}
+    cy.on('dblclick', 'node.operation', function (evt) {
+      cy.animate({ center: { eles: evt.target }, zoom: 1.5, duration: 350 });
+    });
+  }
 
 
 function applyGraphFilters() {
@@ -5101,6 +5124,37 @@ function markCriticalPathContinuous(cpList) {
     return gaps;
   }
   
+  function clearPathHighlight() {
+    if (!cy) return;
+    cy.elements().removeClass('path-hl path-dim dimmed');
+    cy.elements().removeClass('selected');
+  }
+  
+  /** Путь от корней до node + от node до листьев (все предки и потомки по dependency) */
+  function collectPathThrough(node) {
+    if (!cy || !node || node.empty()) return cy.collection();
+    const pred = node.predecessors('node.operation, edge.dependency');
+    const succ = node.successors('node.operation, edge.dependency');
+    return pred.union(node).union(succ);
+  }
+  
+  function highlightPathForNode(node) {
+    if (!cy || !node || node.empty()) return;
+    clearPathHighlight();
+  
+    const path = collectPathThrough(node);
+    cy.elements().addClass('dimmed');
+    path.removeClass('dimmed').addClass('path-hl');
+    node.removeClass('dimmed').addClass('path-hl selected');
+  
+    cy.animate({
+      fit: { eles: path.nodes().length ? path.nodes() : node, padding: 50 },
+      duration: 280
+    });
+  }
+window.clearPathHighlight = clearPathHighlight;
+window.highlightPathForNode = highlightPathForNode;
+
   function findAdvantagePath() {
     if (!cy) return [];
     const ops = cy.nodes('.operation');
@@ -5484,6 +5538,19 @@ function showBrigadeInfo(data) {
   panel.classList.add('active');
 }
 
+function focusOperationByNumber(opNumber) {
+    if (!cy) return;
+    const node = cy.$id(`op${opNumber}`);
+    if (node.empty()) {
+        showNotification('Граф', `Операция #${opNumber} не на графе`, 'warning');
+        return;
+    }
+    node.select();
+    highlightPathForNode(node);
+    if (typeof showNodeInfoPanel === 'function') showNodeInfoPanel(node.data());
+  }
+  window.focusOperationByNumber = focusOperationByNumber;
+
 function showGroupInfo(data) {
   const panel = document.getElementById('nodeInfoPanel');
   const nameEl = document.getElementById('nodeName');
@@ -5589,24 +5656,17 @@ function hideNodeInfo() {
 }
 
 function highlightNode(opNumber) {
-  if (!cy) return;
-  
-  const node = cy.$(`#op${opNumber}`);
-  if (node.length) {
-      cy.animate({
-          center: { eles: node },
-          zoom: 1.4,
-          duration: 400,
-          easing: 'ease-out-cubic'
-      });
-      
-      node.addClass('selected');
-      setTimeout(() => node.removeClass('selected'), 1500);
-      
-      // Показываем информацию
-      showNodeInfo(node.data());
+    if (!cy) return;
+    const node = cy.$id(`op${opNumber}`);
+    if (node.empty()) {
+      showNotification('Граф', `Операция #${opNumber} не найдена на графе`, 'warning');
+      return;
+    }
+    // путь целиком + панель
+    highlightPathForNode(node);
+    showNodeInfo(node.data());
   }
-}
+  window.highlightNode = highlightNode;
 
 function checkDependenciesCompleted(op) {
   if (!op.prev_ops || op.prev_ops.length === 0) return true;
