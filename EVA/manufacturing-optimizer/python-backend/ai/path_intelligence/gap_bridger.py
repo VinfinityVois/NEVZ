@@ -47,7 +47,11 @@ class GapBridger:
         ищет варианты замыкания.
         """
         candidates: List[BridgeCandidate] = []
-        op_map = {self._norm_op(op.get("op_number")): op for op in operations}
+        op_map = {}
+        for op in operations:
+            key = self._norm_op(op.get("op_number"))
+            if key is not None:
+                op_map[key] = op
         
         for gap in gaps.get("gaps", []):
             gap_type = gap.get("type")
@@ -81,12 +85,14 @@ class GapBridger:
         Ищем операции с тем же drawing/post и ближайшим op_number.
         """
         isolated_op = gap.get("op_number")
+        if isolated_op is None:
+            return []
         isolated_data = op_map.get(isolated_op, {})
         
         candidates = []
         
         for op_num, op_data in op_map.items():
-            if op_num == isolated_op:
+            if op_num is None or op_num == isolated_op:
                 continue
             
             score = 0.0
@@ -154,7 +160,7 @@ class GapBridger:
         for comp_op in component:
             comp_data = op_map.get(comp_op, {})
             for main_op, main_data in op_map.items():
-                if main_op in component:
+                if main_op is None or main_op in component:
                     continue
                 
                 score = 0.0

@@ -16,6 +16,11 @@ from typing import List, Dict, Optional, Any
 from pathlib import Path
 from contextlib import asynccontextmanager
 
+
+_api_dir = str(Path(__file__).parent / "api")
+if _api_dir not in sys.path:
+    sys.path.insert(0, _api_dir)
+
 # Настройка кодировки для Windows
 if sys.platform == 'win32':
     import codecs
@@ -104,9 +109,11 @@ app = FastAPI(
 )
 
 # Подключение AI-роутера
+# Подключение AI-роутера
 try:
-    from api.ai_endpoints import router as ai_router
+    from ai_endpoints import router as ai_router
     app.include_router(ai_router)
+    print("[OK] AI endpoints loaded")
 except Exception as e:
     import logging
     logging.getLogger(__name__).warning(f"AI router not loaded: {e}")
@@ -141,7 +148,8 @@ try:
     app.include_router(cpm_router)
     print("[OK] CPM endpoints loaded")
 except Exception as e:
-    print(f"[WARN] CPM endpoints not loaded: {e}")
+    import logging
+    logging.getLogger(__name__).warning(f"CPM router not loaded: {e}")
 # ================================================================
 # ГЛОБАЛЬНЫЙ ОБРАБОТЧИК ОШИБОК
 # ================================================================
@@ -2083,7 +2091,7 @@ async def run_scenario_from_db_endpoint(scenario: dict):
     Тело запроса: {"scenario": {"name": "...", "task_delays": {"T3": 6}, ...}}
     """
     from ai.scenario_simulator import ScenarioSimulator
-    from api.ai_endpoints import BrigadeIn, ResourceIn, ScenarioRequest
+    from ai_endpoints import BrigadeIn, ResourceIn, ScenarioRequest
 
     base_plan = build_ai_plan_from_db()
     sim = ScenarioSimulator()

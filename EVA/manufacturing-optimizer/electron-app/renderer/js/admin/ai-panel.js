@@ -13,21 +13,7 @@ export class AIPanel {
         this.API_BASE = 'http://127.0.0.1:8000';
     }
 
-    /**
-     * Форматирование одной рекомендации в читаемый текст
-     */
     
-    /**
-     * Локальная генерация рекомендаций (fallback)
-     */
-   
-
-    /**
-     * Форматирование одной рекомендации в читаемый текст
-     */
-        /**
-     * Запуск оптимизации через AI Engine
-     */
     async runOptimization(operations, brigades, options = {}) {
         if (this.optimizationInProgress) {
             console.warn('Оптимизация уже выполняется');
@@ -40,10 +26,10 @@ export class AIPanel {
             
             const planData = {
                 tasks: activeOps.map(op => ({
-                    id: `T${op.op_number}`,
+                    id: String(op.op_number),
                     name: op.name,
                     duration_days: Math.max(0.1, ((op.duration || (op.labor_hours && op.people_count ? op.labor_hours / op.people_count : 0)) || 1)) / 8.0,
-                    dependencies: (op.prev_ops || []).map(p => `T${p}`),
+                    dependencies: (op.prev_ops || []).map(p => String(p)),
                     priority: op.priority === 'critical' ? 1 : op.priority === 'high' ? 2 : 3,
                     brigade_id: op.brigade_id ? String(op.brigade_id) : null,
                     required_skills: []
@@ -100,7 +86,6 @@ export class AIPanel {
             
             let recommendations = result.recommendations || [];
 
-            // Если рекомендаций нет — берём из узких мест
             // Если рекомендаций нет — берём из узких мест
             if (recommendations.length === 0) {
                 const bns = (this.lastBottlenecks && this.lastBottlenecks.length)
@@ -190,12 +175,6 @@ export class AIPanel {
         };
     }
 
-    /**
-     * Локальная генерация рекомендаций (fallback)
-     */
-        /**
-     * Обучение модели задержек
-     */
     async trainDelayModel() {
         if (this.trainingInProgress) {
             console.warn('Обучение уже выполняется');
@@ -317,7 +296,7 @@ export class AIPanel {
                     <div style="font-size:11px;color:#64748b;margin-bottom:2px;">🧠 ML</div>
                     <div style="font-size:13px;font-weight:700;color:${predictorColor};">${predictorOk ? 'Готовы' : 'Нет'}</div>
                 </div>
-                ${planDays ? `
+                ${planDays != null ? `
                 <div style="flex:1;min-width:100px;background:#eff6ff;border:1px solid #0961f630;border-radius:8px;padding:8px 10px;text-align:center;">
                     <div style="font-size:11px;color:#64748b;margin-bottom:2px;">📅 План</div>
                     <div style="font-size:13px;font-weight:700;color:#0961f6;">${planDays.toFixed(1)} дн</div>
@@ -327,13 +306,6 @@ export class AIPanel {
         `;
     }
 
-    /**
-     * Рендер SVG-графика критического пути
-     */
-    
-    /**
-     * Рендер SVG-графика критического пути
-     */
     renderCriticalPathChart(containerId, plan) {
         const container = document.getElementById(containerId);
         if (!container) return;
@@ -517,7 +489,50 @@ export class AIPanel {
             </div>
         `;
     }
-
+    /**
+     * Локальная генерация рекомендаций (fallback)
+     */
+    generateLocalRecommendations(operations, brigades) {
+        const recs = [];
+        const ops = operations || [];
+        const brigs = brigades || [];
+        
+        // Перегрузка бригад
+        const load = {};
+        ops.forEach(op => {
+            if (op.brigade_id && op.status !== 'completed') {
+                load[op.brigade_id] = (load[op.brigade_id] || 0) + (op.labor_hours || 0);
+            }
+        });
+        brigs.forEach(b => {
+            const cap = (b.max_capacity || 10) * 8 * 20;
+            const l = load[b.id] || 0;
+            if (l > cap * 0.9) {
+                recs.push({
+                    type: 'brigade_overload',
+                    severity: l > cap ? 'critical' : 'high',
+                    message: `Бригада "${b.name}" перегружена`,
+                    suggestion: `Распределите ${Math.round(l - cap)} ч на другие бригады`,
+                    brigade_id: b.id
+                });
+            }
+        });
+        
+        // Приоритетные операции
+        ops.filter(o => o.status !== 'completed' && (o.priority === 'critical' || !(o.prev_ops?.length)))
+            .forEach(o => {
+                recs.push({
+                    type: o.priority === 'critical' ? 'critical_path_task' : 'near_critical',
+                    severity: o.priority === 'critical' ? 'critical' : 'medium',
+                    message: `Приоритетная операция: ${o.name}`,
+                    suggestion: 'Убедитесь в наличии ресурсов',
+                    task_id: `T${o.op_number}`,
+                    op_number: String(o.op_number)
+                });
+            });
+        
+        return recs;
+    }
 
 /**
  * Форматирование одной рекомендации в читаемый HTML

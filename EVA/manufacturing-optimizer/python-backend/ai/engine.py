@@ -88,13 +88,31 @@ class AIEngine:
         constraints = constraints or {}
 
         # ===== НОВОЕ: Анализ графа операций на разрывы =====
+        def _norm_id(value):
+            """Убирает префикс T и приводит к int."""
+            if value is None:
+                return None
+            text = str(value).strip()
+            if text.upper().startswith("T"):
+                text = text[1:].strip()
+            try:
+                return int(float(text))
+            except (ValueError, TypeError):
+                return None
+
+        def _norm_list(values):
+            return [v for v in (_norm_id(x) for x in (values or [])) if v is not None]
+
         operations = []
         for t in tasks:
+            op_num = _norm_id(t.get("id", t.get("op_number")))
+            if op_num is None:
+                continue
             operations.append({
-                "op_number": t.get("id", t.get("op_number")),
+                "op_number": op_num,
                 "name": t.get("name"),
-                "prev_ops": t.get("dependencies", t.get("prev_ops", [])),
-                "next_ops": t.get("next_ops", []),
+                "prev_ops": _norm_list(t.get("dependencies", t.get("prev_ops", []))),
+                "next_ops": _norm_list(t.get("next_ops", [])),
                 "drawing": t.get("drawing"),
                 "post": t.get("post"),
                 "brigade_id": t.get("brigade_id"),
@@ -157,7 +175,7 @@ class AIEngine:
         plan["allocation"] = allocation
         plan["bottlenecks"] = bottlenecks
         plan["horizon"] = horizon
-                plan["generated_at"] = datetime.now().isoformat()
+        plan["generated_at"] = datetime.now().isoformat()
         plan["stats"] = {
             "total_tasks": len(tasks),
             "critical_tasks": plan.get("cpm_stats", {}).get("critical_tasks_count", 0),

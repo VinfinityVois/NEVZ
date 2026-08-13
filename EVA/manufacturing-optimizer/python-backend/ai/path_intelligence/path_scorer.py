@@ -284,7 +284,7 @@ class PathScorer:
         ] = []
         
 
-        for operation_id in path:
+        for i, operation_id in enumerate(path):
 
             data = (
                 self._get_operation_data(
@@ -691,7 +691,7 @@ class PathScorer:
         # Формируем диапазоны
         # --------------------------------------------------------
 
-                def make_range(
+        def make_range(
             key: str,
         ) -> tuple[float, float]:
 

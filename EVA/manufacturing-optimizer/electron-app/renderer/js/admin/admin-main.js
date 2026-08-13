@@ -6497,16 +6497,11 @@ function injectGanttStyles() {
     }
   `;
     // погасить штатные стрелки Frappe
+        // погасить штатные стрелки Frappe
     document.querySelectorAll('#ganttChart .arrow').forEach(a => {
         a.classList.add('gantt-arrow-dim');
-      });
-    
-      drawGanttPathLinks(path);
-    
-      if (path.size <= 1) {
-        console.warn('[Gantt] Нет связанных prev_ops — только эта операция', focus);
-      }
-  }
+    });
+}
 
 // ================================================================
 // ДАШБОРД: % , периоды, графики, алерты
