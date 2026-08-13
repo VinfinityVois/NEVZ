@@ -18,6 +18,9 @@ from .bottleneck_analyzer import BottleneckAnalyzer
 from .learning.data_collector import DataCollector
 from .learning.repository import LearningRepository
 
+from .path_intelligence.path_finder import PathFinder
+from .path_intelligence.gantt_gap_analyzer import GanttGapAnalyzer
+
 # Predictor пока опциональный
 try:
     from .predictor import Predictor
@@ -45,6 +48,9 @@ class AIEngine:
         self.optimizer = Optimizer(self.config)
         self.anomaly_detector = AnomalyDetector(self.config)
         self.bottleneck_analyzer = BottleneckAnalyzer(self.config)
+        
+        self.path_finder = PathFinder()
+        self.gantt_analyzer = GanttGapAnalyzer()
         
         self.predictor = Predictor(self.config) if HAS_PREDICTOR else None
         self.learning_collector = DataCollector(
@@ -81,6 +87,34 @@ class AIEngine:
         
         constraints = constraints or {}
 
+        # ===== НОВОЕ: Анализ графа операций на разрывы =====
+        operations = []
+        for t in tasks:
+            operations.append({
+                "op_number": t.get("id", t.get("op_number")),
+                "name": t.get("name"),
+                "prev_ops": t.get("dependencies", t.get("prev_ops", [])),
+                "next_ops": t.get("next_ops", []),
+                "drawing": t.get("drawing"),
+                "post": t.get("post"),
+                "brigade_id": t.get("brigade_id"),
+                "duration": t.get("duration", t.get("duration_days", 0)),
+                "cost": t.get("cost", 0),
+                "risk": t.get("risk", 0),
+                "setup_time": t.get("setup_time", 0),
+            })
+
+        path_result = self.path_finder.find_best_paths(
+            operations=operations,
+            auto_bridge=True,
+        )
+
+        if path_result.get("bridges_applied", 0) > 0:
+            logger.info(f"Auto-bridged {path_result['bridges_applied']} gaps")
+
+        graph_gaps = path_result.get("gaps", {})
+        # ===== КОНЕЦ НОВОГО =====
+
         # 1. Оптимизация распределения ресурсов и бригад
         allocation = self.optimizer.allocate(
             tasks=tasks,
@@ -100,6 +134,18 @@ class AIEngine:
             do_leveling=do_leveling
         )
 
+        # ===== НОВОЕ: Сверка Ганта с графом =====
+        if plan.get("tasks"):
+            time_gaps = self.gantt_analyzer.analyze(
+                plan=plan,
+                graph=path_result.get("graph", {}).get("graph", {}),
+                operations=operations,
+            )
+            plan["time_gaps"] = time_gaps
+            if time_gaps:
+                logger.warning(f"Found {len(time_gaps)} time gaps in Gantt vs graph")
+        # ===== КОНЕЦ НОВОГО =====
+
         # 3. Анализ узких мест
         bottlenecks = self.bottleneck_analyzer.analyze(
             plan=plan,
@@ -111,14 +157,19 @@ class AIEngine:
         plan["allocation"] = allocation
         plan["bottlenecks"] = bottlenecks
         plan["horizon"] = horizon
-        plan["generated_at"] = datetime.now().isoformat()
+                plan["generated_at"] = datetime.now().isoformat()
         plan["stats"] = {
             "total_tasks": len(tasks),
             "critical_tasks": plan.get("cpm_stats", {}).get("critical_tasks_count", 0),
             "bottlenecks_count": len(bottlenecks),
             "critical_bottlenecks": len([b for b in bottlenecks if b["severity"] == "critical"]),
-            "leveling_applied": plan.get("leveling", {}).get("leveled", False)
+            "leveling_applied": plan.get("leveling", {}).get("leveled", False),
+            "graph_gaps_total": graph_gaps.get("summary", {}).get("total_gaps", 0),
+            "graph_gaps_critical": graph_gaps.get("summary", {}).get("critical", 0),
+            "bridges_applied": path_result.get("bridges_applied", 0),
         }
+
+        plan["graph_analysis"] = path_result
 
         self.last_plan = plan
         self.last_analysis = {

@@ -34,6 +34,13 @@ from pydantic import BaseModel, Field
 import pandas as pd
 import numpy as np
 import io
+
+# from api.ai_endpoints import router as ai_router
+
+# ================================================================
+# КОНФИГУРАЦИЯ ПУТЕЙ
+# ================================================================
+
 import httpx
 
 from db_adapter import (
@@ -95,6 +102,16 @@ app = FastAPI(
     version="2.0.0",
     lifespan=lifespan
 )
+
+# Подключение AI-роутера
+try:
+    from api.ai_endpoints import router as ai_router
+    app.include_router(ai_router)
+except Exception as e:
+    import logging
+    logging.getLogger(__name__).warning(f"AI router not loaded: {e}")
+
+# app.include_router(ai_router)
 
 app.add_middleware(
     CORSMiddleware,
