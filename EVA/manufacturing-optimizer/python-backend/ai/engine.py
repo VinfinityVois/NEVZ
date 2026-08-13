@@ -2,7 +2,8 @@
 AI Engine — главный оркестратор системы планирования НЭВЗ.
 Лёгкий, быстрый, без тяжёлых нейросетей в реальном времени.
 """
-
+from .gap_detector import GapDetector
+from .gap_bridger import GapBridger
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 import logging
@@ -14,8 +15,6 @@ from .scheduler import Scheduler
 from .optimizer import Optimizer
 from .anomaly_detector import AnomalyDetector
 from .bottleneck_analyzer import BottleneckAnalyzer
-from .gap_detector import GapDetector
-from .gap_bridger import GapBridger
 
 from .learning.data_collector import DataCollector
 from .learning.repository import LearningRepository
@@ -51,6 +50,8 @@ class AIEngine:
         self.optimizer = Optimizer(self.config)
         self.anomaly_detector = AnomalyDetector(self.config)
         self.bottleneck_analyzer = BottleneckAnalyzer(self.config)
+        self.gap_detector = GapDetector()
+        self.gap_bridger = GapBridger()
         
         self.path_finder = PathFinder()
         self.gantt_analyzer = GanttGapAnalyzer()
@@ -90,7 +91,7 @@ class AIEngine:
         
         constraints = constraints or {}
 
-                # --- Разрывы цепочки (detect + auto-bridge) ---
+        # --- Разрывы цепочки (detect + auto-bridge) ---
         ops_for_gaps = []
         for t in tasks:
             prev = t.get("prev_ops")
@@ -376,40 +377,20 @@ class AIEngine:
         severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
         recommendations.sort(key=lambda x: severity_order.get(x["severity"], 9))
 
-        return recommendations
-
-                gaps = (plan or self.last_plan or {}).get("gaps", {}).get("gaps") or []
-        for g in gaps[:15]:
-            recs.append({
-                "type": "chain_gap",
-                "severity": g.get("severity", "medium"),
-                "message": g.get("message"),
-                "suggestion": "Проверьте prev/next или примите предложенную связь",
-                "op_number": g.get("op_number"),
-                "task_id": g.get("op_number"),
-            })
-        for p in ((plan or self.last_plan or {}).get("bridge_proposals") or {}).get("need_confirm") or []:
-            recs.append({
-                "type": "bridge_proposal",
-                "severity": "medium",
-                "message": p.get("message"),
-                "suggestion": "; ".join(p.get("reasons") or []),
-                "from": p.get("from"),
-                "to": p.get("to"),
-                "confidence": p.get("confidence"),
-            })
-                    src = plan or self.last_plan or {}
+        # Разрывы цепочки и предложения связей
+        src = plan or self.last_plan or {}
         for g in (src.get("gaps") or {}).get("gaps") or []:
-            recs.append({
+            recommendations.append({
                 "type": "chain_gap",
                 "severity": g.get("severity", "medium"),
                 "message": g.get("message"),
                 "suggestion": "Проверьте prev/next или примите предложенную связь",
                 "op_number": g.get("op_number"),
                 "task_id": g.get("op_number"),
+                "source": "gap_detector",
             })
         for p in (src.get("bridge_proposals") or {}).get("need_confirm") or []:
-            recs.append({
+            recommendations.append({
                 "type": "bridge_proposal",
                 "severity": "medium",
                 "message": p.get("message"),
@@ -417,7 +398,14 @@ class AIEngine:
                 "from": p.get("from"),
                 "to": p.get("to"),
                 "confidence": p.get("confidence"),
+                "source": "gap_bridger",
             })
+
+        # Сортируем по важности
+        severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+        recommendations.sort(key=lambda x: severity_order.get(x["severity"], 9))
+
+        return recommendations
 
     def explain_decision(self, decision_id: str = None) -> Dict:
         """
@@ -439,22 +427,54 @@ class AIEngine:
         }
 
     def get_status(self) -> Dict[str, Any]:
-        """Текущий статус движка (удобно для дашборда и AI-панели)"""
+        """Текущий статус движка (для дашборда и AI-панели)."""
+        predictor_ok = bool(self.predictor is not None)
+        delay_ok = False
+        anomaly_ok = False
+        if self.predictor is not None:
+            delay_ok = bool(
+                getattr(self.predictor, "delay_model", None)
+                or getattr(self.predictor, "model", None)
+                or getattr(self.predictor, "is_ready", False)
+            )
+        if getattr(self, "anomaly_detector", None) is not None:
+            anomaly_ok = bool(
+                getattr(self.anomaly_detector, "model", None)
+                or getattr(self.anomaly_detector, "is_ready", False)
+            )
+
         return {
             "has_plan": self.last_plan is not None,
             "plan_horizon": self.last_plan.get("horizon") if self.last_plan else None,
             "project_duration_days": (
-                self.last_plan.get("total_duration_days")
-                or self.last_plan.get("project_duration_days")
+                (self.last_plan.get("total_duration_days")
+                 or self.last_plan.get("project_duration_days"))
                 if self.last_plan else None
             ),
             "plan_duration_days": (
-                self.last_plan.get("total_duration_days")
-                or self.last_plan.get("project_duration_days")
+                (self.last_plan.get("total_duration_days")
+                 or self.last_plan.get("project_duration_days"))
                 if self.last_plan else None
             ),
-            "critical_tasks": self.last_plan.get("stats", {}).get("critical_tasks") if self.last_plan else 0,
-            "bottlenecks": len(self.last_plan.get("bottlenecks", [])) if self.last_plan else 0,
-            "last_anomalies_status": self.last_anomalies.get("status") if self.last_anomalies else "unknown",
-            "generated_at": self.last_plan.get("generated_at") if self.last_plan else None,
+            "critical_tasks": (
+                self.last_plan.get("stats", {}).get("critical_tasks")
+                if self.last_plan else 0
+            ),
+            "bottlenecks": (
+                len(self.last_plan.get("bottlenecks", []))
+                if self.last_plan else 0
+            ),
+            "last_anomalies_status": (
+                self.last_anomalies.get("status")
+                if self.last_anomalies else "unknown"
+            ),
+            "generated_at": (
+                self.last_plan.get("generated_at")
+                if self.last_plan else None
+            ),
+            "models": {
+                "predictor_available": predictor_ok,
+                "delay_model_loaded": delay_ok,
+                "anomaly_model_loaded": anomaly_ok,
+            },
         }

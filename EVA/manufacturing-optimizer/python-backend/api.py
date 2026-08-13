@@ -139,9 +139,7 @@ try:
     app.include_router(ai_router)
     print("[OK] AI endpoints loaded")
 except Exception as e:
-    import traceback
     print(f"[WARN] AI endpoints not loaded: {e}")
-    traceback.print_exc()
 
 try:
     from cpm_endpoints import router as cpm_router

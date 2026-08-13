@@ -26,20 +26,26 @@ class BottleneckRequest(BaseModel):
 
 
 @router.get("/status")
-async def ai_status():
-    return engine.get_status()
-
-
-@router.get("/models/status")
-async def models_status():
-    status = engine.get_status()
+def ai_status():
+    engine = get_engine()  # или как у тебя называется получение AIEngine
+    if engine is None:
+        return {"status": "error", "engine": {}}
     return {
-        "predictor_available": status.get("models", {}).get("predictor_available", False),
-        "delay_model_loaded": status.get("models", {}).get("delay_model_loaded", False),
-        "anomaly_model_loaded": status.get("models", {}).get("anomaly_model_loaded", False),
+        "status": "ok",
+        "engine": engine.get_status(),
     }
 
 
+@router.get("/models/status")
+def models_status():
+    engine = get_engine()
+    st = engine.get_status() if engine else {}
+    models = st.get("models") or {}
+    return {
+        "predictor_available": bool(models.get("predictor_available", False)),
+        "delay_model_loaded": bool(models.get("delay_model_loaded", False)),
+        "anomaly_model_loaded": bool(models.get("anomaly_model_loaded", False)),
+    }
 @router.post("/build-plan")
 async def build_plan(request: BuildPlanRequest):
     try:
