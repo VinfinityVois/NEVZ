@@ -21,6 +21,9 @@ try:
 except ImportError:
     Predictor = None
 
+self.gap_detector = GapDetector()
+self.gap_bridger = GapBridger()
+
 __all__ = [
     "AIEngine",
     "Scheduler",

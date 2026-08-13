@@ -71,16 +71,40 @@ class Scheduler:
                 capacity_per_brigade=self._get_capacities(brigades)
             )
             final_tasks = leveled["tasks"]
+            was_leveled = bool(leveled.get("leveled", False))
             leveling_info = {
-                "leveled": leveled["leveled"],
+                "leveled": was_leveled,
                 "moved_tasks": leveled.get("moved_tasks", []),
+                "shifts": leveled.get("moved_tasks", []),
                 "extension_days": leveled.get("extension_days", 0),
-                "message": leveled.get("message")
+                "message": leveled.get("message"),
+                "reason": (
+                    "applied"
+                    if was_leveled
+                    else (leveled.get("message") or "no_overload_or_no_float")
+                ),
             }
         else:
             final_tasks = cpm_result["tasks"]
-            leveling_info = {"leveled": False, "message": "Leveling отключён"}
+            if not brigades:
+                reason = "no_brigades_or_capacity"
+                msg = "Нет бригад — leveling пропущен"
+            elif not do_leveling:
+                reason = "do_leveling_false"
+                msg = "Leveling отключён"
+            else:
+                reason = "skipped"
+                msg = "Leveling пропущен"
+            leveling_info = {
+                "leveled": False,
+                "moved_tasks": [],
+                "shifts": [],
+                "extension_days": 0,
+                "message": msg,
+                "reason": reason,
+            }
 
+       
         # 4. Переводим относительные дни → реальные даты
         scheduled_tasks = self._to_real_dates(final_tasks, start)
 
@@ -108,6 +132,7 @@ class Scheduler:
             "horizon": horizon,
             "total_duration_days": cpm_result["project_duration_days"],
             "leveling": leveling_info,
+                        "leveled": bool(leveling_info.get("leveled", False)),
             "cpm_stats": {
                 "total_tasks": cpm_result["total_tasks"],
                 "critical_tasks_count": cpm_result["critical_tasks_count"]
@@ -241,11 +266,17 @@ class Scheduler:
         return result
 
     def _get_capacities(self, brigades: List[Dict]) -> Dict[str, float]:
-        """Извлекает ёмкость бригад"""
-        return {
-            str(b["id"]): float(b.get("capacity", b.get("max_load", 12.0)))
-            for b in brigades
-        }
+        """Ёмкость бригады в тех же единицах, что duration задач (часы/день)."""
+        caps = {}
+        for b in brigades:
+            raw = b.get("capacity")
+            if raw is None:
+                raw = b.get("max_load")
+            if raw is None:
+                seats = b.get("max_capacity") or b.get("workers_count") or 4
+                raw = float(seats) * 8.0  # места × 8ч
+            caps[str(b["id"])] = float(raw)
+        return caps
 
     def _fallback_schedule(
         self,
@@ -272,6 +303,7 @@ class Scheduler:
             current = task_end
 
         return {
+            "leveled": False,
             "tasks": scheduled,
             "critical_path": scheduled,
             "critical_path_ids": [t["id"] for t in scheduled],

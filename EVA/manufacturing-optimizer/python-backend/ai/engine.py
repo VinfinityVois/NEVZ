@@ -14,12 +14,15 @@ from .scheduler import Scheduler
 from .optimizer import Optimizer
 from .anomaly_detector import AnomalyDetector
 from .bottleneck_analyzer import BottleneckAnalyzer
+from .gap_detector import GapDetector
+from .gap_bridger import GapBridger
 
 from .learning.data_collector import DataCollector
 from .learning.repository import LearningRepository
 
 from .path_intelligence.path_finder import PathFinder
 from .path_intelligence.gantt_gap_analyzer import GanttGapAnalyzer
+
 
 # Predictor пока опциональный
 try:
@@ -86,6 +89,42 @@ class AIEngine:
         logger.info(f"Building plan | horizon={horizon} | tasks={len(tasks)} | brigades={len(brigades)}")
         
         constraints = constraints or {}
+
+                # --- Разрывы цепочки (detect + auto-bridge) ---
+        ops_for_gaps = []
+        for t in tasks:
+            prev = t.get("prev_ops")
+            if prev is None and t.get("dependencies"):
+                prev = [
+                    str(d).lstrip("T") if str(d).upper().startswith("T") else str(d)
+                    for d in (t.get("dependencies") or [])
+                ]
+            ops_for_gaps.append({
+                "op_number": str(t.get("op_number") or t.get("id", "")).lstrip("T"),
+                "id": t.get("id"),
+                "name": t.get("name"),
+                "prev_ops": [str(x).lstrip("T") for x in (prev or [])],
+                "next_ops": [str(x).lstrip("T") for x in (t.get("next_ops") or [])],
+                "drawing": t.get("drawing"),
+                "post": t.get("post"),
+                "status": t.get("status"),
+            })
+
+        gap_report = self.gap_detector.detect(ops_for_gaps)
+        bridge = self.gap_bridger.propose(ops_for_gaps, gap_report.get("gaps", []))
+
+        if bridge.get("auto_apply"):
+            ops_for_gaps = self.gap_bridger.apply_links(ops_for_gaps, bridge["auto_apply"])
+            fix_map = {str(o["op_number"]): o for o in ops_for_gaps}
+            for t in tasks:
+                key = str(t.get("op_number") or t.get("id", "")).lstrip("T")
+                if key in fix_map:
+                    prevs = fix_map[key].get("prev_ops", [])
+                    t["prev_ops"] = prevs
+                    t["next_ops"] = fix_map[key].get("next_ops", [])
+                    t["dependencies"] = [
+                        (p if str(p).upper().startswith("T") else f"T{p}") for p in prevs
+                    ]
 
         # ===== НОВОЕ: Анализ графа операций на разрывы =====
         def _norm_id(value):
@@ -171,6 +210,22 @@ class AIEngine:
             brigades=brigades
         )
 
+
+        leveling_info = plan.get("leveling") or {}
+        plan["leveled"] = bool(
+            leveling_info.get("leveled")
+            or plan.get("stats", {}).get("leveling_applied")
+        )
+        plan["leveling"] = {
+            **leveling_info,
+            "leveled": plan["leveled"],
+            "reason": leveling_info.get("reason")
+            or (
+                "applied" if plan["leveled"]
+                else "no_overload_or_no_float_or_empty_brigades"
+            ),
+        }
+
         # Собираем итоговый результат
         plan["allocation"] = allocation
         plan["bottlenecks"] = bottlenecks
@@ -188,6 +243,10 @@ class AIEngine:
         }
 
         plan["graph_analysis"] = path_result
+
+        plan["gaps"] = gap_report
+        plan["bridge_proposals"] = bridge
+        plan["chain_fixed_auto"] = len(bridge.get("auto_apply") or [])
 
         self.last_plan = plan
         self.last_analysis = {
@@ -318,6 +377,47 @@ class AIEngine:
         recommendations.sort(key=lambda x: severity_order.get(x["severity"], 9))
 
         return recommendations
+
+                gaps = (plan or self.last_plan or {}).get("gaps", {}).get("gaps") or []
+        for g in gaps[:15]:
+            recs.append({
+                "type": "chain_gap",
+                "severity": g.get("severity", "medium"),
+                "message": g.get("message"),
+                "suggestion": "Проверьте prev/next или примите предложенную связь",
+                "op_number": g.get("op_number"),
+                "task_id": g.get("op_number"),
+            })
+        for p in ((plan or self.last_plan or {}).get("bridge_proposals") or {}).get("need_confirm") or []:
+            recs.append({
+                "type": "bridge_proposal",
+                "severity": "medium",
+                "message": p.get("message"),
+                "suggestion": "; ".join(p.get("reasons") or []),
+                "from": p.get("from"),
+                "to": p.get("to"),
+                "confidence": p.get("confidence"),
+            })
+                    src = plan or self.last_plan or {}
+        for g in (src.get("gaps") or {}).get("gaps") or []:
+            recs.append({
+                "type": "chain_gap",
+                "severity": g.get("severity", "medium"),
+                "message": g.get("message"),
+                "suggestion": "Проверьте prev/next или примите предложенную связь",
+                "op_number": g.get("op_number"),
+                "task_id": g.get("op_number"),
+            })
+        for p in (src.get("bridge_proposals") or {}).get("need_confirm") or []:
+            recs.append({
+                "type": "bridge_proposal",
+                "severity": "medium",
+                "message": p.get("message"),
+                "suggestion": "; ".join(p.get("reasons") or []),
+                "from": p.get("from"),
+                "to": p.get("to"),
+                "confidence": p.get("confidence"),
+            })
 
     def explain_decision(self, decision_id: str = None) -> Dict:
         """

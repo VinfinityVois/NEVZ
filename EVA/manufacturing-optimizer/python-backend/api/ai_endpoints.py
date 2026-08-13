@@ -704,3 +704,91 @@ def run_multiple_scenarios(req: RunMultipleScenariosRequest):
     except Exception as e:
         logger.exception("Ошибка пакетной симуляции")
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/gaps/detect")
+async def detect_gaps(payload: dict = None):
+    payload = payload or {}
+    from ai.gap_detector import GapDetector
+    from ai.gap_bridger import GapBridger
+
+    ops = payload.get("operations") or payload.get("tasks") or []
+    if not ops:
+        # подставь свой доступ к БД, если есть
+        try:
+            from api import get_db, row_to_dict  # или как у тебя
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM operations")
+            ops = [row_to_dict(r) for r in cur.fetchall()]
+            conn.close()
+        except Exception:
+            ops = []
+
+    det = GapDetector().detect(ops)
+    br = GapBridger().propose(ops, det.get("gaps", []))
+    return {"status": "ok", "gaps": det, "bridge": br}
+
+@router.post("/gaps/apply")
+async def apply_gap_links(payload: dict):
+    import json
+    links = payload.get("links") or []
+    persist = bool(payload.get("persist", False))
+    if not links:
+        return {"status": "error", "detail": "no links"}
+    if not persist:
+        return {"status": "ok", "applied": 0, "dry_run": True, "links": links}
+
+    from api import get_db  # ← путь к get_db как у тебя в проекте
+    conn = get_db()
+    cur = conn.cursor()
+    applied = 0
+
+    def _load_list(val):
+        if val is None:
+            return []
+        if isinstance(val, list):
+            return [str(x) for x in val]
+        try:
+            return [str(x) for x in json.loads(val or "[]")]
+        except Exception:
+            return []
+
+    for link in links:
+        frm, to = str(link["from"]), str(link["to"])
+
+        cur.execute(
+            "SELECT id, prev_ops, next_ops FROM operations WHERE CAST(op_number AS TEXT) = ?",
+            (frm,),
+        )
+        r = cur.fetchone()
+        if r:
+            rid = r[0] if not hasattr(r, "keys") else r["id"]
+            nxt = _load_list(r[2] if not hasattr(r, "keys") else r["next_ops"])
+            if to not in nxt:
+                nxt.append(to)
+                cur.execute(
+                    "UPDATE operations SET next_ops = ? WHERE id = ?",
+                    (json.dumps(nxt), rid),
+                )
+                applied += 1
+
+        cur.execute(
+            "SELECT id, prev_ops, next_ops FROM operations WHERE CAST(op_number AS TEXT) = ?",
+            (to,),
+        )
+        r2 = cur.fetchone()
+        if r2:
+            rid2 = r2[0] if not hasattr(r2, "keys") else r2["id"]
+            prev = _load_list(r2[1] if not hasattr(r2, "keys") else r2["prev_ops"])
+            if frm not in prev:
+                prev.append(frm)
+                cur.execute(
+                    "UPDATE operations SET prev_ops = ? WHERE id = ?",
+                    (json.dumps(prev), rid2),
+                )
+                applied += 1
+
+    conn.commit()
+    conn.close()
+    return {"status": "ok", "applied": applied, "links": links}

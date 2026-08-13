@@ -6,6 +6,8 @@
 
 export class AIPanel {
     constructor() {
+        this.lastGaps = null;
+        this.lastBridge = null;
         this.optimizationInProgress = false;
         this.trainingInProgress = false;
         this.lastPlan = null;
@@ -22,7 +24,26 @@ export class AIPanel {
         this.optimizationInProgress = true;
         
         try {
-            const activeOps = (operations || []).filter(op => op.status !== 'completed');
+            const allOps = operations || [];
+            const activeOps = allOps.filter(op => op.status !== 'completed');
+            
+            const skipped = {
+              completed: allOps.filter(op => op.status === 'completed').length,
+              noNumber: allOps.filter(op => op.op_number == null || op.op_number === '').length,
+              noDuration: allOps.filter(op => {
+                const d = op.duration || (op.labor_hours && op.people_count ? op.labor_hours / op.people_count : 0);
+                return !(d > 0) && op.status !== 'completed';
+              }).length,
+              noName: allOps.filter(op => !op.name && op.status !== 'completed').length
+            };
+            
+            const filterReport = {
+              loaded: allOps.length,
+              inPlan: activeOps.length,
+              skippedTotal: allOps.length - activeOps.length,
+              reasons: skipped
+            };
+            console.log('📊 Фильтр операций:', filterReport);
             
             const planData = {
                 tasks: activeOps.map(op => ({
@@ -34,12 +55,20 @@ export class AIPanel {
                     brigade_id: op.brigade_id ? String(op.brigade_id) : null,
                     required_skills: []
                 })),
-                brigades: (brigades || []).map(b => ({
-                    id: String(b.id),
-                    name: b.name,
-                    capacity: (b.max_capacity || 10) * 8,
-                    skills: []
-                })),
+                brigades: (brigades || []).map(b => {
+                    const workersCount = (typeof AdminState !== 'undefined' && AdminState.workers)
+                      ? AdminState.workers.filter(w => w.brigade_id === b.id).length
+                      : (b.workers_count || 0);
+                    const seats = b.max_capacity || b.capacity || Math.max(workersCount, 4);
+                    return {
+                      id: String(b.id),
+                      name: b.name,
+                      capacity: Number(seats) * 8,
+                      max_capacity: Number(seats),
+                      current_load: Number(b.current_load) || 0,
+                      skills: []
+                    };
+                  }),
                 resources: [],
                 do_leveling: true,
                 horizon: 'month'
@@ -62,6 +91,11 @@ export class AIPanel {
             console.log('📥 Ответ от /ai/build-plan:', result);
             
             this.lastPlan = result.plan;
+            
+            this.lastGaps = result.plan?.gaps || null;
+            this.lastBridge = result.plan?.bridge_proposals || null; 
+
+            
             
             try {
                 const bnResponse = await fetch(`${this.API_BASE}/ai/bottlenecks`, {
@@ -117,13 +151,23 @@ export class AIPanel {
                 plan: result.plan,
                 recommendations: recommendations,
                 summary: {
-                    totalOperations: result.plan?.tasks?.length || 0,
-                    projectDuration: result.plan?.total_duration_days
-                                ?? result.plan?.project_duration_days
-                                ?? 0,
-                    criticalPath: result.plan?.critical_path_ids || [],
-                    leveled: !!(result.plan?.leveling?.leveled || result.plan?.leveled)
-                }
+                    totalOperations: result.plan?.tasks?.length || activeOps.length,
+                    loadedOperations: filterReport.loaded,
+                    skippedOperations: filterReport.skippedTotal,
+                    filterReport,
+                    projectDuration:
+                      result.plan?.project_duration_days
+                      ?? result.plan?.total_duration_days
+                      ?? 0,
+                    criticalPath:
+                      result.plan?.critical_path_ids
+                      || result.plan?.critical_path
+                      || [],
+                    leveled:
+                      !!(result.plan?.leveled
+                        || result.plan?.leveling?.leveled
+                        || result.plan?.stats?.leveling_applied)
+                  }
             };
             
         } catch (error) {
@@ -457,7 +501,48 @@ export class AIPanel {
             };
         });
     }
-
+    renderGaps(containerId, gapsReport, bridge) {
+        const el = document.getElementById(containerId);
+        if (!el) return;
+        const gaps = gapsReport?.gaps || [];
+        const proposals = bridge?.proposals || [];
+        if (!gaps.length && !proposals.length) {
+          el.innerHTML = `<div style="padding:16px;color:#16a34a;font-size:13px;">Разрывов не найдено</div>`;
+          return;
+        }
+        const gapRows = gaps.slice(0, 40).map(g => `
+          <div style="padding:8px 10px;border-bottom:1px solid #fee2e2;font-size:12px;cursor:pointer;"
+               onclick="window.goToOperation&&window.goToOperation('${g.op_number||''}')">
+            <b style="color:#dc2626;">${g.type}</b> · #${g.op_number||'—'} ${g.name||''}
+            <div style="color:#64748b;">${g.message||''}</div>
+          </div>`).join('');
+        const propRows = proposals.slice(0, 25).map(p => {
+          const payload = encodeURIComponent(JSON.stringify(p));
+          return `<div style="padding:8px 10px;border-bottom:1px solid #dbeafe;font-size:12px;">
+            <b>#${p.from}</b> → <b>#${p.to}</b>
+            <span style="color:#0961f6;font-weight:600;"> ${Math.round((p.confidence||0)*100)}%</span>
+            ${p.auto_apply ? '<span style="color:#16a34a;margin-left:6px;">auto</span>' : ''}
+            <div style="color:#64748b;">${(p.reasons||[]).join(' · ')}</div>
+            ${!p.auto_apply ? `<button type="button" style="margin-top:4px;font-size:11px;padding:4px 8px;border-radius:6px;border:1px solid #0961f6;background:#eff6ff;cursor:pointer;"
+              onclick='window.applyBridgeLink&&window.applyBridgeLink(JSON.parse(decodeURIComponent("${payload}")))'>Применить связь</button>` : ''}
+          </div>`;
+        }).join('');
+        el.innerHTML = `
+          <div style="font-size:12px;color:#64748b;margin-bottom:8px;">
+            Разрывов: <b>${gapsReport?.total ?? gaps.length}</b> · предложений: <b>${proposals.length}</b>
+            · авто: <b>${(bridge?.auto_apply||[]).length}</b>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div style="border:1px solid #fecaca;border-radius:8px;max-height:280px;overflow:auto;">
+              <div style="padding:8px;background:#fef2f2;font-weight:600;font-size:12px;">Разрывы</div>
+              ${gapRows || '—'}
+            </div>
+            <div style="border:1px solid #bfdbfe;border-radius:8px;max-height:280px;overflow:auto;">
+              <div style="padding:8px;background:#eff6ff;font-weight:600;font-size:12px;">Предложенные связи</div>
+              ${propRows || '—'}
+            </div>
+          </div>`;
+      }
     /**
      * Рендер сводки плана
      */
@@ -467,26 +552,37 @@ export class AIPanel {
         
         const pd = parseFloat(summary.projectDuration);
         const hasDuration = !isNaN(pd) && pd > 0;
+        const loaded = summary.loadedOperations ?? summary.totalOperations ?? 0;
+        const inPlan = summary.totalOperations ?? 0;
+        const skipped = summary.skippedOperations ?? Math.max(0, loaded - inPlan);
+        const fr = summary.filterReport?.reasons || {};
         
         container.innerHTML = `
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <div style="flex:1;min-width:80px;background:#f0f9ff;border-radius:8px;padding:10px;text-align:center;">
-                    <div style="font-size:18px;font-weight:700;color:#0961f6;">${summary.totalOperations || 0}</div>
-                    <div style="font-size:11px;color:#6b7280;">Операций</div>
-                </div>
-                <div style="flex:1;min-width:80px;background:#fef2f2;border-radius:8px;padding:10px;text-align:center;">
-                    <div style="font-size:18px;font-weight:700;color:#ef4444;">${summary.criticalPath?.length || 0}</div>
-                    <div style="font-size:11px;color:#6b7280;">Критических</div>
-                </div>
-                <div style="flex:1;min-width:80px;background:#f0fdf4;border-radius:8px;padding:10px;text-align:center;">
-                    <div style="font-size:18px;font-weight:700;color:#22c55e;">${hasDuration ? pd.toFixed(2) : '—'}</div>
-                    <div style="font-size:11px;color:#6b7280;">Дней проект</div>
-                </div>
-                <div style="flex:1;min-width:80px;background:#fffbeb;border-radius:8px;padding:10px;text-align:center;">
-                    <div style="font-size:18px;font-weight:700;color:#f59e0b;">${summary.leveled ? 'Да' : 'Нет'}</div>
-                    <div style="font-size:11px;color:#6b7280;">Leveling</div>
-                </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+            <div style="flex:1;min-width:80px;background:#f0f9ff;border-radius:8px;padding:10px;text-align:center;">
+              <div style="font-size:18px;font-weight:700;color:#0961f6;">${inPlan}</div>
+              <div style="font-size:11px;color:#6b7280;">В плане</div>
             </div>
+            <div style="flex:1;min-width:80px;background:#fef2f2;border-radius:8px;padding:10px;text-align:center;">
+              <div style="font-size:18px;font-weight:700;color:#ef4444;">${summary.criticalPath?.length || 0}</div>
+              <div style="font-size:11px;color:#6b7280;">Критических</div>
+            </div>
+            <div style="flex:1;min-width:80px;background:#f0fdf4;border-radius:8px;padding:10px;text-align:center;">
+              <div style="font-size:18px;font-weight:700;color:#22c55e;">${hasDuration ? pd.toFixed(1) : '—'}</div>
+              <div style="font-size:11px;color:#6b7280;">Дней проект</div>
+            </div>
+            <div style="flex:1;min-width:80px;background:#fffbeb;border-radius:8px;padding:10px;text-align:center;">
+              <div style="font-size:18px;font-weight:700;color:#f59e0b;">${summary.leveled ? 'Да' : 'Нет'}</div>
+              <div style="font-size:11px;color:#6b7280;">Leveling</div>
+            </div>
+          </div>
+          <div style="font-size:12px;color:#475569;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;line-height:1.45;">
+            <b>Загружено:</b> ${loaded} → <b>в плане:</b> ${inPlan}
+            ${skipped ? ` → <b>не в плане:</b> ${skipped}` : ''}
+            ${skipped ? `<div style="margin-top:4px;color:#64748b;">
+              завершено: ${fr.completed ?? '—'} · без номера: ${fr.noNumber ?? '—'} · без длительности: ${fr.noDuration ?? '—'}
+            </div>` : ''}
+          </div>
         `;
     }
     /**

@@ -5915,6 +5915,14 @@ async function runOptimization() {
                 aiPanel.renderRecommendations(id, recs);
             }
         });
+
+        if (result.plan && window.aiPanel) {
+            aiPanel.renderGaps(
+              'aiGapsPanel',
+              result.plan.gaps,
+              result.plan.bridge_proposals
+            );
+          }
         
         await loadAIRecommendations();
         
@@ -6126,6 +6134,32 @@ window.saveBrigade = saveBrigade;
 window.saveWorker = saveWorker;
 window.closeAllModals = closeAllModals;
 
+window.applyBridgeLink = async function (p) {
+    try {
+      const res = await fetch('http://127.0.0.1:8000/ai/gaps/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          links: [{ from: String(p.from), to: String(p.to) }],
+          persist: true
+        })
+      });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        showNotification('Связь', `#${p.from} → #${p.to} записана`, 'success');
+        await loadAllData();
+        if (typeof highlightGanttPath === 'function') {
+          highlightGanttPath(Number(p.to) || Number(p.from));
+        }
+        // если есть подсветка на графе — вызови свою:
+        // if (typeof highlightGraphPath === 'function') highlightGraphPath(String(p.from), String(p.to));
+      } else {
+        showNotification('Ошибка', data.detail || 'не применено', 'error');
+      }
+    } catch (e) {
+      showNotification('Ошибка', e.message, 'error');
+    }
+  };
 
 // ================================================================
 // ДИАГРАММА ГАНТА
