@@ -30,8 +30,8 @@ except ImportError:
         AIEngine = None
         logger.error("AI Engine не найден. Проверьте установку пакета ai.")
 
-router = APIRouter(prefix="/ai", tags=["AI"])
-
+# router = APIRouter(prefix="/ai", tags=["AI"])
+# 
 # Глобальный экземпляр движка (можно заменить на dependency injection)
 _engine: Optional[AIEngine] = None
 
@@ -139,7 +139,7 @@ class DetectReplanRequest(BaseModel):
 
 
 # ====================== Эндпоинты ======================
-
+router = APIRouter(prefix="/ai", tags=["AI"])
 @router.get("/status")
 def ai_status():
     """Текущий статус ИИ-движка"""

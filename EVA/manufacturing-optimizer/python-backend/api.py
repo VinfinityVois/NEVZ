@@ -107,53 +107,62 @@ app = FastAPI(
     version="2.0.0",
     lifespan=lifespan
 )
-
-# Подключение AI-роутера
-# Подключение AI-роутера
-try:
-    from ai_endpoints import router as ai_router
-    app.include_router(ai_router)
-    print("[OK] AI endpoints loaded")
-except Exception as e:
-    import logging
-    logging.getLogger(__name__).warning(f"AI router not loaded: {e}")
-
-# app.include_router(ai_router)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Подключение AI-роутера
+# ===== AI ROUTER (обязательно) =====
 try:
     import sys
     from pathlib import Path
-    _api_dir = str(Path(__file__).parent / "api")
-    if _api_dir not in sys.path:
-        sys.path.insert(0, _api_dir)
+    _here = Path(__file__).resolve().parent
+    _api = _here / "api"
+    if str(_api) not in sys.path:
+        sys.path.insert(0, str(_api))
+    if str(_here) not in sys.path:
+        sys.path.insert(0, str(_here))
+
     from ai_endpoints import router as ai_router
     app.include_router(ai_router)
-    print("[OK] AI endpoints loaded")
-except Exception as e:
-    print(f"[WARN] AI endpoints not loaded: {e}")
+    print("[OK] AI endpoints loaded, routes:", len(list(ai_router.routes)))
+    for r in ai_router.routes:
+        methods = getattr(r, "methods", None)
+        path = getattr(r, "path", str(r))
+        print("   ", methods, path)
+except Exception:
+    import traceback
+    print("[WARN] AI endpoints FULL module failed:")
+    traceback.print_exc()
 
-try:
-    from cpm_endpoints import router as cpm_router
-    app.include_router(cpm_router)
-    print("[OK] CPM endpoints loaded")
-except Exception as e:
-    import logging
-    logging.getLogger(__name__).warning(f"CPM router not loaded: {e}")
+    # Fallback: минимальные маршруты, чтобы UI не ловил 404
+    from fastapi import APIRouter
+    _ai_fb = APIRouter(prefix="/ai", tags=["AI-fallback"])
+
+    @_ai_fb.get("/status")
+    def _ai_status_fb():
+        return {"status": "ok", "engine": {"has_plan": False}, "fallback": True}
+
+    @_ai_fb.get("/models/status")
+    def _ai_models_fb():
+        return {
+            "predictor_available": False,
+            "delay_model_loaded": False,
+            "anomaly_model_loaded": False,
+            "fallback": True,
+        }
+
+    @_ai_fb.post("/build-plan")
+    def _ai_build_fb(payload: dict = None):
+        return {
+            "success": False,
+            "plan": None,
+            "recommendations": [],
+            "detail": "AI engine module not loaded — see server log",
+            "fallback": True,
+        }
+
+    app.include_router(_ai_fb)
+    print("[OK] AI FALLBACK routes mounted (/ai/status, /models/status, /build-plan)")
+# ===== /AI ROUTER =====
 # ================================================================
 # ГЛОБАЛЬНЫЙ ОБРАБОТЧИК ОШИБОК
 # ================================================================
-
-
-
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
