@@ -2188,3 +2188,6 @@ input:checked + .slider:before {
   #ganttPathOverlay {
     pointer-events: none;
   }
+
+  #ganttPathOverlay { z-index: 15; pointer-events: none; }
+/* не ставь svg.gantt выше 15 */

@@ -6141,66 +6141,42 @@ function collectGanttPathOpNumbers(opNumber) {
     });
     document.querySelectorAll('#ganttChart .arrow').forEach(a => {
       a.classList.remove('gantt-arrow-dim', 'gantt-arrow-hl');
-      a.style.opacity = '';
-      a.style.stroke = '';
-      a.style.strokeWidth = '';
     });
+    clearGanttPathOverlay();
   }
 
  
   function highlightGanttPath(opNumber) {
-  clearGanttPathHighlight();
-  const path = collectGanttPathOpNumbers(opNumber);
-  const focus = Number(opNumber);
-
-  // 1) полоски
-  document.querySelectorAll('#ganttChart .bar-wrapper').forEach(el => {
-    const num = Number(el.getAttribute('data-op'));
-    if (num && path.has(num)) {
-      el.classList.add('gantt-path-hl');
-      if (num === focus) el.classList.add('gantt-path-focus');
-    } else {
-      el.classList.add('gantt-path-dim');
-    }
-  });
-
-  // 2) какие пары op связаны и обе в path
-  const linkPairs = new Set(); // "12>34"
-  const ops = window.allOperationsCache || [];
-  ops.forEach(o => {
-    const to = Number(o.op_number);
-    if (!path.has(to)) return;
-    (o.prev_ops || []).forEach(p => {
-      const from = Number(p);
-      if (path.has(from)) linkPairs.add(`${from}>${to}`);
+    clearGanttPathHighlight();
+  
+    const path = collectGanttPathOpNumbers(opNumber);
+    const focus = Number(opNumber);
+  
+    document.querySelectorAll('#ganttChart .bar-wrapper').forEach(el => {
+      const num = Number(el.getAttribute('data-op'));
+      if (num && path.has(num)) {
+        el.classList.add('gantt-path-hl');
+        if (num === focus) el.classList.add('gantt-path-focus');
+      } else {
+        el.classList.add('gantt-path-dim');
+      }
     });
-  });
-
-  // 3) стрелки: Frappe path.arrow — пробуем id / data-* / соседний bar
-  document.querySelectorAll('#ganttChart .arrow').forEach(a => {
-    const raw = [
-      a.getAttribute('id'),
-      a.getAttribute('data-from'),
-      a.getAttribute('data-to'),
-      a.getAttribute('class')
-    ].join(' ');
-    const nums = [...String(raw).matchAll(/(\d+)/g)].map(m => Number(m[1]));
-    let onPath = false;
-    if (nums.length >= 2) {
-      onPath = path.has(nums[0]) && path.has(nums[1]);
-      // или пара в linkPairs
-      if (!onPath) onPath = linkPairs.has(`${nums[0]}>${nums[1]}`) || linkPairs.has(`${nums[1]}>${nums[0]}`);
+  
+    // штатные стрелки Frappe приглушить
+    document.querySelectorAll('#ganttChart .arrow').forEach(a => {
+        a.classList.add('gantt-arrow-dim');
+      });
+    
+      requestAnimationFrame(() => drawGanttPathLinks(path));
+  
+    if (path.size <= 1) {
+      console.warn('[Gantt] Нет связанных prev_ops — только эта операция', focus);
     }
-    a.classList.add(onPath ? 'gantt-arrow-hl' : 'gantt-arrow-dim');
-  });
-
-  // если путь из 1 узла — явно сказать
-  if (path.size <= 1) {
-    console.warn('[Gantt] У операции нет зависимостей в данных (prev_ops). Путь = только она.', focus);
-  } else {
-    console.log('[Gantt path]', focus, [...path], 'links', linkPairs.size);
+    // console.log('[path overlay]', {
+    //     nodes: Object.keys(anchors).length,
+    //     pathSize: pathSet.size
+    //   });
   }
-}
 
   window.highlightGanttPath = highlightGanttPath;
   window.clearGanttPathHighlight = clearGanttPathHighlight;
@@ -6208,14 +6184,32 @@ function collectGanttPathOpNumbers(opNumber) {
   function ensureGanttPathLayer() {
     const host = document.getElementById('ganttChart');
     if (!host) return null;
+  
+    if (getComputedStyle(host).position === 'static') {
+      host.style.position = 'relative';
+    }
+  
     let svg = document.getElementById('ganttPathOverlay');
     if (!svg) {
       svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       svg.id = 'ganttPathOverlay';
-      svg.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:5;overflow:visible;';
-      host.style.position = host.style.position || 'relative';
+      host.appendChild(svg);
+    } else if (svg.parentNode !== host) {
       host.appendChild(svg);
     }
+  
+    // ПОВЕРХ графика — иначе фон строк перекрывает линии
+    svg.style.cssText =
+      'position:absolute;left:0;top:0;width:100%;height:100%;' +
+      'pointer-events:none;z-index:15;overflow:visible;';
+  
+    const ganttSvg = host.querySelector('svg.gantt');
+    const w = Math.max(host.scrollWidth, ganttSvg?.clientWidth || 0, host.clientWidth || 0);
+    const h = Math.max(host.scrollHeight, ganttSvg?.clientHeight || 0, host.clientHeight || 0);
+    svg.setAttribute('width', String(w));
+    svg.setAttribute('height', String(h));
+    svg.style.width = w + 'px';
+    svg.style.height = h + 'px';
     return svg;
   }
   
@@ -6230,55 +6224,105 @@ function collectGanttPathOpNumbers(opNumber) {
     svg.innerHTML = '';
   
     const host = document.getElementById('ganttChart');
+    if (!host) return;
     const hostRect = host.getBoundingClientRect();
-    svg.setAttribute('width', host.scrollWidth || hostRect.width);
-    svg.setAttribute('height', host.scrollHeight || hostRect.height);
   
-    // центры полосок пути
-    const centers = {};
+    const ganttSvg = host.querySelector('svg.gantt');
+    const w = Math.max(host.scrollWidth, ganttSvg?.clientWidth || 0, host.clientWidth || 0);
+    const h = Math.max(host.scrollHeight, ganttSvg?.clientHeight || 0, host.clientHeight || 0);
+    svg.setAttribute('width', String(w));
+    svg.setAttribute('height', String(h));
+    svg.style.width = w + 'px';
+    svg.style.height = h + 'px';
+  
+    const anchors = {};
     document.querySelectorAll('#ganttChart .bar-wrapper.gantt-path-hl').forEach(el => {
       const num = Number(el.getAttribute('data-op'));
+      if (!num) return;
       const bar = el.querySelector('.bar') || el;
       const r = bar.getBoundingClientRect();
-      centers[num] = {
-        x: r.left - hostRect.left + host.scrollLeft + r.width / 2,
-        y: r.top - hostRect.top + host.scrollTop + r.height / 2
+      const x0 = r.left - hostRect.left + (host.scrollLeft || 0);
+      const y0 = r.top - hostRect.top + (host.scrollTop || 0);
+      anchors[num] = {
+        L: { x: x0, y: y0 + r.height / 2 },
+        R: { x: x0 + r.width, y: y0 + r.height / 2 },
+        T: { x: x0 + r.width / 2, y: y0 },
+        B: { x: x0 + r.width / 2, y: y0 + r.height },
+        x0, y0,
+        x1: x0 + r.width,
+        y1: y0 + r.height
       };
     });
+  
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    defs.innerHTML = `
+      <marker id="ganttPathArrow" markerWidth="10" markerHeight="8"
+              refX="10" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L10,4 L0,8 Z" fill="#10b981"/>
+      </marker>`;
+    svg.appendChild(defs);
+  
+    const ARROW = 14;
+    const gap = 10;
+    const laneStep = 14;
+    let edgeIndex = 0;
+  
+    function route(fromId, toId) {
+      const A = anchors[fromId];
+      const B = anchors[toId];
+      if (!A || !B) return null;
+  
+      const lane = (edgeIndex % 6) * laneStep;
+  
+      // from левее to: справа → канал → слева
+      if (A.x1 + gap * 2 < B.x0) {
+        const xBus = A.x1 + gap + 12 + lane;
+        const endX = B.x0 - gap - ARROW;
+        return `M ${A.R.x} ${A.R.y} L ${xBus} ${A.R.y} L ${xBus} ${B.L.y} L ${endX} ${B.L.y}`;
+      }
+  
+      // from правее to: слева → канал → справа
+      if (B.x1 + gap * 2 < A.x0) {
+        return `M ${A.L.x} ${A.L.y} L ${A.L.x - gap - lane} ${A.L.y} L ${A.L.x - gap - lane} ${B.R.y} L ${B.R.x + gap} ${B.R.y}`;
+      }
+  
+      // пересечение по X: сверху или снизу
+      if (A.T.y <= B.T.y) {
+        const yBus = Math.min(A.T.y, B.T.y) - 16 - lane;
+        return `M ${A.T.x} ${A.T.y} L ${A.T.x} ${yBus} L ${B.T.x} ${yBus} L ${B.T.x} ${B.T.y - gap}`;
+      }
+      const yBus = Math.max(A.B.y, B.B.y) + 16 + lane;
+      return `M ${A.B.x} ${A.B.y} L ${A.B.x} ${yBus} L ${B.B.x} ${yBus} L ${B.B.x} ${B.B.y + gap}`;
+    }
   
     const ops = window.allOperationsCache || [];
     ops.forEach(o => {
       const to = Number(o.op_number);
-      if (!pathSet.has(to) || !centers[to]) return;
+      if (!pathSet.has(to) || !anchors[to]) return;
       (o.prev_ops || []).forEach(p => {
         const from = Number(p);
-        if (!pathSet.has(from) || !centers[from]) return;
-        const a = centers[from];
-        const b = centers[to];
-        const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        // ломаная: горизонталь → вертикаль → горизонталь (как зависимости)
-        const midX = (a.x + b.x) / 2;
-        const d = `M ${a.x} ${a.y} C ${midX} ${a.y}, ${midX} ${b.y}, ${b.x} ${b.y}`;
-        line.setAttribute('d', d);
-        line.setAttribute('fill', 'none');
-        line.setAttribute('stroke', '#10b981');
-        line.setAttribute('stroke-width', '3');
-        line.setAttribute('stroke-linecap', 'round');
-        line.setAttribute('opacity', '0.95');
-        line.setAttribute('marker-end', 'url(#ganttPathArrow)');
-        svg.appendChild(line);
+        if (!pathSet.has(from) || !anchors[from]) return;
+        const d = route(from, to);
+        if (d) {
+          appendLink(svg, d);
+          edgeIndex++;
+        }
       });
     });
+  }
+      
   
-    // маркер стрелки один раз
-    if (!svg.querySelector('#ganttPathArrow')) {
-      const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-      defs.innerHTML = `
-        <marker id="ganttPathArrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-          <path d="M0,0 L6,3 L0,6 Z" fill="#10b981"></path>
-        </marker>`;
-      svg.insertBefore(defs, svg.firstChild);
-    }
+  function appendLink(svg, d) {
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    line.setAttribute('d', d);
+    line.setAttribute('fill', 'none');
+    line.setAttribute('stroke', '#10b981');
+    line.setAttribute('stroke-width', '2.5');
+    line.setAttribute('stroke-linecap', 'round');
+    line.setAttribute('stroke-linejoin', 'round');
+    line.setAttribute('opacity', '0.92');
+    line.setAttribute('marker-end', 'url(#ganttPathArrow)');
+    svg.appendChild(line);
   }
 
 function renderGantt() {
@@ -6436,10 +6480,37 @@ function renderGantt() {
         });
         // если клик уже был до rAF — ничего; следующий клик сработает
       });
+    
+      // Перемещаем стрелки за бары (в SVG первые в DOM = нижний слой)
+    requestAnimationFrame(() => {
+        const svg = document.querySelector('#ganttChart svg.gantt');
+        if (svg) {
+        const arrows = Array.from(svg.querySelectorAll('.arrow, .arrow-path, [class*="arrow"]'));
+        arrows.reverse().forEach(arrow => svg.insertBefore(arrow, svg.firstChild));
+        }
+    });
 
      
-    injectGanttStyles();
-  }
+        // Перемещаем стрелки зависимостей за блоки (первыми в SVG = нижний слой)
+    requestAnimationFrame(() => {
+      const svg = document.querySelector('#ganttChart svg.gantt');
+      if (svg) {
+        const arrows = Array.from(svg.querySelectorAll('.arrow, .arrow-path, [class*="arrow"]'));
+        arrows.reverse().forEach(arrow => svg.insertBefore(arrow, svg.firstChild));
+      }
+    });
+
+    // Перемещаем стрелки зависимостей за блоки (первыми в SVG = нижний слой)
+    requestAnimationFrame(() => {
+        const svg = document.querySelector('#ganttChart svg.gantt');
+        if (svg) {
+          const arrows = Array.from(svg.querySelectorAll('.arrow, .arrow-path, [class*="arrow"]'));
+          arrows.reverse().forEach(arrow => svg.insertBefore(arrow, svg.firstChild));
+        }
+      });
+  
+      injectGanttStyles();
+    }
 
 function changeGanttView(mode) {
     if (ganttChart) {
@@ -6455,53 +6526,56 @@ function injectGanttStyles() {
       document.head.appendChild(style);
     }
     style.textContent = `
-    .gantt .bar-wrapper.gantt-critical .bar { fill: #ef4444 !important; }
-    .gantt .bar-wrapper.gantt-critical .bar-progress { fill: #b91c1c !important; }
-    .gantt .bar-wrapper.gantt-completed .bar { fill: #10b981 !important; }
-    .gantt .bar-wrapper.gantt-in_progress .bar { fill: #3b82f6 !important; }
-    .gantt .bar-wrapper.gantt-pending .bar { fill: #94a3b8 !important; }
-    .gantt .bar-wrapper.gantt-blocked .bar { fill: #f59e0b !important; }
-    .gantt .bar-label { font-size: 11px; font-weight: 600; fill: #334155; }
+      .gantt .bar-wrapper.gantt-critical .bar { fill: #ef4444 !important; }
+      .gantt .bar-wrapper.gantt-critical .bar-progress { fill: #b91c1c !important; }
+      .gantt .bar-wrapper.gantt-completed .bar { fill: #10b981 !important; }
+      .gantt .bar-wrapper.gantt-in_progress .bar { fill: #3b82f6 !important; }
+      .gantt .bar-wrapper.gantt-pending .bar { fill: #94a3b8 !important; }
+      .gantt .bar-wrapper.gantt-blocked .bar { fill: #f59e0b !important; }
+      .gantt .bar-label { font-size: 11px; font-weight: 600; fill: #334155; }
+  
+      .gantt .arrow { stroke: #94a3b8; stroke-width: 1.4; opacity: 0.45; fill: none; pointer-events: none; }
+  
+      #ganttChart.gantt-readonly .bar-wrapper { pointer-events: auto !important; cursor: pointer !important; }
+      #ganttChart.gantt-readonly .handle-group,
+      #ganttChart.gantt-readonly .handle { pointer-events: none !important; display: none !important; }
+  
+      #ganttChart .bar-wrapper.gantt-path-dim {
+        opacity: 0.12 !important;
+        filter: grayscale(0.7);
+      }
+      #ganttChart .bar-wrapper.gantt-path-hl {
+        opacity: 1 !important;
+        filter: none !important;
+      }
+      #ganttChart .bar-wrapper.gantt-path-hl .bar {
+        stroke: #2563eb !important;
+        stroke-width: 3px !important;
+        filter: drop-shadow(0 0 6px rgba(37,99,235,0.65)) !important;
+      }
+      #ganttChart .bar-wrapper.gantt-path-focus .bar {
+        stroke: #1d4ed8 !important;
+        stroke-width: 4px !important;
+      }
+      #ganttChart .arrow.gantt-arrow-dim {
+        opacity: 0.06 !important;
+        stroke: #cbd5e1 !important;
+      }
+      #ganttChart .arrow.gantt-arrow-hl {
+        opacity: 1 !important;
+        stroke: #10b981 !important;
+        stroke-width: 2.8 !important;
+      }
+      #ganttPathOverlay { pointer-events: none; }
 
-    .gantt .arrow { stroke: #94a3b8; stroke-width: 1.4; opacity: 0.5; fill: none; }
-
-    #ganttChart.gantt-readonly .bar-wrapper { pointer-events: auto !important; cursor: pointer !important; }
-    #ganttChart.gantt-readonly .handle-group,
-    #ganttChart.gantt-readonly .handle { pointer-events: none !important; display: none !important; }
-
-    #ganttChart .bar-wrapper.gantt-path-dim {
-      opacity: 0.12 !important;
-      filter: grayscale(0.7);
-    }
-    #ganttChart .bar-wrapper.gantt-path-hl {
-      opacity: 1 !important;
-      filter: none !important;
-    }
-    #ganttChart .bar-wrapper.gantt-path-hl .bar {
-      stroke: #2563eb !important;
-      stroke-width: 3px !important;
-      filter: drop-shadow(0 0 6px rgba(37,99,235,0.65)) !important;
-    }
-    #ganttChart .bar-wrapper.gantt-path-focus .bar {
-      stroke: #1d4ed8 !important;
-      stroke-width: 4px !important;
-    }
-    #ganttChart .arrow.gantt-arrow-dim {
-      opacity: 0.06 !important;
-      stroke: #cbd5e1 !important;
-    }
-    #ganttChart .arrow.gantt-arrow-hl {
-      opacity: 1 !important;
-      stroke: #10b981 !important;
-      stroke-width: 2.8 !important;
-    }
-  `;
-    // погасить штатные стрелки Frappe
-        // погасить штатные стрелки Frappe
-    document.querySelectorAll('#ganttChart .arrow').forEach(a => {
-        a.classList.add('gantt-arrow-dim');
-    });
-}
+      #ganttChart { position: relative; }
+      
+      #ganttPathOverlay {
+        z-index: 15 !important;
+        pointer-events: none;
+      }
+    `;
+  }
 
 // ================================================================
 // ДАШБОРД: % , периоды, графики, алерты
