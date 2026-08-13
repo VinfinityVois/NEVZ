@@ -121,15 +121,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Подключение AI-роутера
 try:
-    from api.ai_endpoints import router as ai_router
+    import sys
+    from pathlib import Path
+    _api_dir = str(Path(__file__).parent / "api")
+    if _api_dir not in sys.path:
+        sys.path.insert(0, _api_dir)
+    from ai_endpoints import router as ai_router
     app.include_router(ai_router)
     print("[OK] AI endpoints loaded")
 except Exception as e:
+    import traceback
     print(f"[WARN] AI endpoints not loaded: {e}")
+    traceback.print_exc()
 
 try:
-    from api.cpm_endpoints import router as cpm_router
+    from cpm_endpoints import router as cpm_router
     app.include_router(cpm_router)
     print("[OK] CPM endpoints loaded")
 except Exception as e:
