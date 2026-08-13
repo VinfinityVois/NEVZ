@@ -184,6 +184,7 @@ const getDOM = () => ({
 // ГРАФ ПРОЦЕССОВ (ПОЛНАЯ ПЕРЕРАБОТКА)
 // ================================================================
 let ganttChart = null;
+
 // Глобальная переменная для графа
 let cy = null;
 let graphElements = [];
@@ -5985,106 +5986,460 @@ window.closeAllModals = closeAllModals;
 // ================================================================
 // ДИАГРАММА ГАНТА
 // ================================================================
+let ganttEditMode = false;
+let ganttOrder = [];
+
+function toggleGanttEditMode(on) {
+  ganttEditMode = !!on;
+  const box = document.getElementById('ganttChart');
+  if (box) box.classList.toggle('gantt-readonly', !ganttEditMode);
+  renderGantt();
+}
+window.toggleGanttEditMode = toggleGanttEditMode;
+
+function daysBetween(startStr, endStr) {
+  const a = new Date(startStr), b = new Date(endStr);
+  return Math.max(1, Math.round((b - a) / 86400000));
+}
+
+async function persistGanttDates(opNumber, startStr, endStr) {
+  const cache = window.allOperationsCache || AdminState.operations || [];
+  const op = cache.find(o => o.op_number === opNumber);
+  if (!op || !op.id) return;
+  const durationHours = Math.max(1, daysBetween(startStr, endStr) * 8);
+  op.start_date = startStr;
+  op.end_date = endStr;
+  op.duration = durationHours;
+  try {
+    await api.updateOperation(op.id, {
+      start_date: startStr,
+      end_date: endStr,
+      duration: durationHours
+    });
+    showNotification('Сохранено', `#${opNumber}: ${startStr} → ${endStr}`, 'success');
+  } catch (e) {
+    showNotification('Ошибка', e.message || 'Не сохранено', 'error');
+  }
+}
+
+function openGanttTaskModal(opNumber) {
+  const cache = window.allOperationsCache || AdminState.operations || [];
+  const op = cache.find(o => o.op_number === opNumber);
+  if (!op) {
+    showNotification('Гантт', `Операция #${opNumber} не найдена`, 'warning');
+    return;
+  }
+  let start = (op.start_date || new Date().toISOString()).toString().slice(0, 10);
+  let end = op.end_date ? String(op.end_date).slice(0, 10) : null;
+  if (!end) {
+    const d = new Date(start);
+    d.setDate(d.getDate() + Math.max(1, Math.ceil((op.duration || 8) / 8)));
+    end = d.toISOString().slice(0, 10);
+  }
+
+  document.getElementById('ganttTaskModal')?.remove();
+  const overlay = document.getElementById('modalOverlay');
+  if (overlay) overlay.style.display = 'flex';
+
+  const modal = document.createElement('div');
+  modal.id = 'ganttTaskModal';
+  modal.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;padding:22px;width:min(420px,94vw);z-index:10002;box-shadow:0 20px 50px rgba(0,0,0,.25);';
+  modal.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <h3 style="margin:0;font-size:16px;">#${op.op_number} · правка</h3>
+      <button type="button" id="ganttModalClose" style="border:0;background:none;font-size:22px;cursor:pointer;">×</button>
+    </div>
+    <p style="margin:0 0 12px;font-size:13px;color:#64748b;">${op.name || '—'}</p>
+    <label style="font-size:12px;color:#64748b;">Начало</label>
+    <input type="date" id="ganttStart" class="input" value="${start}" style="width:100%;margin:4px 0 10px;">
+    <label style="font-size:12px;color:#64748b;">Окончание</label>
+    <input type="date" id="ganttEnd" class="input" value="${end}" style="width:100%;margin:4px 0 10px;">
+    <label style="font-size:12px;color:#64748b;">Длительность (ч)</label>
+    <input type="number" id="ganttDur" class="input" min="1" step="0.5" value="${op.duration || 8}" style="width:100%;margin:4px 0 14px;">
+    <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <button type="button" class="btn btn-outline btn-sm" id="ganttMoveUp">↑ Выше</button>
+      <button type="button" class="btn btn-outline btn-sm" id="ganttMoveDown">↓ Ниже</button>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button type="button" class="btn btn-outline" id="ganttModalCancel">Отмена</button>
+      <button type="button" class="btn btn-primary" id="ganttModalSave">Сохранить</button>
+    </div>`;
+  document.body.appendChild(modal);
+
+  const close = () => {
+    modal.remove();
+    if (overlay) overlay.style.display = 'none';
+  };
+  document.getElementById('ganttModalClose').onclick = close;
+  document.getElementById('ganttModalCancel').onclick = close;
+  document.getElementById('ganttModalSave').onclick = async () => {
+    const s = document.getElementById('ganttStart').value;
+    const e = document.getElementById('ganttEnd').value;
+    op.duration = Number(document.getElementById('ganttDur').value) || 8;
+    await persistGanttDates(op.op_number, s, e);
+    close();
+    renderGantt();
+  };
+  document.getElementById('ganttMoveUp').onclick = () => { moveGanttRow(op.op_number, -1); };
+  document.getElementById('ganttMoveDown').onclick = () => { moveGanttRow(op.op_number, +1); };
+}
+window.openGanttTaskModal = openGanttTaskModal;
+
+function moveGanttRow(opNumber, dir) {
+  if (!ganttEditMode) {
+    showNotification('Заблокировано', 'Включите «Редактирование»', 'warning');
+    return;
+  }
+  const ops = window.allOperationsCache || AdminState.operations || [];
+  if (!ganttOrder.length) ganttOrder = ops.map(o => o.op_number);
+  const i = ganttOrder.indexOf(opNumber);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= ganttOrder.length) return;
+  [ganttOrder[i], ganttOrder[j]] = [ganttOrder[j], ganttOrder[i]];
+  try { localStorage.setItem('ganttOrder', JSON.stringify(ganttOrder)); } catch (_) {}
+  renderGantt();
+}
+
+
+function collectGanttPathOpNumbers(opNumber) {
+    const ops = window.allOperationsCache || AdminState.operations || [];
+    const byNum = {};
+    ops.forEach(o => { byNum[Number(o.op_number)] = o; });
+  
+    const start = Number(opNumber);
+    const path = new Set([start]);
+  
+    // предки
+    const stack = [...(byNum[start]?.prev_ops || [])].map(Number);
+    while (stack.length) {
+      const n = Number(stack.pop());
+      if (!n || path.has(n) || !byNum[n]) continue;
+      path.add(n);
+      (byNum[n].prev_ops || []).forEach(p => stack.push(Number(p)));
+    }
+  
+    // потомки по next_ops + по «кто ссылается в prev_ops»
+    let changed = true;
+    while (changed) {
+      changed = false;
+      ops.forEach(o => {
+        const n = Number(o.op_number);
+        if (path.has(n)) return;
+        const prevs = (o.prev_ops || []).map(Number);
+        if (prevs.some(p => path.has(p))) {
+          path.add(n);
+          changed = true;
+        }
+      });
+    }
+    return path;
+  }
+  
+  function clearGanttPathHighlight() {
+    document.querySelectorAll('#ganttChart .bar-wrapper').forEach(el => {
+      el.classList.remove('gantt-path-hl', 'gantt-path-dim', 'gantt-path-focus');
+    });
+    document.querySelectorAll('#ganttChart .arrow').forEach(a => {
+      a.classList.remove('gantt-arrow-dim', 'gantt-arrow-hl');
+      a.style.opacity = '';
+      a.style.stroke = '';
+      a.style.strokeWidth = '';
+    });
+  }
+
+ 
+  function highlightGanttPath(opNumber) {
+  clearGanttPathHighlight();
+  const path = collectGanttPathOpNumbers(opNumber);
+  const focus = Number(opNumber);
+
+  // 1) полоски
+  document.querySelectorAll('#ganttChart .bar-wrapper').forEach(el => {
+    const num = Number(el.getAttribute('data-op'));
+    if (num && path.has(num)) {
+      el.classList.add('gantt-path-hl');
+      if (num === focus) el.classList.add('gantt-path-focus');
+    } else {
+      el.classList.add('gantt-path-dim');
+    }
+  });
+
+  // 2) какие пары op связаны и обе в path
+  const linkPairs = new Set(); // "12>34"
+  const ops = window.allOperationsCache || [];
+  ops.forEach(o => {
+    const to = Number(o.op_number);
+    if (!path.has(to)) return;
+    (o.prev_ops || []).forEach(p => {
+      const from = Number(p);
+      if (path.has(from)) linkPairs.add(`${from}>${to}`);
+    });
+  });
+
+  // 3) стрелки: Frappe path.arrow — пробуем id / data-* / соседний bar
+  document.querySelectorAll('#ganttChart .arrow').forEach(a => {
+    const raw = [
+      a.getAttribute('id'),
+      a.getAttribute('data-from'),
+      a.getAttribute('data-to'),
+      a.getAttribute('class')
+    ].join(' ');
+    const nums = [...String(raw).matchAll(/(\d+)/g)].map(m => Number(m[1]));
+    let onPath = false;
+    if (nums.length >= 2) {
+      onPath = path.has(nums[0]) && path.has(nums[1]);
+      // или пара в linkPairs
+      if (!onPath) onPath = linkPairs.has(`${nums[0]}>${nums[1]}`) || linkPairs.has(`${nums[1]}>${nums[0]}`);
+    }
+    a.classList.add(onPath ? 'gantt-arrow-hl' : 'gantt-arrow-dim');
+  });
+
+  // если путь из 1 узла — явно сказать
+  if (path.size <= 1) {
+    console.warn('[Gantt] У операции нет зависимостей в данных (prev_ops). Путь = только она.', focus);
+  } else {
+    console.log('[Gantt path]', focus, [...path], 'links', linkPairs.size);
+  }
+}
+
+  window.highlightGanttPath = highlightGanttPath;
+  window.clearGanttPathHighlight = clearGanttPathHighlight;
+
+  function ensureGanttPathLayer() {
+    const host = document.getElementById('ganttChart');
+    if (!host) return null;
+    let svg = document.getElementById('ganttPathOverlay');
+    if (!svg) {
+      svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.id = 'ganttPathOverlay';
+      svg.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:5;overflow:visible;';
+      host.style.position = host.style.position || 'relative';
+      host.appendChild(svg);
+    }
+    return svg;
+  }
+  
+  function clearGanttPathOverlay() {
+    const svg = document.getElementById('ganttPathOverlay');
+    if (svg) svg.innerHTML = '';
+  }
+  
+  function drawGanttPathLinks(pathSet) {
+    const svg = ensureGanttPathLayer();
+    if (!svg) return;
+    svg.innerHTML = '';
+  
+    const host = document.getElementById('ganttChart');
+    const hostRect = host.getBoundingClientRect();
+    svg.setAttribute('width', host.scrollWidth || hostRect.width);
+    svg.setAttribute('height', host.scrollHeight || hostRect.height);
+  
+    // центры полосок пути
+    const centers = {};
+    document.querySelectorAll('#ganttChart .bar-wrapper.gantt-path-hl').forEach(el => {
+      const num = Number(el.getAttribute('data-op'));
+      const bar = el.querySelector('.bar') || el;
+      const r = bar.getBoundingClientRect();
+      centers[num] = {
+        x: r.left - hostRect.left + host.scrollLeft + r.width / 2,
+        y: r.top - hostRect.top + host.scrollTop + r.height / 2
+      };
+    });
+  
+    const ops = window.allOperationsCache || [];
+    ops.forEach(o => {
+      const to = Number(o.op_number);
+      if (!pathSet.has(to) || !centers[to]) return;
+      (o.prev_ops || []).forEach(p => {
+        const from = Number(p);
+        if (!pathSet.has(from) || !centers[from]) return;
+        const a = centers[from];
+        const b = centers[to];
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        // ломаная: горизонталь → вертикаль → горизонталь (как зависимости)
+        const midX = (a.x + b.x) / 2;
+        const d = `M ${a.x} ${a.y} C ${midX} ${a.y}, ${midX} ${b.y}, ${b.x} ${b.y}`;
+        line.setAttribute('d', d);
+        line.setAttribute('fill', 'none');
+        line.setAttribute('stroke', '#10b981');
+        line.setAttribute('stroke-width', '3');
+        line.setAttribute('stroke-linecap', 'round');
+        line.setAttribute('opacity', '0.95');
+        line.setAttribute('marker-end', 'url(#ganttPathArrow)');
+        svg.appendChild(line);
+      });
+    });
+  
+    // маркер стрелки один раз
+    if (!svg.querySelector('#ganttPathArrow')) {
+      const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+      defs.innerHTML = `
+        <marker id="ganttPathArrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 Z" fill="#10b981"></path>
+        </marker>`;
+      svg.insertBefore(defs, svg.firstChild);
+    }
+  }
 
 function renderGantt() {
     const container = document.getElementById('ganttChart');
     if (!container) return;
-    
     container.innerHTML = '';
-    
-    if (!AdminState.operations.length) {
-        container.innerHTML = '<p style="text-align:center;color:#64748b;padding:60px;">Нет операций для отображения. Загрузите данные через Импорт Excel.</p>';
-        return;
+    container.classList.toggle('gantt-readonly', !ganttEditMode);
+  
+    const ops = (window.allOperationsCache && window.allOperationsCache.length)
+        ? window.allOperationsCache
+        : (AdminState.operations || []);
+  
+    if (!ops.length) {
+      container.innerHTML = '<p style="text-align:center;color:#64748b;padding:60px;">Нет операций. Импортируйте Excel.</p>';
+      return;
     }
-    
-    // Преобразуем операции в формат Frappe Gantt
-    const tasks = AdminState.operations.map(op => {
-        // Даты: если в БД нет — строим относительно сегодня + порядковый номер
-        let start = op.start_date;
-        let end = op.end_date;
-        
-        if (!start) {
-            const base = new Date();
-            base.setDate(base.getDate() + (op.op_number * 0.3)); // простое смещение
-            start = base.toISOString().split('T')[0];
-        }
-        if (!end) {
-            const s = new Date(start);
-            const days = Math.max(1, Math.ceil((op.duration || 1) / 8)); // 8ч = 1 день
-            s.setDate(s.getDate() + days);
-            end = s.toISOString().split('T')[0];
-        }
-        
-        // Прогресс по статусу
-        let progress = 0;
-        if (op.status === 'completed') progress = 100;
-        else if (op.status === 'in_progress') progress = 50;
-        
-        // Зависимости: prev_ops → строка ID типа "op1, op2"
-        const deps = (op.prev_ops || []).map(p => `op${p}`).join(', ');
-        
-        // Критический путь — красный цвет
-        const isCritical = AdminState.criticalPath.includes(op.op_number);
-        
-        return {
-            id: `op${op.op_number}`,
-            name: truncate(op.name, 25),
-            start: start,
-            end: end,
-            progress: progress,
-            dependencies: deps,
-            custom_class: isCritical ? 'gantt-critical' : `gantt-${op.status}`,
-            // Кастомные поля для popup
-            _op_number: op.op_number,
-            _brigade: getBrigadeName(op.brigade_id),
-            _duration: op.duration || 0,
-            _status: op.status
-        };
+  
+    // порядок строк
+    if (!ganttOrder.length) {
+      ganttOrder = ops.map(o => o.op_number).sort((a, b) => a - b);
+    }
+    const byNum = Object.fromEntries(ops.map(o => [o.op_number, o]));
+    const ordered = ganttOrder.map(n => byNum[n]).filter(Boolean)
+        .concat(ops.filter(o => !ganttOrder.includes(o.op_number)));
+  
+    const tasks = ordered.map(op => {
+      let start = op.start_date;
+      let end = op.end_date;
+      if (!start) {
+        const base = new Date();
+        base.setDate(base.getDate() + Math.floor((op.op_number || 0) * 0.2));
+        start = base.toISOString().slice(0, 10);
+      }
+      if (!end) {
+        const s = new Date(start);
+        s.setDate(s.getDate() + Math.max(1, Math.ceil((op.duration || 8) / 8)));
+        end = s.toISOString().slice(0, 10);
+      }
+      let progress = 0;
+      if (op.status === 'completed') progress = 100;
+      else if (op.status === 'in_progress') progress = 50;
+  
+      const isCritical = (AdminState.criticalPath || []).includes(op.op_number);
+      const showDeps = document.getElementById('ganttShowDeps')?.checked !== false;
+      const prev = showDeps ? (op.prev_ops || []).slice(-2) : [];
+      const deps = prev.map(p => `op${p}`).join(', ');
+  
+      return {
+        id: `op${op.op_number}`,
+        name: truncate(op.name || ('#' + op.op_number), 28),
+        start, end, progress, dependencies: deps,
+        custom_class: isCritical ? 'gantt-critical' : `gantt-${op.status || 'pending'}`,
+        _op_number: op.op_number,
+        _op_id: op.id,
+        _brigade: typeof getBrigadeName === 'function' ? getBrigadeName(op.brigade_id) : '—',
+        _duration: op.duration || 0,
+        _status: op.status || 'pending'
+      };
     });
-    
-    // Сортируем по номеру операции
-    tasks.sort((a, b) => a._op_number - b._op_number);
-    
-    // Инициализация
-    ganttChart = new Gantt("#ganttChart", tasks, {
-        view_mode: document.getElementById('ganttViewMode')?.value || 'Week',
-        date_format: 'YYYY-MM-DD',
-        language: 'ru',
-        bar_height: 28,
-        bar_corner_radius: 4,
-        arrow_curve: 5,
-        padding: 18,
-        
-        custom_popup_html: function(task) {
-            const statusText = {
-                completed: '✅ Завершено',
-                in_progress: '🔄 В работе',
-                pending: '⏳ Ожидает',
-                blocked: '🚫 Заблокировано'
-            };
-            return `
-                <div style="padding:12px 16px;background:#1e293b;color:#fff;border-radius:10px;font-size:13px;min-width:220px;box-shadow:0 8px 24px rgba(0,0,0,0.35);">
-                    <div style="font-weight:700;margin-bottom:6px;font-size:14px;">${task.name}</div>
-                    <div style="color:#94a3b8;line-height:1.6;">
-                        <div>📅 ${task.start} → ${task.end}</div>
-                        <div>👥 Бригада: ${task._brigade}</div>
-                        <div>⏱ Длительность: ${task._duration}ч</div>
-                        <div>📊 ${statusText[task._status] || task._status}</div>
-                        <div style="margin-top:6px;">Выполнено: <strong style="color:#fff;">${task.progress}%</strong></div>
-                    </div>
-                </div>
-            `;
-        },
-        
-        on_click: function(task) {
-            const op = AdminState.operations.find(o => o.op_number === task._op_number);
-            if (op) editOperation(op.id);
+  
+    ganttChart = new Gantt('#ganttChart', tasks, {
+      view_mode: document.getElementById('ganttViewMode')?.value || 'Week',
+      date_format: 'YYYY-MM-DD',
+      language: 'ru',
+      bar_height: 28,
+      bar_corner_radius: 4,
+      arrow_curve: 5,
+      padding: 18,
+      // в 0.6.x нет полноценного readonly — блокируем CSS + игнор в колбэках
+      custom_popup_html: function (task) {
+        const cache = window.allOperationsCache || [];
+        const op = cache.find(o => o.op_number === task._op_number);
+        const start = (op?.start_date || task.start || '').toString().slice(0, 10);
+        const end = (op?.end_date || task.end || '').toString().slice(0, 10);
+        const dur = op?.duration ?? task._duration;
+        return `
+          <div style="padding:12px 14px;background:#1e293b;color:#fff;border-radius:10px;font-size:12px;min-width:220px;">
+            <div style="font-weight:700;margin-bottom:4px;">#${task._op_number} · ${task.name}</div>
+            <div style="color:#94a3b8;line-height:1.55;">
+              <div>📅 ${start} → ${end}</div>
+              <div>👥 ${task._brigade}</div>
+              <div>⏱ ${dur} ч · ${task.progress}%</div>
+            </div>
+            <button type="button" onclick="openGanttTaskModal(${task._op_number})"
+              style="margin-top:10px;width:100%;padding:6px;border:0;border-radius:6px;background:#0961f6;color:#fff;cursor:pointer;font-size:12px;">
+              ✎ Точная правка
+            </button>
+          </div>`;
+      },
+      on_click: function (task) {
+        // одинарный клик — только путь (редактирование через dbl / кнопку)
+        highlightGanttPath(task._op_number);
+      },
+      on_date_change: function (task, start, end) {
+        if (!ganttEditMode) {
+          showNotification('Заблокировано', 'Включите «Редактирование»', 'warning');
+          renderGantt();
+          return;
         }
+        const s = start instanceof Date ? start.toISOString().slice(0, 10) : String(start).slice(0, 10);
+        const e = end instanceof Date ? end.toISOString().slice(0, 10) : String(end).slice(0, 10);
+        persistGanttDates(task._op_number, s, e); // внутри уже renderGantt()
+      },
+      on_progress_change: function (task, progress) {
+        if (!ganttEditMode) return;
+        // прогресс в Frappe часто % — при желании маппить в status
+        task.progress = progress;
+      }
     });
-    
-    // Кастомные стили цветов
+
+      // сразу после new Gantt(...)
+  const bars = document.querySelectorAll('#ganttChart .bar-wrapper');
+  const taskList = (ganttChart && ganttChart.tasks) ? ganttChart.tasks : tasks;
+  bars.forEach((el, i) => {
+    const task = taskList[i];
+    if (!task) return;
+    const num = task._op_number != null
+      ? task._op_number
+      : Number(String(task.id).replace(/\D/g, ''));
+    el.setAttribute('data-op', String(num));
+    el.setAttribute('data-id', task.id);
+  });
+
+    const host = document.getElementById('ganttChart');
+    host.onclick = null; // не обязательно
+    host.ondblclick = (e) => {
+      const wrap = e.target.closest('.bar-wrapper');
+      if (!wrap) return;
+      const num = Number(wrap.getAttribute('data-op'));
+      if (!num) return;
+      if (!ganttEditMode) {
+        showNotification('Заблокировано', 'Включите «Редактирование»', 'warning');
+        return;
+      }
+      openGanttTaskModal(num);
+    };
+
+    const grid = document.querySelector('#ganttChart .grid');
+  grid?.addEventListener('click', (e) => {
+    if (e.target.closest('.bar-wrapper')) return;
+    clearGanttPathHighlight();
+  });
+  clearGanttPathOverlay();
+
+    // проставить data-op на каждую полоску
+    requestAnimationFrame(() => {
+        const bars = document.querySelectorAll('#ganttChart .bar-wrapper');
+        // Frappe рисует bar-wrapper в том же порядке, что tasks
+        bars.forEach((el, i) => {
+          const task = ganttChart?.tasks?.[i] || tasks[i];
+          if (!task) return;
+          const num = task._op_number ?? Number(String(task.id).replace(/\D/g, ''));
+          el.setAttribute('data-op', num);
+          el.setAttribute('data-id', task.id);
+        });
+        // если клик уже был до rAF — ничего; следующий клик сработает
+      });
+
+     
     injectGanttStyles();
-}
+  }
 
 function changeGanttView(mode) {
     if (ganttChart) {
@@ -6093,27 +6448,65 @@ function changeGanttView(mode) {
 }
 
 function injectGanttStyles() {
-    if (document.getElementById('gantt-custom-styles')) return;
-    
-    const style = document.createElement('style');
-    style.id = 'gantt-custom-styles';
+    let style = document.getElementById('gantt-custom-styles');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'gantt-custom-styles';
+      document.head.appendChild(style);
+    }
     style.textContent = `
-        .gantt .bar-wrapper.gantt-critical .bar { fill: #ef4444 !important; }
-        .gantt .bar-wrapper.gantt-critical .bar-progress { fill: #b91c1c !important; }
-        .gantt .bar-wrapper.gantt-completed .bar { fill: #10b981 !important; }
-        .gantt .bar-wrapper.gantt-completed .bar-progress { fill: #059669 !important; }
-        .gantt .bar-wrapper.gantt-in_progress .bar { fill: #3b82f6 !important; }
-        .gantt .bar-wrapper.gantt-in_progress .bar-progress { fill: #2563eb !important; }
-        .gantt .bar-wrapper.gantt-pending .bar { fill: #94a3b8 !important; }
-        .gantt .bar-wrapper.gantt-pending .bar-progress { fill: #64748b !important; }
-        .gantt .bar-wrapper.gantt-blocked .bar { fill: #f59e0b !important; }
-        .gantt .bar-wrapper.gantt-blocked .bar-progress { fill: #d97706 !important; }
-        .gantt .bar-label { font-size: 11px; font-weight: 600; fill: #334155; }
-        .gantt .grid-header { fill: #f8fafc; }
-        .gantt .today-highlight { fill: #dbeafe; opacity: 0.4; }
-    `;
-    document.head.appendChild(style);
-}
+    .gantt .bar-wrapper.gantt-critical .bar { fill: #ef4444 !important; }
+    .gantt .bar-wrapper.gantt-critical .bar-progress { fill: #b91c1c !important; }
+    .gantt .bar-wrapper.gantt-completed .bar { fill: #10b981 !important; }
+    .gantt .bar-wrapper.gantt-in_progress .bar { fill: #3b82f6 !important; }
+    .gantt .bar-wrapper.gantt-pending .bar { fill: #94a3b8 !important; }
+    .gantt .bar-wrapper.gantt-blocked .bar { fill: #f59e0b !important; }
+    .gantt .bar-label { font-size: 11px; font-weight: 600; fill: #334155; }
+
+    .gantt .arrow { stroke: #94a3b8; stroke-width: 1.4; opacity: 0.5; fill: none; }
+
+    #ganttChart.gantt-readonly .bar-wrapper { pointer-events: auto !important; cursor: pointer !important; }
+    #ganttChart.gantt-readonly .handle-group,
+    #ganttChart.gantt-readonly .handle { pointer-events: none !important; display: none !important; }
+
+    #ganttChart .bar-wrapper.gantt-path-dim {
+      opacity: 0.12 !important;
+      filter: grayscale(0.7);
+    }
+    #ganttChart .bar-wrapper.gantt-path-hl {
+      opacity: 1 !important;
+      filter: none !important;
+    }
+    #ganttChart .bar-wrapper.gantt-path-hl .bar {
+      stroke: #2563eb !important;
+      stroke-width: 3px !important;
+      filter: drop-shadow(0 0 6px rgba(37,99,235,0.65)) !important;
+    }
+    #ganttChart .bar-wrapper.gantt-path-focus .bar {
+      stroke: #1d4ed8 !important;
+      stroke-width: 4px !important;
+    }
+    #ganttChart .arrow.gantt-arrow-dim {
+      opacity: 0.06 !important;
+      stroke: #cbd5e1 !important;
+    }
+    #ganttChart .arrow.gantt-arrow-hl {
+      opacity: 1 !important;
+      stroke: #10b981 !important;
+      stroke-width: 2.8 !important;
+    }
+  `;
+    // погасить штатные стрелки Frappe
+    document.querySelectorAll('#ganttChart .arrow').forEach(a => {
+        a.classList.add('gantt-arrow-dim');
+      });
+    
+      drawGanttPathLinks(path);
+    
+      if (path.size <= 1) {
+        console.warn('[Gantt] Нет связанных prev_ops — только эта операция', focus);
+      }
+  }
 
 // ================================================================
 // ДАШБОРД: % , периоды, графики, алерты

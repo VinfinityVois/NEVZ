@@ -2135,3 +2135,56 @@ input:checked + .slider:before {
     from { opacity: 0; transform: scale(0.96); }
     to   { opacity: 1; transform: scale(1); }
 }
+
+ 
+ /* остальное — бледно */
+#ganttChart .bar-wrapper.gantt-path-dim {
+    opacity: 0.12 !important;
+    filter: grayscale(0.7);
+  }
+  #ganttChart .bar-wrapper.gantt-path-dim .bar {
+    stroke: none !important;
+    filter: none !important;
+  }
+  
+  /* путь — яркий, синяя обводка */
+  #ganttChart .bar-wrapper.gantt-path-hl {
+    opacity: 1 !important;
+    filter: none !important;
+  }
+  #ganttChart .bar-wrapper.gantt-path-hl .bar {
+    stroke: #2563eb !important;
+    stroke-width: 3px !important;
+    filter: drop-shadow(0 0 6px rgba(37, 99, 235, 0.65)) !important;
+  }
+  #ganttChart .bar-wrapper.gantt-path-hl .bar-label {
+    font-weight: 700 !important;
+    fill: #1e3a8a !important;
+  }
+  
+  /* кликнутая — толще, как «выбранный» на графе */
+  #ganttChart .bar-wrapper.gantt-path-focus .bar {
+    stroke: #1d4ed8 !important;
+    stroke-width: 4px !important;
+    filter: drop-shadow(0 0 8px rgba(29, 78, 216, 0.8)) !important;
+  }
+  
+  /* связи: погашенные */
+  #ganttChart .arrow.gantt-arrow-dim {
+    opacity: 0.08 !important;
+    stroke: #94a3b8 !important;
+  }
+  
+  /* связи на пути — зелёные «путь открыт» как легенда */
+  #ganttChart .arrow.gantt-arrow-hl {
+    opacity: 1 !important;
+    stroke: #10b981 !important;
+    stroke-width: 2.5 !important;
+  }
+
+  #ganttChart .arrow.gantt-arrow-dim {
+    opacity: 0.05 !important;
+  }
+  #ganttPathOverlay {
+    pointer-events: none;
+  }

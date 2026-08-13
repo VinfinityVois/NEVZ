@@ -513,12 +513,20 @@
                 <div class="tab-pane" id="gantt-tab">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
                         <h2 style="margin:0;">📅 Диаграмма Ганта</h2>
-                        <div style="display:flex;gap:10px;align-items:center;">
+                        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                             <select id="ganttViewMode" class="input" style="width:140px;" onchange="changeGanttView(this.value)">
                                 <option value="Day">День</option>
                                 <option value="Week" selected>Неделя</option>
                                 <option value="Month">Месяц</option>
                             </select>
+                            <label class="graph-checkbox" style="padding:6px 10px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;">
+                                <input type="checkbox" id="ganttShowDeps" checked onchange="renderGantt()">
+                                Связи
+                              </label>
+                            <label class="graph-checkbox" style="margin:0;padding:6px 10px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;">
+                                <input type="checkbox" id="ganttEditMode" onchange="toggleGanttEditMode(this.checked)">
+                                🔓 Редактирование
+                            </label>
                             <button class="btn btn-outline btn-sm" onclick="renderGantt()">🔄 Обновить</button>
                         </div>
                     </div>
