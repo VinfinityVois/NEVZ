@@ -45,6 +45,31 @@ class GraphAnalyzer:
     - поиск битых ссылок;
     - поиск противоречий prev_ops / next_ops.
     """
+    # В graph_analyzer.py, в класс GraphAnalyzer
+
+    def get_operation(self, op_number: int) -> Optional[Dict[str, Any]]:
+        """
+        Безопасное получение операции по номеру.
+        """
+        return self.operations.get(op_number)
+
+    def get_all_operations(self) -> Dict[int, Dict[str, Any]]:
+        """
+        Возвращает копию всех операций.
+        """
+        return dict(self.operations)
+
+    def get_graph(self) -> Dict[int, Set[int]]:
+        """
+        Возвращает копию направленного графа.
+        """
+        return {k: set(v) for k, v in self.graph.items()}
+
+    def get_reverse_graph(self) -> Dict[int, Set[int]]:
+        """
+        Возвращает копию обратного графа.
+        """
+        return {k: set(v) for k, v in self.reverse_graph.items()}
 
     def __init__(self) -> None:
         self.operations: Dict[int, Dict[str, Any]] = {}

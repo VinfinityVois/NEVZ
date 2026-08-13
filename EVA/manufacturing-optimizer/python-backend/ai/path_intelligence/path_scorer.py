@@ -282,6 +282,7 @@ class PathScorer:
         risks: List[
             float
         ] = []
+        
 
         for operation_id in path:
 
@@ -355,6 +356,50 @@ class PathScorer:
                     risk
                 )
             )
+
+             # ----------------------------------------------------
+            # ПЕРЕНАЛАДКА (setup_time)
+            # ----------------------------------------------------
+            if i > 0:
+                prev_id = path[i - 1]
+                prev_data = self._get_operation_data(
+                    operations,
+                    prev_id,
+                )
+
+                current_post = data.get("post")
+                prev_post = prev_data.get("post")
+
+                if current_post and prev_post and current_post != prev_post:
+                    setup = data.get(
+                        "setup_time",
+                        0,
+                    )
+                    if not setup:
+                        setup = 2.0
+
+                    total_time += self._number(
+                        setup
+                    )
+
+                current_drawing = data.get(
+                    "drawing"
+                )
+                prev_drawing = prev_data.get(
+                    "drawing"
+                )
+                if (
+                    current_drawing
+                    and prev_drawing
+                    and current_drawing != prev_drawing
+                ):
+                    drawing_change = data.get(
+                        "drawing_change_time",
+                        1.0,
+                    )
+                    total_time += self._number(
+                        drawing_change
+                    )
 
         # --------------------------------------------------------
         # Средний риск
@@ -646,7 +691,7 @@ class PathScorer:
         # Формируем диапазоны
         # --------------------------------------------------------
 
-        def make_range(
+                def make_range(
             key: str,
         ) -> tuple[float, float]:
 
@@ -662,12 +707,22 @@ class PathScorer:
 
                 return (
                     0.0,
-                    0.0,
+                    1.0,
+                )
+
+            mn = min(values)
+            mx = max(values)
+
+            if mn == mx:
+
+                return (
+                    mn,
+                    mn + 1.0,
                 )
 
             return (
-                min(values),
-                max(values),
+                mn,
+                mx,
             )
 
         ranges = {

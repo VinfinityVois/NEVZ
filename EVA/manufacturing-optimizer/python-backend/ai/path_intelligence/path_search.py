@@ -724,126 +724,69 @@ class PathSearcher:
     # НАЙТИ КРАТЧАЙШИЙ ПУТЬ
     # ============================================================
 
-    def find_shortest_path(
-        self,
-        graph: Dict[Any, Any],
-        start: int,
-        target: int,
-    ) -> Dict[str, Any]:
-        """
-        Находит путь с минимальным количеством рёбер.
+# Добавить в path_search.py, в класс PathSearcher
 
-        ВАЖНО:
-
-        Это пока НЕ экономически оптимальный путь.
-
-        Это только математически кратчайший путь
-        по количеству переходов.
-
-        Позже PathScorer будет учитывать:
-
-            время
-            стоимость
-            загрузку
-            переналадку
-            риск
-            и ML-оценку.
-        """
-
-        normalized_graph = (
-            self._normalize_graph(
-                graph
-            )
-        )
-
-        if start not in normalized_graph:
-
-            return {
-                "success": False,
-                "error": (
-                    f"Start operation "
-                    f"{start} not found."
-                ),
-                "path": [],
-                "distance": None,
-            }
-
-        if target not in normalized_graph:
-
-            return {
-                "success": False,
-                "error": (
-                    f"Target operation "
-                    f"{target} not found."
-                ),
-                "path": [],
-                "distance": None,
-            }
-
-        # --------------------------------------------------------
-        # BFS
-        #
-        # Для невзвешенного графа BFS гарантированно
-        # находит путь с минимальным количеством рёбер.
-        # --------------------------------------------------------
-
-        queue: List[
-            List[int]
-        ] = [
-            [start]
-        ]
-
-        visited: Set[int] = {
-            start
-        }
-
-        while queue:
-
-            path = queue.pop(
-                0
-            )
-
-            current = path[-1]
-
-            # Нашли цель.
-
-            if current == target:
-
-                return {
-                    "success": True,
-                    "path": path,
-                    "distance": (
-                        len(path) - 1
-                    ),
-                }
-
-            for neighbour in sorted(
-                normalized_graph.get(
-                    current,
-                    set(),
-                )
-            ):
-
-                if neighbour in visited:
-                    continue
-
-                visited.add(
-                    neighbour
-                )
-
-                queue.append(
-                    path
-                    + [neighbour]
-                )
-
-        # Пути нет.
-
-        return {
-            "success": True,
-            "path": [],
-            "distance": None,
-        }
-
+def find_optimal_path(
+    self,
+    graph: Dict[Any, Any],
+    edge_weights: Dict[Tuple[int, int], float],
+    start: int,
+    target: int,
+) -> Dict[str, Any]:
+    """
+    Dijkstra с пользовательскими весами рёбер.
+    
+    edge_weights: {(from, to): weight}
+    Если вес не задан — берётся 1.0.
+    """
+    import heapq
+    
+    normalized_graph = self._normalize_graph(graph)
+    
+    if start not in normalized_graph or target not in normalized_graph:
+        return {"success": False, "path": [], "distance": None, "error": "Start or target not found"}
+    
+    # Dijkstra
+    dist: Dict[int, float] = {node: float("inf") for node in normalized_graph}
+    prev: Dict[int, Optional[int]] = {node: None for node in normalized_graph}
+    dist[start] = 0.0
+    
+    heap: List[Tuple[float, int]] = [(0.0, start)]
+    
+    while heap:
+        current_dist, current = heapq.heappop(heap)
+        
+        if current_dist > dist[current]:
+            continue
+        
+        if current == target:
+            break
+        
+        for neighbour in normalized_graph.get(current, set()):
+            weight = edge_weights.get((current, neighbour), 1.0)
+            new_dist = current_dist + weight
+            
+            if new_dist < dist[neighbour]:
+                dist[neighbour] = new_dist
+                prev[neighbour] = current
+                heapq.heappush(heap, (new_dist, neighbour))
+    
+    if dist[target] == float("inf"):
+        return {"success": True, "path": [], "distance": None}
+    
+    # Восстановление пути
+    path = []
+    node = target
+    while node is not None:
+        path.append(node)
+        node = prev[node]
+    path.reverse()
+    
+    return {
+        "success": True,
+        "path": path,
+        "distance": dist[target],
+    }
     # ============================================================
     # ПОЛУЧИТЬ КОЛИЧЕСТВО ВЕРШИН ПУТИ
     # ============================================================
