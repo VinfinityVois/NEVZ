@@ -2191,3 +2191,11 @@ input:checked + .slider:before {
 
   #ganttPathOverlay { z-index: 15; pointer-events: none; }
 /* не ставь svg.gantt выше 15 */
+
+
+.brigade-card.drag-over {
+    outline: 2px dashed #0961f6;
+    background: #eff6ff !important;
+  }
+  .worker-item { cursor: grab; }
+  .worker-item.dragging { opacity: 0.45; }

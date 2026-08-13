@@ -1961,7 +1961,7 @@ function renderBrigadesGrid() {
                 <div style="margin: 12px 0; padding: 12px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                         <h4 style="margin: 0;">👥 Рабочие</h4>
-                        <button class="btn-icon-sm" onclick="addWorkerToBrigade(${b.id})" title="Добавить рабочего">➕</button>
+                        <button class="btn-icon-sm" onclick="window.manageBrigadeWorkers(${b.id})" title="Добавить рабочего">➕</button>
                     </div>
                     ${workers.length ? workers.map(w => `
                         <div class="worker-item" draggable="true" 
@@ -2014,7 +2014,17 @@ function renderBrigadesGrid() {
 function filterAndRenderBrigades() {
     renderBrigadesGrid();
 }
-
+function addWorkerToBrigade(brigadeId) {
+    if (typeof manageBrigadeWorkers === 'function') {
+      return manageBrigadeWorkers(brigadeId);
+    }
+    console.warn('manageBrigadeWorkers ещё не объявлена');
+  }
+  
+  window.addWorkerToBrigade = addWorkerToBrigade;
+  window.manageBrigadeWorkers = manageBrigadeWorkers;
+  window.addSelectedToBrigade = addSelectedToBrigade;
+  window.removeSelectedFromBrigade = removeSelectedFromBrigade;
 // Глобальные функции
 window.filterBrigades = filterAndRenderBrigades;
 window.sortBrigades = filterAndRenderBrigades;
@@ -3232,48 +3242,7 @@ window.editBrigadeGroup = async (id) => {
 //     document.body.appendChild(modal);
 //     DOM.modalOverlay.style.display = 'block';
 // }
-function addWorkerToBrigade(brigadeId) {
-    const available = AdminState.workers.filter(w => !w.brigade_id);
-    if (!available.length) { 
-        showNotification('Внимание', 'Нет свободных рабочих', 'warning'); 
-        return; 
-    }
-    
-    closeAllModals();
-    const DOM = getDOM();
-    const modal = document.createElement('div');
-    modal.className = 'modal';
-    modal.id = 'workerSelectModal';
-    modal.style.display = 'block';
-    modal.style.width = '400px';
-    
-    modal.innerHTML = `
-        <div class="modal-header">
-            <h3>Выберите рабочего</h3>
-            <button class="modal-close" onclick="closeAllModals()">&times;</button>
-        </div>
-        <div class="modal-body" style="max-height: 400px; overflow-y: auto;">
-            ${available.map(w => `
-                <div style="padding: 10px; margin-bottom: 8px; background: #f8f9fa; border-radius: 8px; cursor: pointer; border: 1px solid #e5e7eb;"
-                     onclick="selectWorkerForBrigade(${w.id}, ${brigadeId})">
-                    <strong>${w.name}</strong>
-                    <div style="font-size: 12px; color: #666;">${w.position || 'Рабочий'}</div>
-                    ${w.skills?.length ? `
-                        <div style="margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px;">
-                            ${w.skills.map(s => `<span style="background: #e5e7eb; padding: 2px 6px; border-radius: 12px; font-size: 10px;">${s}</span>`).join('')}
-                        </div>
-                    ` : ''}
-                </div>
-            `).join('')}
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-outline" onclick="closeAllModals()">Отмена</button>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    DOM.modalOverlay.style.display = 'block';
-}
+
 
 // Выбор рабочего из модального окна
 async function selectWorkerForBrigade(workerId, brigadeId) {
@@ -3623,7 +3592,182 @@ async function manageGroupBrigades(groupId) {
   }
 }
 
+async function manageBrigadeWorkers(brigadeId) {
+    closeAllModals();
+    showLoading('Загрузка состава...');
+  
+    try {
+      const brigade = (AdminState.brigades || []).find(b => b.id === brigadeId)
+        || (await api.getBrigades()).find(b => b.id === brigadeId);
+      if (!brigade) throw new Error('Бригада не найдена');
+  
+      const allWorkers = AdminState.workers?.length
+        ? AdminState.workers
+        : await api.getWorkers();
+  
+      const inBrigade = allWorkers.filter(w => w.brigade_id === brigadeId);
+      const available = allWorkers.filter(w => w.brigade_id !== brigadeId);
+      const maxCap = brigade.max_capacity || 10;
+      const load = Math.round(brigade.current_load || 0);
+  
+      hideLoading();
+  
+      const overlay = document.getElementById('modalOverlay');
+      if (overlay) overlay.style.display = 'flex';
+  
+      document.getElementById('manageBrigadeWorkersModal')?.remove();
+      const modal = document.createElement('div');
+      modal.id = 'manageBrigadeWorkersModal';
+      modal.className = 'modal group-management-modal';
+      modal.style.cssText =
+        'display:block;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);' +
+        'width:850px;max-width:95vw;max-height:85vh;background:#fff;border-radius:16px;' +
+        'z-index:10001;box-shadow:0 25px 60px rgba(0,0,0,.25);overflow:hidden;' +
+        'display:flex;flex-direction:column;';
+  
+      const row = (w, side) => {
+        const cls = side === 'in' ? 'in-worker-check' : 'avail-worker-check';
+        const sub = side === 'in'
+          ? `${w.role || 'рабочий'}${w.is_brigadier ? ' · 👑 бригадир' : ''}`
+          : `${w.role || 'рабочий'}${w.brigade_id ? ' · в другой бригаде' : ' · без бригады'}`;
+        return `
+          <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin:4px 0;
+                        border-radius:10px;background:#fff;border:1px solid #eef2f7;cursor:pointer;">
+            <input type="checkbox" class="${cls}" value="${w.id}">
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:600;font-size:13px;color:#1e293b;">${w.name || '—'}</div>
+              <div style="font-size:11px;color:#64748b;">${sub}</div>
+            </div>
+          </label>`;
+      };
+  
+      modal.innerHTML = `
+        <div style="padding:18px 22px;border-bottom:1px solid #eef2f7;display:flex;justify-content:space-between;align-items:center;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:40px;height:40px;border-radius:12px;background:#0961f6;color:#fff;
+                        display:flex;align-items:center;justify-content:center;font-weight:700;">
+              ${(brigade.name || 'Б')[0]}
+            </div>
+            <div>
+              <div style="font-weight:700;font-size:16px;color:#0f172a;">${brigade.name}</div>
+              <div style="font-size:12px;color:#64748b;">Управление составом бригады</div>
+            </div>
+          </div>
+          <button type="button" id="mbwClose" style="border:0;background:none;font-size:22px;cursor:pointer;color:#94a3b8;">×</button>
+        </div>
+  
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;padding:14px 22px;background:#f8fafc;border-bottom:1px solid #eef2f7;text-align:center;">
+          <div><div style="font-size:22px;font-weight:700;color:#0961f6;">${inBrigade.length}</div><div style="font-size:11px;color:#64748b;letter-spacing:.04em;">В БРИГАДЕ</div></div>
+          <div><div style="font-size:22px;font-weight:700;color:#0961f6;">${maxCap}</div><div style="font-size:11px;color:#64748b;letter-spacing:.04em;">МЕСТ МАКС.</div></div>
+          <div><div style="font-size:22px;font-weight:700;color:#0961f6;">${load}%</div><div style="font-size:11px;color:#64748b;letter-spacing:.04em;">ЗАГРУЗКА</div></div>
+        </div>
+  
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px 22px;overflow:auto;flex:1;min-height:0;">
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:14px;padding:12px;display:flex;flex-direction:column;min-height:280px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+              <strong style="color:#166534;">В бригаде</strong>
+              <span style="background:#fff;border-radius:20px;padding:2px 10px;font-size:12px;color:#166534;">${inBrigade.length}</span>
+            </div>
+            <div style="flex:1;overflow:auto;margin-bottom:10px;">
+              ${inBrigade.length ? inBrigade.map(w => row(w, 'in')).join('') : '<p style="text-align:center;color:#94a3b8;padding:24px 8px;font-size:13px;">Нет сотрудников</p>'}
+            </div>
+            <button type="button" class="btn btn-outline btn-sm" style="border-color:#fecaca;color:#dc2626;"
+                    onclick="removeSelectedFromBrigade(${brigadeId})">− Убрать выбранные</button>
+            <button type="button" class="btn btn-outline btn-sm" style="margin-top:6px;"
+                    onclick="document.querySelectorAll('.in-worker-check').forEach(c=>c.checked=true)">Выбрать все</button>
+          </div>
+  
+          <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:14px;padding:12px;display:flex;flex-direction:column;min-height:280px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+              <strong style="color:#1d4ed8;">+ Доступные</strong>
+              <span style="background:#fff;border-radius:20px;padding:2px 10px;font-size:12px;color:#1d4ed8;">${available.length}</span>
+            </div>
+            <input type="text" id="mbwSearch" class="input" placeholder="Поиск..." style="margin-bottom:8px;font-size:13px;">
+            <div id="mbwAvailList" style="flex:1;overflow:auto;margin-bottom:10px;">
+              ${available.length ? available.map(w => row(w, 'out')).join('') : '<p style="text-align:center;color:#94a3b8;padding:24px 8px;font-size:13px;">Нет доступных</p>'}
+            </div>
+            <button type="button" class="btn btn-primary btn-sm"
+                    onclick="addSelectedToBrigade(${brigadeId})">+ Добавить выбранные</button>
+            <button type="button" class="btn btn-outline btn-sm" style="margin-top:6px;"
+                    onclick="document.querySelectorAll('.avail-worker-check').forEach(c=>c.checked=true)">Выбрать все</button>
+          </div>
+        </div>
+  
+        <div style="padding:14px 22px;border-top:1px solid #eef2f7;display:flex;justify-content:flex-end;gap:10px;">
+          <button type="button" class="btn btn-outline" id="mbwCancel">Отмена</button>
+          <button type="button" class="btn btn-primary" id="mbwDone">Готово</button>
+        </div>`;
+  
+      document.body.appendChild(modal);
+  
+      const close = () => {
+        modal.remove();
+        if (overlay) overlay.style.display = 'none';
+      };
+      document.getElementById('mbwClose').onclick = close;
+      document.getElementById('mbwCancel').onclick = close;
+      document.getElementById('mbwDone').onclick = close;
+  
+      document.getElementById('mbwSearch').oninput = (e) => {
+        const q = e.target.value.toLowerCase().trim();
+        modal.querySelectorAll('#mbwAvailList label').forEach(lab => {
+          const t = lab.textContent.toLowerCase();
+          lab.style.display = !q || t.includes(q) ? 'flex' : 'none';
+        });
+      };
+    } catch (e) {
+      hideLoading();
+      showNotification('Ошибка', e.message, 'error');
+    }
+  }
+  
+  window.manageBrigadeWorkers = manageBrigadeWorkers;
 
+  async function addSelectedToBrigade(brigadeId) {
+    const ids = [...document.querySelectorAll('.avail-worker-check:checked')]
+      .map(c => parseInt(c.value, 10));
+    if (!ids.length) {
+      showNotification('Внимание', 'Выберите сотрудников', 'warning');
+      return;
+    }
+    showLoading('Добавление...');
+    let ok = 0;
+    for (const id of ids) {
+      try {
+        await api.put(`/workers/${id}`, { brigade_id: brigadeId });
+        ok++;
+      } catch (_) {}
+    }
+    hideLoading();
+    showNotification('Успех', `Добавлено: ${ok}`, 'success');
+    await loadAllData();
+    closeAllModals();
+    setTimeout(() => manageBrigadeWorkers(brigadeId), 80);
+  }
+  window.addSelectedToBrigade = addSelectedToBrigade;
+  
+  async function removeSelectedFromBrigade(brigadeId) {
+    const ids = [...document.querySelectorAll('.in-worker-check:checked')]
+      .map(c => parseInt(c.value, 10));
+    if (!ids.length) {
+      showNotification('Внимание', 'Выберите сотрудников', 'warning');
+      return;
+    }
+    showLoading('Удаление из бригады...');
+    let ok = 0;
+    for (const id of ids) {
+      try {
+        await api.put(`/workers/${id}`, { brigade_id: null });
+        ok++;
+      } catch (_) {}
+    }
+    hideLoading();
+    showNotification('Успех', `Убрано: ${ok}`, 'success');
+    await loadAllData();
+    closeAllModals();
+    setTimeout(() => manageBrigadeWorkers(brigadeId), 80);
+  }
+  window.removeSelectedFromBrigade = removeSelectedFromBrigade;
 // Вспомогательные функции для выбора всех
 function selectAllInGroup() {
   const checks = document.querySelectorAll('.group-brigade-check');
@@ -3909,21 +4053,21 @@ window.handleWorkerDragEnd = (e) => {
     document.querySelectorAll('.brigade-card').forEach(c => c.classList.remove('drag-over'));
 };
 
-window.handleBrigadeDrop = async (e, brigadeId) => {
-    e.preventDefault();
-    e.currentTarget.classList.remove('drag-over');
-    const workerId = AdminState.draggedWorkerId;
-    if (!workerId) return;
+// window.handleBrigadeDrop = async (e, brigadeId) => {
+//     e.preventDefault();
+//     e.currentTarget.classList.remove('drag-over');
+//     const workerId = AdminState.draggedWorkerId;
+//     if (!workerId) return;
     
-    try {
-        await api.transferWorker(workerId, brigadeId);
-        showNotification('✅ Успех', 'Рабочий переведён', 'success');
-        await loadAllData();
-    } catch (error) {
-        showNotification('❌ Ошибка', error.message, 'error');
-    }
-    AdminState.draggedWorkerId = null;
-};
+//     try {
+//         await api.transferWorker(workerId, brigadeId);
+//         showNotification('✅ Успех', 'Рабочий переведён', 'success');
+//         await loadAllData();
+//     } catch (error) {
+//         showNotification('❌ Ошибка', error.message, 'error');
+//     }
+//     AdminState.draggedWorkerId = null;
+// };
 
 window.assignBrigadier = async (workerId, brigadeId) => {
     try {
@@ -6577,6 +6721,8 @@ function injectGanttStyles() {
     `;
   }
 
+
+  
 // ================================================================
 // ДАШБОРД: % , периоды, графики, алерты
 // ================================================================
