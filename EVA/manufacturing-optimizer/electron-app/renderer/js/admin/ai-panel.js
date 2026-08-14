@@ -3,6 +3,47 @@
  * MANUFACTURING OPTIMIZER - AI ПАНЕЛЬ (AI Engine Integration)
  * ================================================================
  */
+/**
+ * fetch с повторными попытками и таймаутом
+ */
+
+
+async function fetchWithRetry(url, options = {}, retries = 5, delayMs = 1000) {
+    const timeout = options.timeout || 5000;
+
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), timeout);
+
+            const response = await fetch(url, {
+                ...options,
+                signal: controller.signal
+            });
+
+            clearTimeout(timer);
+
+            if (response.ok) return response;
+
+            // 404 на не-последней попытке = ждём перезапуска uvicorn
+            if (response.status === 404 && attempt < retries) {
+                await response.text(); // освобождаем body, закрываем соединение
+                console.warn(`[AI Panel] ${url} → 404 (попытка ${attempt}/${retries}), повтор через ${delayMs}мс...`);
+                await new Promise(r => setTimeout(r, delayMs));
+                continue;
+            }
+
+            return response;
+
+        } catch (error) {
+            if (attempt === retries) throw error;
+            console.warn(`[AI Panel] ${url} → ошибка (попытка ${attempt}/${retries}): ${error.message}`);
+            await new Promise(r => setTimeout(r, delayMs));
+        }
+    }
+
+    throw new Error(`Не удалось получить ответ от ${url} после ${retries} попыток`);
+}
 
 export class AIPanel {
     constructor() {
@@ -286,13 +327,40 @@ export class AIPanel {
      */
     async getModelStatus() {
         try {
-            const response = await fetch('http://127.0.0.1:8000/ai/models/status');
+            const response = await fetchWithRetry(
+                `${this.API_BASE}/ai/models/status`,
+                { timeout: 5000 },
+                5,
+                1200
+            );
             if (!response.ok) return this.getDefaultModelStatus();
             return await response.json();
         } catch (error) {
+            console.warn('[AI Panel] Статус моделей недоступен, fallback:', error.message);
             return this.getDefaultModelStatus();
         }
     }
+
+        /**
+     * Ожидание готовности сервера перед первым запросом
+     */
+        async waitForServer(maxWaitMs = 15000) {
+            const start = Date.now();
+            while (Date.now() - start < maxWaitMs) {
+                try {
+                    const res = await fetch(`${this.API_BASE}/health`, {
+                        signal: AbortSignal.timeout(2000)
+                    });
+                    if (res.ok) {
+                        console.log('[AI Panel] Сервер готов');
+                        return true;
+                    }
+                } catch (_) {}
+                await new Promise(r => setTimeout(r, 800));
+            }
+            console.warn('[AI Panel] Сервер не ответил за', maxWaitMs, 'мс');
+            return false;
+        }
 
     getDefaultModelStatus() {
         return {
@@ -307,16 +375,19 @@ export class AIPanel {
      */
     async getEngineStatus() {
         try {
-            const response = await fetch(`${this.API_BASE}/ai/status`, {
-                signal: AbortSignal.timeout(5000)
-            });
+            const response = await fetchWithRetry(
+                `${this.API_BASE}/ai/status`,
+                { timeout: 5000 },
+                5,
+                1200
+            );
             if (!response.ok) return null;
             return await response.json();
         } catch (error) {
+            console.warn('[AI Panel] AI Engine недоступен:', error.message);
             return null;
         }
     }
-
     /**
      * Рендер статуса системы (AI Engine + ML Модели)
      */
