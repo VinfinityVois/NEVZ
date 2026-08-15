@@ -11,15 +11,62 @@
  */
 
 /* ===== ОБЁРТКА СТРАНИЦЫ ===== */
-.login-wrapper {
-    display: flex;
-    width: 100vw;
-    height: 100vh;
+html, body {
+    height: 100%;
+    margin: 0;
     overflow: hidden;
-    position: relative;
-    font-family: 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif;
-}
+  }
+  .login-wrapper {
+    min-height: 100vh;
+    width: 100%;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+  }
+  .login-container {
+    flex: 0 0 auto;
+    z-index: 2;
+  }
+  .info-panel {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    padding: 48px;
+    color: #1e293b;              /* было слишком бледно */
+  }
+  .info-title { color: #0f172a; opacity: 1; }
+  .feature-text h3 { color: #1e293b; }
+  .feature-text p { color: #475569; }
+  .stat-value { color: #0f172a; }
+  .stat-label { color: #64748b; }
 
+
+  .info-panel { color: #1e293b; opacity: 1; }
+.info-title { color: #0f172a !important; }
+.feature-text h3 { color: #1e293b !important; }
+.feature-text p { color: #475569 !important; }
+.stat-value { color: #0f172a !important; }
+
+.info-panel {
+    color: #1e293b;
+    opacity: 1;
+  }
+  .info-title {
+    color: #0f172a !important;
+    opacity: 1 !important;
+  }
+  .feature-text h3 {
+    color: #1e293b !important;
+  }
+  .feature-text p {
+    color: #475569 !important;
+  }
+  .stat-value {
+    color: #0f172a !important;
+  }
+  .stat-label {
+    color: #64748b !important;
+  }
 /* ===== ФОН ===== */
 .login-background {
     position: fixed;

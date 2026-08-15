@@ -267,8 +267,8 @@ async function initAdmin() {
     console.log('[Admin] 🚀 Инициализация...');
     restoreAIPaths();
     setupEventListeners();
-    initSidebarBehavior();
     setupFileInput();
+    initSidebarBehavior();
     await loadAllData();
 
     // после DOM/данных — восстановить рекомендации, gaps, plan
@@ -7497,46 +7497,41 @@ window.applyBridgeLink = async function (p) {
   function initSidebarBehavior() {
     const sidebar = document.getElementById('sidebar');
     const toggle = document.getElementById('sidebarToggle');
-    if (!sidebar) return;
+    if (!sidebar || !toggle) {
+      console.warn('[Sidebar] #sidebar или #sidebarToggle не найдены');
+      return;
+    }
   
-    const mode = localStorage.getItem('sidebarMode') || 'click'; // click | hover | both
-    const saved = localStorage.getItem('sidebarCollapsed') === '1';
+    // снять старые обработчики (повторный init)
+    const fresh = toggle.cloneNode(true);
+    toggle.parentNode.replaceChild(fresh, toggle);
   
-    const collapse = () => {
-      sidebar.classList.add('collapsed');
-      localStorage.setItem('sidebarCollapsed', '1');
+    const mode = localStorage.getItem('sidebarMode') || 'click';
+  
+    const setCollapsed = (on) => {
+      sidebar.classList.toggle('collapsed', on);
+      document.body.classList.toggle('sidebar-collapsed', on);
+      localStorage.setItem('sidebarCollapsed', on ? '1' : '0');
     };
-    const expand = () => {
-      sidebar.classList.remove('collapsed');
-      localStorage.setItem('sidebarCollapsed', '0');
-    };
-    const toggleFn = () => {
-      sidebar.classList.contains('collapsed') ? expand() : collapse();
-    };
   
-    if (saved && mode !== 'hover') collapse();
-    else expand();
+    setCollapsed(localStorage.getItem('sidebarCollapsed') === '1');
   
-    // 1) клик по стрелке
-    toggle?.addEventListener('click', (e) => {
+    fresh.addEventListener('click', (e) => {
+      e.preventDefault();
       e.stopPropagation();
-      if (mode === 'click' || mode === 'both') toggleFn();
+      setCollapsed(!sidebar.classList.contains('collapsed'));
     });
   
-    // 2) наведение
     if (mode === 'hover' || mode === 'both') {
-      sidebar.addEventListener('mouseenter', expand);
-      sidebar.addEventListener('mouseleave', () => {
-        if (localStorage.getItem('sidebarCollapsed') === '1' || mode === 'hover') {
-          // в режиме hover после ухода всегда сворачиваем
-          if (mode === 'hover') collapse();
-          else if (localStorage.getItem('sidebarPinned') !== '1') collapse();
-        }
-      });
+      sidebar.onmouseenter = () => setCollapsed(false);
+      sidebar.onmouseleave = () => {
+        if (mode === 'hover') setCollapsed(true);
+      };
+    } else {
+      sidebar.onmouseenter = null;
+      sidebar.onmouseleave = null;
     }
   }
+  window.initSidebarBehavior = initSidebarBehavior;
   
-  // в initAdmin после setupEventListeners:
-  initSidebarBehavior();
-
 document.addEventListener('DOMContentLoaded', initAdmin);

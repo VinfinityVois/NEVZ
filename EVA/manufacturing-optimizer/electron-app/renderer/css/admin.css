@@ -2199,3 +2199,37 @@ input:checked + .slider:before {
   }
   .worker-item { cursor: grab; }
   .worker-item.dragging { opacity: 0.45; }
+
+  .sidebar {
+    width: 260px;
+    transition: width 0.25s ease;
+    overflow: hidden;
+  }
+  .sidebar.collapsed {
+    width: 72px !important;
+  }
+  .sidebar.collapsed .logo-text,
+  .sidebar.collapsed .nav-item span,
+  .sidebar.collapsed .user-details {
+    display: none !important;
+  }
+  .sidebar.collapsed .nav-item {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .sidebar.collapsed .sidebar-toggle svg {
+    transform: rotate(180deg);
+    transition: transform 0.2s ease;
+  }
+  .sidebar-toggle svg {
+    transition: transform 0.2s ease;
+  }
+  
+  /* если main не на flex — сдвиг контента */
+  .main-content {
+    transition: margin-left 0.25s ease;
+  }
+  body.sidebar-collapsed .main-content {
+    margin-left: 72px;
+  }

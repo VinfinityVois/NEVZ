@@ -102,42 +102,24 @@ async function startPythonBackend() {
     });
 }
 
-function createLoginWindow() {
-    loginWindow = new BrowserWindow({
-        width: 1280,
-        height: 800,
-        fullscreen: true,          // или show: false → maximize
-        frame: false,
-        autoHideMenuBar: true,
-        webPreferences: {
-            nodeIntegration: false,
-            contextIsolation: true,
-            preload: path.join(__dirname, 'preload.js'),
-            devTools: false        // прод: без F12
-        }
-    });
-    loginWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
-    // loginWindow.webContents.openDevTools();  // УДАЛИТЬ
-    loginWindow.on('closed', () => { loginWindow = null; });
-}
 
-function createAdminWindow() {
-    if (adminWindow) {
-        adminWindow.focus();
-        return;
-    }
+// function createAdminWindow() {
+//     if (adminWindow) {
+//         adminWindow.focus();
+//         return;
+//     }
     
-    adminWindow = new BrowserWindow({
-        width: 1440, height: 900, minWidth: 1200, minHeight: 700,
-        webPreferences: {
-            nodeIntegration: false,
-            contextIsolation: true,
-            preload: path.join(__dirname, 'preload.js')
-        }
-    });
-    adminWindow.loadFile(path.join(__dirname, 'renderer', 'admin.html'));
-    adminWindow.on('closed', () => { adminWindow = null; });
-}
+//     adminWindow = new BrowserWindow({
+//         width: 1440, height: 900, minWidth: 1200, minHeight: 700,
+//         webPreferences: {
+//             nodeIntegration: false,
+//             contextIsolation: true,
+//             preload: path.join(__dirname, 'preload.js')
+//         }
+//     });
+//     adminWindow.loadFile(path.join(__dirname, 'renderer', 'admin.html'));
+//     adminWindow.on('closed', () => { adminWindow = null; });
+// }
 
 function registerIpcHandlers() {
     ipcMain.handle('get-app-version', () => APP_VERSION);
@@ -148,10 +130,7 @@ function registerIpcHandlers() {
         if (loginWindow) loginWindow.close();
     });
     
-    ipcMain.handle('logout', (e) => {
-        BrowserWindow.fromWebContents(e.sender)?.close();
-    });
-    
+       
     // Legacy AI
     ipcMain.handle('python:optimize', async (e, data) => {
         try {
@@ -255,7 +234,7 @@ app.whenReady().then(async () => {
     });
   
     const splash = createSplashWindow();
-    // запасной выход, если preload не сработал
+  
     setTimeout(() => {
       if (splash && !splash.isDestroyed() && !loginWindow) {
         splash.close();
@@ -326,10 +305,7 @@ function blockDevShortcuts(win) {
       return;
     }
     adminWindow = new BrowserWindow({
-      width: 1440,
-      height: 900,
-      minWidth: 1200,
-      minHeight: 700,
+      fullscreen: true,
       autoHideMenuBar: true,
       webPreferences: {
         nodeIntegration: false,
@@ -342,3 +318,20 @@ function blockDevShortcuts(win) {
     blockDevShortcuts(adminWindow);
     adminWindow.on('closed', () => { adminWindow = null; });
   }
+  
+  // logout: закрыть админ → открыть логин (не закрывать приложение)
+  ipcMain.handle('logout', () => {
+    if (adminWindow && !adminWindow.isDestroyed()) {
+      adminWindow.close();
+      adminWindow = null;
+    }
+    if (!loginWindow || loginWindow.isDestroyed()) {
+      createLoginWindow();
+    } else {
+      loginWindow.focus();
+    }
+  });
+  
+  ipcMain.handle('app-quit', () => {
+    app.quit();
+  });

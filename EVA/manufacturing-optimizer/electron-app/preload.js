@@ -8,13 +8,14 @@ try {
         app: {
             getVersion: () => ipcRenderer.invoke('get-app-version'),
             getPlatform: () => process.platform,
-            getStartupParams: () => ({ userId: null, brigadeId: null })
+            getStartupParams: () => ({ userId: null, brigadeId: null }),
+            quit: () => ipcRenderer.invoke('app-quit')
         },
+        splashDone: () => ipcRenderer.send('splash-done'),
         navigation: {
             openAdmin: () => ipcRenderer.invoke('open-admin'),
             openWorker: (userId, brigadeId) => ipcRenderer.invoke('open-worker', userId, brigadeId),
-            logout: () => ipcRenderer.invoke('logout'),
-            splashDone: () => ipcRenderer.send('splash-done')
+            logout: () => ipcRenderer.invoke('logout')
         },
         ai: {
             optimize: (data) => ipcRenderer.invoke('python:optimize', data),

@@ -899,23 +899,20 @@
                 
                 <!-- ===== ВКЛАДКА НАСТРОЙКИ ===== -->
                 <div class="tab-pane" id="settings-tab">
-                    <div class="settings-group">
-                        <h4>Боковая панель</h4>
-                        <label>Режим
-                          <select id="settingSidebarMode">
-                            <option value="click">Только клик</option>
-                            <option value="hover">Только наведение</option>
-                            <option value="both">Клик + наведение</option>
-                          </select>
-                        </label>
-                        <label style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+                    <section class="settings-card" style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;max-width:420px;">
+                        <h3 style="margin:0 0 12px;font-size:15px;">Боковая панель</h3>
+                        <label style="display:block;font-size:13px;color:#64748b;margin-bottom:6px;">Режим сворачивания</label>
+                        <select id="settingSidebarMode" class="form-input" style="width:100%;margin-bottom:12px;">
+                          <option value="click">Только по клику на стрелку</option>
+                          <option value="hover">Только по наведению</option>
+                          <option value="both">Клик и наведение</option>
+                        </select>
+                        <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:14px;">
                           <input type="checkbox" id="settingSidebarStartCollapsed">
-                          Стартовать свёрнутой
+                          При старте свёрнута
                         </label>
-                        <button type="button" id="btnSaveSidebarSettings" class="btn btn-primary btn-sm" style="margin-top:10px;">
-                          Применить
-                        </button>
-                      </div>
+                        <button type="button" id="btnSaveSidebarSettings" class="btn btn-primary btn-sm">Применить</button>
+                      </section>
                     <div class="settings-container">
                         <div class="settings-section">
                             <h3>Внешний вид</h3>
@@ -1021,6 +1018,12 @@
 </script>
 
 <script src="https://unpkg.com/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
+
+<script>
+    document.getElementById('settingSidebarMode').value = localStorage.getItem('sidebarMode') || 'click';
+document.getElementById('settingSidebarStartCollapsed').checked =
+  localStorage.getItem('sidebarCollapsed') === '1';
+</script>
 
 </body>
 </html>
