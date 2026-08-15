@@ -30,7 +30,9 @@ export class SettingsManager {
                 showLabels: true,
                 graphLayout: 'dagre',
                 tableRowsPerPage: 50,
-                animations: true
+                animations: true,
+                sidebarMode: 'click',          // click | hover | both
+                sidebarStartCollapsed: false
             },
             export: {
                 defaultFormat: 'xlsx',

@@ -221,6 +221,7 @@ async function initAdmin() {
     console.log('[Admin] 🚀 Инициализация...');
     restoreAIPaths();
     setupEventListeners();
+    initSidebarBehavior();
     setupFileInput();
     await loadAllData();
     
@@ -1440,7 +1441,14 @@ document.getElementById('cardCompleted')?.addEventListener('click', () => {
     if (window.showPeriodComparisonModal) window.showPeriodComparisonModal();
 });
 
-
+document.getElementById('btnSaveSidebarSettings')?.addEventListener('click', () => {
+    const mode = document.getElementById('settingSidebarMode')?.value || 'click';
+    const startCol = !!document.getElementById('settingSidebarStartCollapsed')?.checked;
+    localStorage.setItem('sidebarMode', mode);
+    localStorage.setItem('sidebarCollapsed', startCol ? '1' : '0');
+    initSidebarBehavior();
+    showNotification('Настройки', 'Боковая панель обновлена', 'success');
+  });
 
 async function deleteSelectedOperation() {
     if (!AdminState.selectedOperation) return;
@@ -7371,5 +7379,50 @@ window.applyBridgeLink = async function (p) {
       hideLoading();
     }
   };
+
+  function initSidebarBehavior() {
+    const sidebar = document.getElementById('sidebar');
+    const toggle = document.getElementById('sidebarToggle');
+    if (!sidebar) return;
+  
+    const mode = localStorage.getItem('sidebarMode') || 'click'; // click | hover | both
+    const saved = localStorage.getItem('sidebarCollapsed') === '1';
+  
+    const collapse = () => {
+      sidebar.classList.add('collapsed');
+      localStorage.setItem('sidebarCollapsed', '1');
+    };
+    const expand = () => {
+      sidebar.classList.remove('collapsed');
+      localStorage.setItem('sidebarCollapsed', '0');
+    };
+    const toggleFn = () => {
+      sidebar.classList.contains('collapsed') ? expand() : collapse();
+    };
+  
+    if (saved && mode !== 'hover') collapse();
+    else expand();
+  
+    // 1) клик по стрелке
+    toggle?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (mode === 'click' || mode === 'both') toggleFn();
+    });
+  
+    // 2) наведение
+    if (mode === 'hover' || mode === 'both') {
+      sidebar.addEventListener('mouseenter', expand);
+      sidebar.addEventListener('mouseleave', () => {
+        if (localStorage.getItem('sidebarCollapsed') === '1' || mode === 'hover') {
+          // в режиме hover после ухода всегда сворачиваем
+          if (mode === 'hover') collapse();
+          else if (localStorage.getItem('sidebarPinned') !== '1') collapse();
+        }
+      });
+    }
+  }
+  
+  // в initAdmin после setupEventListeners:
+  initSidebarBehavior();
 
 document.addEventListener('DOMContentLoaded', initAdmin);

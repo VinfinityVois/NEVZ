@@ -874,6 +874,23 @@
                 
                 <!-- ===== ВКЛАДКА НАСТРОЙКИ ===== -->
                 <div class="tab-pane" id="settings-tab">
+                    <div class="settings-group">
+                        <h4>Боковая панель</h4>
+                        <label>Режим
+                          <select id="settingSidebarMode">
+                            <option value="click">Только клик</option>
+                            <option value="hover">Только наведение</option>
+                            <option value="both">Клик + наведение</option>
+                          </select>
+                        </label>
+                        <label style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+                          <input type="checkbox" id="settingSidebarStartCollapsed">
+                          Стартовать свёрнутой
+                        </label>
+                        <button type="button" id="btnSaveSidebarSettings" class="btn btn-primary btn-sm" style="margin-top:10px;">
+                          Применить
+                        </button>
+                      </div>
                     <div class="settings-container">
                         <div class="settings-section">
                             <h3>Внешний вид</h3>

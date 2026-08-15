@@ -13,7 +13,8 @@ try {
         navigation: {
             openAdmin: () => ipcRenderer.invoke('open-admin'),
             openWorker: (userId, brigadeId) => ipcRenderer.invoke('open-worker', userId, brigadeId),
-            logout: () => ipcRenderer.invoke('logout')
+            logout: () => ipcRenderer.invoke('logout'),
+            splashDone: () => ipcRenderer.send('splash-done')
         },
         ai: {
             optimize: (data) => ipcRenderer.invoke('python:optimize', data),
@@ -41,6 +42,7 @@ try {
             set: (k, v) => localStorage.setItem(`mfg_${k}`, JSON.stringify(v)),
             get: (k, d = null) => { try { const v = localStorage.getItem(`mfg_${k}`); return v ? JSON.parse(v) : d; } catch { return d; } }
         }
+        
     });
     
     console.log('[Preload] ✅ API exposed successfully');

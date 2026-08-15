@@ -48,7 +48,16 @@
                 </div>
                 <p class="login-subtitle">Интеллектуальная оптимизация производства</p>
             </div>
-            
+            <div class="login-tabs" style="display:flex;gap:8px;margin-bottom:16px;">
+                <button type="button" class="login-tab active" data-tab="pass"
+                    style="flex:1;padding:8px;border:1px solid #e2e8f0;border-radius:8px;background:#0961f6;color:#fff;cursor:pointer;">
+                    Логин
+                </button>
+                <button type="button" class="login-tab" data-tab="qr"
+                    style="flex:1;padding:8px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;color:#334155;cursor:pointer;">
+                    QR-код
+                </button>
+            </div>
             <!-- Форма входа -->
             <form class="login-form" id="loginForm">
                 
@@ -123,6 +132,14 @@
                 <!-- Сообщение об ошибке -->
                 <div class="error-message" id="errorMessage"></div>
             </form>
+
+            <div id="tab-qr" style="display:none;text-align:center;padding:16px 0 8px;">
+                <div style="width:160px;height:160px;margin:0 auto 12px;border:2px dashed #94a3b8;border-radius:12px;
+                            display:flex;align-items:center;justify-content:center;color:#64748b;font-size:13px;">
+                    QR · в разработке
+                </div>
+                <p style="font-size:13px;color:#64748b;margin:0;">Вход по QR появится позже</p>
+            </div>
             
             <!-- Статус подключения -->
             <div class="connection-status" id="connectionStatus">
@@ -512,6 +529,24 @@
             init();
             
         })();
+    </script>
+
+    <script>
+            document.querySelectorAll('.login-tab').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.login-tab').forEach((b) => {
+                        b.classList.remove('active');
+                        b.style.background = '#fff';
+                        b.style.color = '#334155';
+                    });
+                    btn.classList.add('active');
+                    btn.style.background = '#0961f6';
+                    btn.style.color = '#fff';
+                    const isQr = btn.dataset.tab === 'qr';
+                    document.getElementById('loginForm').style.display = isQr ? 'none' : '';
+                    document.getElementById('tab-qr').style.display = isQr ? 'block' : 'none';
+                });
+            });
     </script>
 </body>
 </html>
