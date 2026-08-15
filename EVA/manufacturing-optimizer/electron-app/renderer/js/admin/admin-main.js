@@ -20,6 +20,23 @@ const AdminState = {
     draggedWorkerId: null
 };
 
+function persistAIPaths() {
+    try {
+      sessionStorage.setItem('aiCriticalPath', JSON.stringify(AdminState.aiCriticalPath || []));
+      sessionStorage.setItem('aiAdvantagePath', JSON.stringify(AdminState.aiAdvantagePath || []));
+    } catch (_) {}
+  }
+  
+  
+  function restoreAIPaths() {
+    try {
+      const cp = JSON.parse(sessionStorage.getItem('aiCriticalPath') || '[]');
+      const ap = JSON.parse(sessionStorage.getItem('aiAdvantagePath') || '[]');
+      if (Array.isArray(cp) && cp.length) AdminState.aiCriticalPath = cp;
+      if (Array.isArray(ap) && ap.length) AdminState.aiAdvantagePath = ap;
+    } catch (_) {}
+  }
+
 // ================================================================
 // API КЛИЕНТ
 // ================================================================
@@ -202,7 +219,7 @@ let graphFilters = {
 
 async function initAdmin() {
     console.log('[Admin] 🚀 Инициализация...');
-    
+    restoreAIPaths();
     setupEventListeners();
     setupFileInput();
     await loadAllData();
@@ -518,7 +535,9 @@ async function loadAllData() {
       
       const cpm = await api.calculateCPM();
       AdminState.criticalPath = cpm.critical_path || [];
-      // если уже был AI-путь — показываем его на дашборде
+
+      restoreAIPaths();   // ← СЮДА, перед cpShow
+
       const cpShow = AdminState.aiCriticalPath.length
         ? AdminState.aiCriticalPath
         : AdminState.criticalPath;
@@ -4762,35 +4781,33 @@ function renderGraph() {
         applyGraphFilters();
         setupGraphEvents(cy);
         window.cy = cy;
-  
-        // пути после layout
-        setTimeout(() => {
-            if (graphFilters.highlightCritical) {
-                markCriticalPathContinuous(AdminState.criticalPath || []);
-            }
-            if (graphFilters.highlightAdvantage) {
-                highlightAdvantagePath(true);
-            }
-        }, 50);
-  
-        // анимация появления — только на малых графах
-        if (nodeCount < 80 && typeof animateNodesAppearance === 'function') {
-            animateNodesAppearance();
-        }
 
         applyBridgeProposalsToGraph();
 
-        if (graphFilters.highlightCritical) {
-            markCriticalPathContinuous(
-              AdminState.aiCriticalPath.length
-                ? AdminState.aiCriticalPath
-                : (AdminState.criticalPath || [])
-            );
+        setTimeout(() => {
+          const cp = AdminState.aiCriticalPath.length
+            ? AdminState.aiCriticalPath
+            : (AdminState.criticalPath || []);
+          if (graphFilters.highlightCritical) markCriticalPathContinuous(cp);
+          if (graphFilters.highlightAdvantage) highlightAdvantagePath(true);
+        }, 80);
+
+        setTimeout(() => {
+          const cp = AdminState.aiCriticalPath.length
+            ? AdminState.aiCriticalPath
+            : (AdminState.criticalPath || []);
+          if (graphFilters.highlightCritical) {
+            markCriticalPathContinuous(cp);
           }
           if (graphFilters.highlightAdvantage) {
             highlightAdvantagePath(true);
           }
-  
+        }, 80);
+
+        if (nodeCount < 80 && typeof animateNodesAppearance === 'function') {
+          animateNodesAppearance();
+        }
+
         if (loading) loading.style.display = 'none';
         console.log(`✅ Граф: ${elements.length} элементов, узлов ~${nodeCount}`);
     } catch (e) {
@@ -6107,26 +6124,27 @@ async function runOptimization() {
             }
         });
 
-        // const plan = result.plan || result;
-        // if (plan && typeof aiPanel.renderGaps === 'function') {
-        //     console.log('gaps payload', plan.gaps, plan.bridge_proposals);
-        //     aiPanel.renderGaps(
-        //         'aiGapsPanel',
-        //         plan.gaps || null,
-        //         plan.bridge_proposals || null
-        //     );
-        // }
-
         const plan = result.plan || result;
 
-        if (result.summary?.criticalPath?.length) {
-            AdminState.criticalPath = result.summary.criticalPath
-                .map((id) => Number(String(id).replace(/^T/i, '')))
-                .filter((n) => !Number.isNaN(n));
-            AdminState.aiCriticalPath = [...AdminState.criticalPath];
+        if (plan && typeof aiPanel.renderGaps === 'function') {
+            console.log('gaps payload', plan.gaps, plan.bridge_proposals);
+            aiPanel.renderGaps(
+                'aiGapsPanel',
+                plan.gaps || aiPanel.lastGaps || null,
+                plan.bridge_proposals || aiPanel.lastBridge || null
+            );
         }
 
-        // выгодный путь из graph_analysis, если бэкенд отдал
+                // --- критический путь из AI ---
+        if (result.summary?.criticalPath?.length) {
+            AdminState.aiCriticalPath = result.summary.criticalPath
+                .map((id) => Number(String(id).replace(/^T/i, '')))
+                .filter((n) => !Number.isNaN(n));
+            AdminState.criticalPath = [...AdminState.aiCriticalPath];
+        }
+
+                // --- критический путь из AI ---
+        // --- выгодный путь ---
         const scored = plan?.graph_analysis?.scored_paths
             || plan?.graph_analysis?.paths
             || [];
@@ -6139,44 +6157,35 @@ async function runOptimization() {
             }
         }
 
+        persistAIPaths();
+
+        const cpShow = AdminState.aiCriticalPath.length
+            ? AdminState.aiCriticalPath
+            : (AdminState.criticalPath || []);
+
+        // ОДИН вызов UI — не затирать вторым
         if (typeof updateCriticalPathUI === 'function') {
             updateCriticalPathUI({
-                critical_path: AdminState.aiCriticalPath.length
-                    ? AdminState.aiCriticalPath
-                    : AdminState.criticalPath,
+                critical_path: cpShow,
                 project_duration: result.summary?.projectDuration,
-                critical_path_length: (AdminState.aiCriticalPath.length
-                    || AdminState.criticalPath.length)
+                critical_path_length: cpShow.length
             });
         }
 
-        // синхронизация дашборда / графа с новым планом
         const ops = window.allOperationsCache || AdminState.operations || [];
-        if (result.summary?.criticalPath?.length) {
-            AdminState.criticalPath = result.summary.criticalPath
-                .map((id) => Number(String(id).replace(/^T/i, '')))
-                .filter((n) => !Number.isNaN(n));
-        }
-        if (typeof updateCriticalPathUI === 'function') {
-            updateCriticalPathUI({
-                critical_path: AdminState.criticalPath,
-                project_duration: result.summary?.projectDuration,
-                critical_path_length: AdminState.criticalPath.length
-            });
-        }
         if (typeof updateDashboardCards === 'function') {
             updateDashboardCards(ops, AdminState.brigades || []);
         }
         if (typeof renderCharts === 'function') renderCharts();
         if (typeof collectDashboardAlerts === 'function' && typeof renderDashboardAlerts === 'function') {
             renderDashboardAlerts(
-                collectDashboardAlerts(ops, AdminState.brigades || [], AdminState.criticalPath || [])
+                collectDashboardAlerts(ops, AdminState.brigades || [], cpShow)
             );
         }
-        // граф: подсветка критпути из AI
+
         if (typeof renderGraph === 'function') renderGraph();
         else if (cy && typeof markCriticalPathContinuous === 'function') {
-            markCriticalPathContinuous(AdminState.criticalPath || []);
+            markCriticalPathContinuous(cpShow);
         }
         
         await loadAIRecommendations();
@@ -7206,27 +7215,44 @@ window.applyBridgeLink = async function (p) {
       }
       showNotification('Связь', `#${p.from} → #${p.to} сохранена`, 'success');
   
-      // 1) данные из БД
       await loadAllData();
   
-      // 2) граф + гантт
       if (typeof renderGraph === 'function') renderGraph();
-      else if (typeof buildGraph === 'function') buildGraph();
       if (typeof renderGantt === 'function') renderGantt();
   
-      // 3) дашборд
       const ops = window.allOperationsCache || AdminState.operations || [];
       if (typeof updateDashboardCards === 'function') {
         updateDashboardCards(ops, AdminState.brigades || []);
       }
       if (typeof renderCharts === 'function') renderCharts();
-      if (typeof collectDashboardAlerts === 'function' && typeof renderDashboardAlerts === 'function') {
-        renderDashboardAlerts(
-          collectDashboardAlerts(ops, AdminState.brigades || [], AdminState.criticalPath || [])
-        );
+
+      restoreAIPaths();   // ← СЮДА, перед const cp
+      const cp = AdminState.aiCriticalPath.length
+        ? AdminState.aiCriticalPath
+        : (AdminState.criticalPath || []);
+      if (typeof updateCriticalPathUI === 'function') {
+        updateCriticalPathUI({ critical_path: cp, critical_path_length: cp.length });
       }
+      if (typeof collectDashboardAlerts === 'function' && typeof renderDashboardAlerts === 'function') {
+        renderDashboardAlerts(collectDashboardAlerts(ops, AdminState.brigades || [], cp));
+      }
+      setTimeout(() => {
+        if (cy && graphFilters.highlightCritical) markCriticalPathContinuous(cp);
+        if (cy && graphFilters.highlightAdvantage) highlightAdvantagePath(true);
+      }, 120);
+
+      if (typeof updateCriticalPathUI === 'function') {
+        updateCriticalPathUI({ critical_path: cp, critical_path_length: cp.length });
+      }
+      if (typeof collectDashboardAlerts === 'function' && typeof renderDashboardAlerts === 'function') {
+        renderDashboardAlerts(collectDashboardAlerts(ops, AdminState.brigades || [], cp));
+      }
+      // renderGraph уже ставит setTimeout(80) на подсветку; дублируем на всякий случай
+      setTimeout(() => {
+        if (cy && graphFilters.highlightCritical) markCriticalPathContinuous(cp);
+        if (cy && graphFilters.highlightAdvantage) highlightAdvantagePath(true);
+      }, 120);
   
-      // 4) убрать применённое предложение из панели (без полного optimize)
       if (typeof aiPanel !== 'undefined' && aiPanel) {
         const br = aiPanel.lastBridge || { proposals: [], auto_apply: [], need_confirm: [] };
         const filter = (arr) =>
@@ -7240,21 +7266,18 @@ window.applyBridgeLink = async function (p) {
           need_confirm: filter(br.need_confirm),
           count: filter(br.proposals).length
         };
-        // убрать и из lastGaps одноимённый dangling, если есть
         if (aiPanel.lastGaps && Array.isArray(aiPanel.lastGaps.gaps)) {
           aiPanel.lastGaps = {
             ...aiPanel.lastGaps,
             gaps: aiPanel.lastGaps.gaps.filter(
               (g) => !(String(g.op_number) === String(p.to) && g.type === 'dangling_prev')
-            ),
-            total: undefined
+            )
           };
           aiPanel.lastGaps.total = aiPanel.lastGaps.gaps.length;
         }
         aiPanel.renderGaps('aiGapsPanel', aiPanel.lastGaps, aiPanel.lastBridge);
       }
   
-      // 5) подсветка на гантте
       if (typeof highlightGanttPath === 'function') {
         highlightGanttPath(Number(p.to) || Number(p.from));
       }
@@ -7301,10 +7324,33 @@ window.applyBridgeLink = async function (p) {
         return;
       }
       showNotification('Связи', `Применено: ${(data.applied || links).length}`, 'success');
+  
       await loadAllData();
       if (typeof renderGraph === 'function') renderGraph();
       if (typeof renderGantt === 'function') renderGantt();
-      // убрать из панели
+
+      restoreAIPaths();
+  
+      const ops = window.allOperationsCache || AdminState.operations || [];
+      if (typeof updateDashboardCards === 'function') {
+        updateDashboardCards(ops, AdminState.brigades || []);
+      }
+      if (typeof renderCharts === 'function') renderCharts();
+  
+      const cp = AdminState.aiCriticalPath.length
+        ? AdminState.aiCriticalPath
+        : (AdminState.criticalPath || []);
+      if (typeof updateCriticalPathUI === 'function') {
+        updateCriticalPathUI({ critical_path: cp, critical_path_length: cp.length });
+      }
+      if (typeof collectDashboardAlerts === 'function' && typeof renderDashboardAlerts === 'function') {
+        renderDashboardAlerts(collectDashboardAlerts(ops, AdminState.brigades || [], cp));
+      }
+      setTimeout(() => {
+        if (cy && graphFilters.highlightCritical) markCriticalPathContinuous(cp);
+        if (cy && graphFilters.highlightAdvantage) highlightAdvantagePath(true);
+      }, 120);
+  
       if (window.aiPanel?.lastBridge) {
         const key = (x) => `${x.from}|${x.to}`;
         const done = new Set(links.map(key));
