@@ -596,17 +596,22 @@ export class AIPanel {
             <b style="color:#dc2626;">${g.type}</b> · #${g.op_number||'—'} ${g.name||''}
             <div style="color:#64748b;">${g.message||''}</div>
           </div>`).join('');
-        const propRows = proposals.slice(0, 25).map(p => {
-          const payload = encodeURIComponent(JSON.stringify(p));
-          return `<div style="padding:8px 10px;border-bottom:1px solid #dbeafe;font-size:12px;">
-            <b>#${p.from}</b> → <b>#${p.to}</b>
-            <span style="color:#0961f6;font-weight:600;"> ${Math.round((p.confidence||0)*100)}%</span>
-            ${p.auto_apply ? '<span style="color:#16a34a;margin-left:6px;">auto</span>' : ''}
-            <div style="color:#64748b;">${(p.reasons||[]).join(' · ')}</div>
-            ${!p.auto_apply ? `<button type="button" style="margin-top:4px;font-size:11px;padding:4px 8px;border-radius:6px;border:1px solid #0961f6;background:#eff6ff;cursor:pointer;"
-              onclick='window.applyBridgeLink&&window.applyBridgeLink(JSON.parse(decodeURIComponent("${payload}")))'>Применить связь</button>` : ''}
-          </div>`;
-        }).join('');
+          const propRows = proposals.slice(0, 40).map((p, idx) => {
+            const payload = encodeURIComponent(JSON.stringify(p));
+            return `<div style="padding:8px 10px;border-bottom:1px solid #dbeafe;font-size:12px;">
+              <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;">
+                <input type="checkbox" class="bridge-check" data-from="${p.from}" data-to="${p.to}"
+                       ${p.auto_apply ? 'checked' : ''} style="margin-top:3px;" />
+                <span>
+                  <b>#${p.from}</b> → <b>#${p.to}</b>
+                  <span style="color:#0961f6;font-weight:600;"> ${Math.round((p.confidence||0)*100)}%</span>
+                  <div style="color:#64748b;">${(p.reasons||[]).join(' · ')}</div>
+                  <button type="button" style="margin-top:4px;font-size:11px;padding:4px 8px;border-radius:6px;border:1px solid #0961f6;background:#eff6ff;cursor:pointer;"
+                    onclick='event.preventDefault();window.applyBridgeLink&&window.applyBridgeLink(JSON.parse(decodeURIComponent("${payload}")))'>Применить</button>
+                </span>
+              </label>
+            </div>`;
+          }).join('');
         el.innerHTML = `
           <div style="font-size:12px;color:#64748b;margin-bottom:8px;">
             Разрывов: <b>${gapsReport?.total ?? gaps.length}</b> · предложений: <b>${proposals.length}</b>

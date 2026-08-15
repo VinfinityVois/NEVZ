@@ -13,6 +13,8 @@ const AdminState = {
     brigades: [],
     workers: [],
     criticalPath: [],
+    aiCriticalPath: [],      // путь из /ai/build-plan
+    aiAdvantagePath: [],     // выгодный путь
     currentTab: 'dashboard',
     selectedOperation: null,
     draggedWorkerId: null
@@ -328,11 +330,17 @@ function setupEventListeners() {
   document.getElementById('toggleCriticalPath')?.addEventListener('change', (e) => {
     graphFilters.highlightCritical = e.target.checked;
     if (!cy) return;
-    if (e.target.checked) markCriticalPathContinuous(AdminState.criticalPath || []);
-    else {
-      cy.edges('.critical').removeClass('critical');
-      cy.nodes('.critical').removeClass('critical');
-    }
+    if (e.target.checked) {
+        markCriticalPathContinuous(
+          AdminState.aiCriticalPath.length
+            ? AdminState.aiCriticalPath
+            : (AdminState.criticalPath || [])
+        );
+      } else {
+        cy.edges('.critical').removeClass('critical');
+        cy.nodes('.critical').removeClass('critical');
+        cy.edges('.path-virtual.critical').remove();
+      }
   });
   document.getElementById('toggleAdvantagePath')?.addEventListener('change', (e) => {
     graphFilters.highlightAdvantage = e.target.checked;
@@ -510,7 +518,15 @@ async function loadAllData() {
       
       const cpm = await api.calculateCPM();
       AdminState.criticalPath = cpm.critical_path || [];
-      updateCriticalPathUI(cpm);
+      // если уже был AI-путь — показываем его на дашборде
+      const cpShow = AdminState.aiCriticalPath.length
+        ? AdminState.aiCriticalPath
+        : AdminState.criticalPath;
+      updateCriticalPathUI({
+        critical_path: cpShow,
+        project_duration: cpm.project_duration,
+        critical_path_length: cpShow.length
+      });
       
       populateWorkerBrigadeFilter();
       updateWorkersCache();
@@ -4763,6 +4779,17 @@ function renderGraph() {
         }
 
         applyBridgeProposalsToGraph();
+
+        if (graphFilters.highlightCritical) {
+            markCriticalPathContinuous(
+              AdminState.aiCriticalPath.length
+                ? AdminState.aiCriticalPath
+                : (AdminState.criticalPath || [])
+            );
+          }
+          if (graphFilters.highlightAdvantage) {
+            highlightAdvantagePath(true);
+          }
   
         if (loading) loading.style.display = 'none';
         console.log(`✅ Граф: ${elements.length} элементов, узлов ~${nodeCount}`);
@@ -5130,6 +5157,32 @@ function getGraphStyle() {
                 'opacity': 0.6
               }
           },
+
+          {
+            selector: 'edge.path-virtual',
+            style: {
+              'line-style': 'dashed',
+              'opacity': 0.95,
+              'width': 3,
+              'z-index': 28
+            }
+          },
+          {
+            selector: 'edge.path-virtual.critical',
+            style: {
+              'line-color': '#d97706',
+              'target-arrow-color': '#d97706',
+              'target-arrow-shape': 'triangle'
+            }
+          },
+          {
+            selector: 'edge.path-virtual.advantage',
+            style: {
+              'line-color': '#0284c7',
+              'target-arrow-color': '#0284c7',
+              'target-arrow-shape': 'triangle'
+            }
+          },
           // зелёная стрелка — «Путь открыт»
     {
         selector: 'edge.path-open',
@@ -5304,28 +5357,28 @@ function applyGraphFilters() {
   }
 }
 
-function markCriticalPathContinuous(cpList) {
-    if (!cy || !cpList || !cpList.length) return [];
-    cy.edges('.critical').removeClass('critical').data('isCritical', false);
-    cy.nodes('.operation').removeClass('critical');
-    const gaps = [];
-    for (let i = 0; i < cpList.length; i++) {
-      const node = cy.$id(`op${cpList[i]}`);
-      if (node.nonempty()) node.addClass('critical').data('isCritical', true);
-    }
-    for (let i = 0; i < cpList.length - 1; i++) {
-      const a = `op${cpList[i]}`, b = `op${cpList[i + 1]}`;
-      let edge = cy.edges(`[source = "${a}"][target = "${b}"]`);
-      if (edge.empty()) edge = cy.edges(`[source = "${b}"][target = "${a}"]`);
-      if (edge.nonempty()) edge.addClass('critical').data('isCritical', true);
-      else gaps.push({ from: cpList[i], to: cpList[i + 1] });
-    }
-    if (gaps.length) {
-      showNotification('Разрыв критического пути',
-        gaps.slice(0, 4).map(g => `#${g.from} → #${g.to}`).join('; '), 'warning');
-    }
-    return gaps;
-  }
+// function markCriticalPathContinuous(cpList) {
+//     if (!cy || !cpList || !cpList.length) return [];
+//     cy.edges('.critical').removeClass('critical').data('isCritical', false);
+//     cy.nodes('.operation').removeClass('critical');
+//     const gaps = [];
+//     for (let i = 0; i < cpList.length; i++) {
+//       const node = cy.$id(`op${cpList[i]}`);
+//       if (node.nonempty()) node.addClass('critical').data('isCritical', true);
+//     }
+//     for (let i = 0; i < cpList.length - 1; i++) {
+//       const a = `op${cpList[i]}`, b = `op${cpList[i + 1]}`;
+//       let edge = cy.edges(`[source = "${a}"][target = "${b}"]`);
+//       if (edge.empty()) edge = cy.edges(`[source = "${b}"][target = "${a}"]`);
+//       if (edge.nonempty()) edge.addClass('critical').data('isCritical', true);
+//       else gaps.push({ from: cpList[i], to: cpList[i + 1] });
+//     }
+//     if (gaps.length) {
+//       showNotification('Разрыв критического пути',
+//         gaps.slice(0, 4).map(g => `#${g.from} → #${g.to}`).join('; '), 'warning');
+//     }
+//     return gaps;
+//   }
   
   function clearPathHighlight() {
     if (!cy) return;
@@ -5393,35 +5446,115 @@ window.highlightPathForNode = highlightPathForNode;
     return path;
   }
   
+//   function highlightAdvantagePath(on) {
+//     if (!cy) return;
+//     cy.edges('.advantage').removeClass('advantage');
+//     cy.nodes('.advantage').removeClass('advantage');
+//     if (!on) return;
+//     const path = findAdvantagePath();
+//     if (!path.length) {
+//       showNotification('Выгодный путь', 'Нет пути start→end', 'warning');
+//       return;
+//     }
+//     const gaps = [];
+//     path.forEach((num, i) => {
+//       const node = cy.$id(`op${num}`);
+//       if (node.nonempty()) node.addClass('advantage');
+//       if (i < path.length - 1) {
+//         const a = `op${num}`, b = `op${path[i + 1]}`;
+//         let edge = cy.edges(`[source = "${a}"][target = "${b}"]`);
+//         if (edge.empty()) edge = cy.edges(`[source = "${b}"][target = "${a}"]`);
+//         if (edge.nonempty()) edge.addClass('advantage');
+//         else gaps.push({ from: num, to: path[i + 1] });
+//       }
+//     });
+//     if (gaps.length) {
+//       showNotification('Разрыв выгодного пути',
+//         gaps.slice(0, 4).map(g => `#${g.from} → #${g.to}`).join('; '), 'warning');
+//     } else {
+//       showNotification('Выгодный путь', `${path.length} оп. · голубым`, 'success');
+//     }
+//   }
+function ensurePathEdges(path, className) {
+    if (!cy || !path || path.length < 2) return [];
+    const gaps = [];
+    for (let i = 0; i < path.length - 1; i++) {
+      const a = `op${path[i]}`, b = `op${path[i + 1]}`;
+      let edge = cy.edges(`[source = "${a}"][target = "${b}"]`);
+      if (edge.empty()) edge = cy.edges(`[source = "${b}"][target = "${a}"]`);
+      if (edge.nonempty()) {
+        edge.addClass(className);
+        continue;
+      }
+      // виртуальное ребро пути
+      const id = `pathlink-${className}-${path[i]}-${path[i + 1]}`;
+      if (cy.$id(a).empty() || cy.$id(b).empty()) {
+        gaps.push({ from: path[i], to: path[i + 1] });
+        continue;
+      }
+      if (cy.$id(id).empty()) {
+        cy.add({
+          group: 'edges',
+          data: { id, source: a, target: b, kind: 'path-virtual' },
+          classes: `${className} path-virtual`
+        });
+      } else {
+        cy.$id(id).addClass(className);
+      }
+    }
+    return gaps;
+  }
+  
+  function markCriticalPathContinuous(cpList) {
+    if (!cy || !cpList || !cpList.length) return [];
+    cy.edges('.critical').removeClass('critical');
+    cy.nodes('.operation').removeClass('critical');
+    cy.edges('.path-virtual.critical').remove();
+  
+    cpList.forEach((num) => {
+      const node = cy.$id(`op${num}`);
+      if (node.nonempty()) node.addClass('critical');
+    });
+    const gaps = ensurePathEdges(cpList, 'critical');
+    if (gaps.length) {
+      showNotification(
+        'Разрыв критического пути',
+        gaps.slice(0, 4).map((g) => `#${g.from} → #${g.to}`).join('; ') + ' (показан пунктиром)',
+        'warning'
+      );
+    }
+    return gaps;
+  }
+  
   function highlightAdvantagePath(on) {
     if (!cy) return;
     cy.edges('.advantage').removeClass('advantage');
     cy.nodes('.advantage').removeClass('advantage');
+    cy.edges('.path-virtual.advantage').remove();
     if (!on) return;
-    const path = findAdvantagePath();
+  
+    let path = AdminState.aiAdvantagePath || [];
+    if (!path.length) path = findAdvantagePath();
     if (!path.length) {
-      showNotification('Выгодный путь', 'Нет пути start→end', 'warning');
+      showNotification('Выгодный путь', 'Нет пути start→end по зависимостям', 'warning');
       return;
     }
-    const gaps = [];
-    path.forEach((num, i) => {
+    AdminState.aiAdvantagePath = path;
+  
+    path.forEach((num) => {
       const node = cy.$id(`op${num}`);
       if (node.nonempty()) node.addClass('advantage');
-      if (i < path.length - 1) {
-        const a = `op${num}`, b = `op${path[i + 1]}`;
-        let edge = cy.edges(`[source = "${a}"][target = "${b}"]`);
-        if (edge.empty()) edge = cy.edges(`[source = "${b}"][target = "${a}"]`);
-        if (edge.nonempty()) edge.addClass('advantage');
-        else gaps.push({ from: num, to: path[i + 1] });
-      }
     });
-    if (gaps.length) {
-      showNotification('Разрыв выгодного пути',
-        gaps.slice(0, 4).map(g => `#${g.from} → #${g.to}`).join('; '), 'warning');
-    } else {
-      showNotification('Выгодный путь', `${path.length} оп. · голубым`, 'success');
-    }
+    const gaps = ensurePathEdges(path, 'advantage');
+  
+    const toast = document.querySelector('.toast, .notification');
+    showNotification(
+      'Выгодный путь',
+      `${path.length} оп.` + (gaps.length ? ` · разрывов: ${gaps.length}` : ''),
+      gaps.length ? 'warning' : 'success'
+    );
   }
+
 
 function toggleCompleted(show) {
   graphFilters.showCompleted = show;
@@ -5974,14 +6107,47 @@ async function runOptimization() {
             }
         });
 
+        // const plan = result.plan || result;
+        // if (plan && typeof aiPanel.renderGaps === 'function') {
+        //     console.log('gaps payload', plan.gaps, plan.bridge_proposals);
+        //     aiPanel.renderGaps(
+        //         'aiGapsPanel',
+        //         plan.gaps || null,
+        //         plan.bridge_proposals || null
+        //     );
+        // }
+
         const plan = result.plan || result;
-        if (plan && typeof aiPanel.renderGaps === 'function') {
-            console.log('gaps payload', plan.gaps, plan.bridge_proposals);
-            aiPanel.renderGaps(
-                'aiGapsPanel',
-                plan.gaps || null,
-                plan.bridge_proposals || null
-            );
+
+        if (result.summary?.criticalPath?.length) {
+            AdminState.criticalPath = result.summary.criticalPath
+                .map((id) => Number(String(id).replace(/^T/i, '')))
+                .filter((n) => !Number.isNaN(n));
+            AdminState.aiCriticalPath = [...AdminState.criticalPath];
+        }
+
+        // выгодный путь из graph_analysis, если бэкенд отдал
+        const scored = plan?.graph_analysis?.scored_paths
+            || plan?.graph_analysis?.paths
+            || [];
+        if (Array.isArray(scored) && scored.length) {
+            const best = scored[0].nodes || scored[0].path || scored[0];
+            if (Array.isArray(best)) {
+                AdminState.aiAdvantagePath = best
+                    .map((x) => Number(String(x).replace(/^T/i, '')))
+                    .filter((n) => !Number.isNaN(n));
+            }
+        }
+
+        if (typeof updateCriticalPathUI === 'function') {
+            updateCriticalPathUI({
+                critical_path: AdminState.aiCriticalPath.length
+                    ? AdminState.aiCriticalPath
+                    : AdminState.criticalPath,
+                project_duration: result.summary?.projectDuration,
+                critical_path_length: (AdminState.aiCriticalPath.length
+                    || AdminState.criticalPath.length)
+            });
         }
 
         // синхронизация дашборда / графа с новым планом
@@ -6138,7 +6304,36 @@ function switchTab(tabId) {
 
     if (tabId === 'gantt') setTimeout(renderGantt, 100);
     if (tabId === 'graph') setTimeout(renderGraph, 100);
-    if (tabId === 'dashboard') setTimeout(renderCharts, 100);
+    if (tabId === 'dashboard') {
+        setTimeout(() => {
+            const ops = window.allOperationsCache || AdminState.operations || [];
+            if (typeof updateDashboardCards === 'function') {
+                updateDashboardCards(ops, AdminState.brigades || []);
+            }
+            if (typeof renderCharts === 'function') renderCharts();
+            const cp = AdminState.aiCriticalPath.length
+                ? AdminState.aiCriticalPath
+                : (AdminState.criticalPath || []);
+            if (typeof updateCriticalPathUI === 'function') {
+                updateCriticalPathUI({
+                    critical_path: cp,
+                    critical_path_length: cp.length
+                });
+            }
+            if (typeof collectDashboardAlerts === 'function' && typeof renderDashboardAlerts === 'function') {
+                renderDashboardAlerts(
+                    collectDashboardAlerts(ops, AdminState.brigades || [], cp)
+                );
+            }
+            // рекомендации уже в DOM — не трогаем
+        }, 100);
+    }
+    if (tabId === 'graph') {
+        setTimeout(() => {
+            renderGraph();
+            // после renderGraph пути навешиваются снова (см. Блок 4)
+        }, 100);
+    }
     if (tabId === 'brigade-groups') loadBrigadeGroups();
 
     if (tabId === 'brigades') {
@@ -7065,6 +7260,66 @@ window.applyBridgeLink = async function (p) {
       }
     } catch (e) {
       console.error(e);
+      showNotification('Ошибка', e.message || String(e), 'error');
+    } finally {
+      hideLoading();
+    }
+  };
+
+  window.applySelectedBridgeLinks = async function () {
+    const boxes = [...document.querySelectorAll('#aiGapsPanel .bridge-check:checked')];
+    if (!boxes.length) {
+      showNotification('Связи', 'Ничего не выбрано', 'warning');
+      return;
+    }
+    const links = boxes.map((el) => ({ from: el.dataset.from, to: el.dataset.to }));
+    await window.applyBridgeLinksBatch(links);
+  };
+  
+  window.applyAllBridgeLinks = async function () {
+    const proposals = (window.aiPanel?.lastBridge?.proposals || []).slice(0, 20);
+    if (!proposals.length) {
+      showNotification('Связи', 'Нет предложений', 'warning');
+      return;
+    }
+    await window.applyBridgeLinksBatch(
+      proposals.map((p) => ({ from: String(p.from), to: String(p.to) }))
+    );
+  };
+  
+  window.applyBridgeLinksBatch = async function (links) {
+    try {
+      showLoading(`Применение ${links.length} связей...`);
+      const res = await fetch(`${API_BASE}/ai/gaps/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ links, persist: true })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.status !== 'ok') {
+        showNotification('Ошибка', data.detail || `HTTP ${res.status}`, 'error');
+        return;
+      }
+      showNotification('Связи', `Применено: ${(data.applied || links).length}`, 'success');
+      await loadAllData();
+      if (typeof renderGraph === 'function') renderGraph();
+      if (typeof renderGantt === 'function') renderGantt();
+      // убрать из панели
+      if (window.aiPanel?.lastBridge) {
+        const key = (x) => `${x.from}|${x.to}`;
+        const done = new Set(links.map(key));
+        const filter = (arr) => (arr || []).filter((x) => !done.has(key(x)));
+        const br = aiPanel.lastBridge;
+        aiPanel.lastBridge = {
+          ...br,
+          proposals: filter(br.proposals),
+          need_confirm: filter(br.need_confirm),
+          auto_apply: filter(br.auto_apply),
+          count: filter(br.proposals).length
+        };
+        aiPanel.renderGaps('aiGapsPanel', aiPanel.lastGaps, aiPanel.lastBridge);
+      }
+    } catch (e) {
       showNotification('Ошибка', e.message || String(e), 'error');
     } finally {
       hideLoading();
