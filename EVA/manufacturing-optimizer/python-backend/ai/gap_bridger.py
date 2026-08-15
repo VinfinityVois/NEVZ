@@ -9,7 +9,7 @@ class GapBridger:
         operations: List[Dict],
         gaps: List[Dict],
         min_confidence: float = 0.3,
-        auto_threshold: float = 0.75,
+        auto_threshold: float = 0.70,
     ) -> Dict[str, Any]:
         by_num = {}
         for op in operations or []:
@@ -33,17 +33,44 @@ class GapBridger:
                 targets.append(num)
         targets = list(dict.fromkeys([t for t in targets if t]))
 
+        def _post_num(op: Dict):
+            p = op.get("post")
+            if p is None or p == "":
+                return None
+            try:
+                return int(float(str(p).strip()))
+            except Exception:
+                return None
+
         def score(a: Dict, b: Dict):
             conf = 0.0
             reasons = []
+
+            pa_n, pb_n = _post_num(a), _post_num(b)
+            if pa_n is not None and pb_n is not None:
+                if pb_n == pa_n:
+                    conf += 0.25
+                    reasons.append(f"один пост {pa_n} +0.25")
+                elif pb_n == pa_n + 1:
+                    conf += 0.40
+                    reasons.append(f"маршрут пост {pa_n}→{pb_n} +0.40")
+                elif 0 < (pb_n - pa_n) <= 3:
+                    conf += 0.20
+                    reasons.append(f"посты рядом {pa_n}→{pb_n} +0.20")
+                elif pb_n < pa_n:
+                    conf -= 0.35
+                    reasons.append(f"назад по посту {pa_n}→{pb_n} −0.35")
+
             da, db = (a.get("drawing") or "").strip(), (b.get("drawing") or "").strip()
             if da and db and da == db:
                 conf += 0.45
                 reasons.append(f"чертёж «{da}» +0.45")
-            pa, pb = (a.get("post") or "").strip(), (b.get("post") or "").strip()
-            if pa and pb and pa == pb:
+
+            pa, pb = str(a.get("post") or "").strip(), str(b.get("post") or "").strip()
+            if pa and pb and pa == pb and pa_n is None:
                 conf += 0.30
                 reasons.append(f"пост «{pa}» +0.30")
+
             try:
                 na = int(float(str(a.get("op_number") or a.get("id"))))
                 nb = int(float(str(b.get("op_number") or b.get("id"))))
@@ -56,14 +83,16 @@ class GapBridger:
                     reasons.append(f"номера Δ{diff} +0.10")
             except Exception:
                 pass
+
             sa, sb = (a.get("name") or ""), (b.get("name") or "")
             if sa and sb:
                 sim = SequenceMatcher(None, sa.lower(), sb.lower()).ratio()
                 if sim >= 0.55:
                     conf += 0.10 * sim
                     reasons.append(f"названия {sim:.2f}")
-            return conf, reasons
 
+            return max(conf, 0.0), reasons
+            
         nums = list(by_num.keys())
         for t in targets:
             a = by_num.get(t)
@@ -76,11 +105,19 @@ class GapBridger:
                 conf, reasons = score(a, by_num[other])
                 if conf < min_confidence:
                     continue
+
+
+                a_op, b_op = by_num[t], by_num[other]
+                pa_n, pb_n = _post_num(a_op), _post_num(b_op)
                 try:
                     na, nb = float(t), float(other)
-                    frm, to = (t, other) if na <= nb else (other, t)
                 except Exception:
-                    frm, to = t, other
+                    na, nb = 0.0, 1.0
+                if pa_n is not None and pb_n is not None and pa_n != pb_n:
+                    frm, to = (t, other) if pa_n < pb_n else (other, t)
+                else:
+                    frm, to = (t, other) if na <= nb else (other, t)
+
                 key = (frm, to)
                 if key in seen:
                     continue

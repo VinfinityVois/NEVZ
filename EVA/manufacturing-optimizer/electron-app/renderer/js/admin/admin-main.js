@@ -114,7 +114,7 @@ if (typeof cytoscape !== 'undefined') {
 
 import { AIPanel } from './ai-panel.js';
 const aiPanel = new AIPanel();
-
+window.aiPanel = aiPanel;
 // ================================================================
 // DOM ЭЛЕМЕНТЫ
 // ================================================================
@@ -293,7 +293,7 @@ function setupEventListeners() {
   document.getElementById('runAIOptimizationBtn')?.addEventListener('click', runOptimization);
   document.getElementById('trainModelBtn')?.addEventListener('click', trainAIModel);
   document.getElementById('importExcelBtn')?.addEventListener('click', () => {
-      document.getElementById('fileInput')?.click();
+  document.getElementById('fileInput')?.click();
   });
   
   // Операции
@@ -4716,7 +4716,18 @@ function renderGraph() {
             hideLabelsOnViewport: true,
             pixelRatio: 1,
             motionBlur: false
+
+            
         });
+
+        cy.on('tap', 'edge.bridge-proposal', (evt) => {
+            const d = evt.target.data();
+            const from = String(d.source).replace(/\D/g, '');
+            const to = String(d.target).replace(/\D/g, '');
+            if (from && to && confirm(`Применить связь #${from} → #${to}?`)) {
+              window.applyBridgeLink({ from, to });
+            }
+          });
   
         cy.layout({
             name: 'dagre',
@@ -4750,6 +4761,8 @@ function renderGraph() {
         if (nodeCount < 80 && typeof animateNodesAppearance === 'function') {
             animateNodesAppearance();
         }
+
+        applyBridgeProposalsToGraph();
   
         if (loading) loading.style.display = 'none';
         console.log(`✅ Граф: ${elements.length} элементов, узлов ~${nodeCount}`);
@@ -4760,6 +4773,32 @@ function renderGraph() {
         }
     }
   }
+  function applyBridgeProposalsToGraph() {
+    if (!cy || !window.aiPanel?.lastBridge) return;
+    cy.edges('.bridge-proposal').remove();
+    const proposals = (aiPanel.lastBridge.proposals || []).slice(0, 40);
+    const eles = [];
+    proposals.forEach((p, i) => {
+      const a = `op${p.from}`;
+      const b = `op${p.to}`;
+      if (cy.$id(a).empty() || cy.$id(b).empty()) return;
+      // уже есть реальное ребро — не дублируем
+      if (cy.edges(`[source = "${a}"][target = "${b}"]`).nonempty()) return;
+      eles.push({
+        group: 'edges',
+        data: {
+          id: `bridge-${p.from}-${p.to}-${i}`,
+          source: a,
+          target: b,
+          label: `${Math.round((p.confidence || 0) * 100)}%`,
+          kind: 'bridge'
+        },
+        classes: 'bridge-proposal'
+      });
+    });
+    if (eles.length) cy.add(eles);
+  }
+
 
 
 function buildGraphElements() {
@@ -5150,6 +5189,25 @@ function getGraphStyle() {
                 'opacity': 1,
                 'z-index': 20
               }
+          },
+          {
+            selector: 'edge.bridge-proposal',
+            style: {
+              'curve-style': 'bezier',
+              'line-style': 'dashed',
+              'line-color': '#0961f6',
+              'target-arrow-shape': 'triangle',
+              'target-arrow-color': '#0961f6',
+              'width': 2.5,
+              'opacity': 0.9,
+              'label': 'data(label)',
+              'font-size': 9,
+              'color': '#0961f6',
+              'text-background-color': '#eff6ff',
+              'text-background-opacity': 1,
+              'text-background-padding': 2,
+              'z-index': 30
+            }
           },
           {
             selector: 'node.hidden, edge.hidden',
@@ -5916,13 +5974,44 @@ async function runOptimization() {
             }
         });
 
-        if (result.plan && window.aiPanel) {
+        const plan = result.plan || result;
+        if (plan && typeof aiPanel.renderGaps === 'function') {
+            console.log('gaps payload', plan.gaps, plan.bridge_proposals);
             aiPanel.renderGaps(
-              'aiGapsPanel',
-              result.plan.gaps,
-              result.plan.bridge_proposals
+                'aiGapsPanel',
+                plan.gaps || null,
+                plan.bridge_proposals || null
             );
-          }
+        }
+
+        // синхронизация дашборда / графа с новым планом
+        const ops = window.allOperationsCache || AdminState.operations || [];
+        if (result.summary?.criticalPath?.length) {
+            AdminState.criticalPath = result.summary.criticalPath
+                .map((id) => Number(String(id).replace(/^T/i, '')))
+                .filter((n) => !Number.isNaN(n));
+        }
+        if (typeof updateCriticalPathUI === 'function') {
+            updateCriticalPathUI({
+                critical_path: AdminState.criticalPath,
+                project_duration: result.summary?.projectDuration,
+                critical_path_length: AdminState.criticalPath.length
+            });
+        }
+        if (typeof updateDashboardCards === 'function') {
+            updateDashboardCards(ops, AdminState.brigades || []);
+        }
+        if (typeof renderCharts === 'function') renderCharts();
+        if (typeof collectDashboardAlerts === 'function' && typeof renderDashboardAlerts === 'function') {
+            renderDashboardAlerts(
+                collectDashboardAlerts(ops, AdminState.brigades || [], AdminState.criticalPath || [])
+            );
+        }
+        // граф: подсветка критпути из AI
+        if (typeof renderGraph === 'function') renderGraph();
+        else if (cy && typeof markCriticalPathContinuous === 'function') {
+            markCriticalPathContinuous(AdminState.criticalPath || []);
+        }
         
         await loadAIRecommendations();
         
@@ -5943,7 +6032,6 @@ async function runOptimization() {
         hideLoading(); 
     }
 }
-
 async function loadAIRecommendations() {
     const DOM = getDOM();
     
@@ -6134,32 +6222,6 @@ window.saveBrigade = saveBrigade;
 window.saveWorker = saveWorker;
 window.closeAllModals = closeAllModals;
 
-window.applyBridgeLink = async function (p) {
-    try {
-      const res = await fetch('http://127.0.0.1:8000/ai/gaps/apply', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          links: [{ from: String(p.from), to: String(p.to) }],
-          persist: true
-        })
-      });
-      const data = await res.json();
-      if (data.status === 'ok') {
-        showNotification('Связь', `#${p.from} → #${p.to} записана`, 'success');
-        await loadAllData();
-        if (typeof highlightGanttPath === 'function') {
-          highlightGanttPath(Number(p.to) || Number(p.from));
-        }
-        // если есть подсветка на графе — вызови свою:
-        // if (typeof highlightGraphPath === 'function') highlightGraphPath(String(p.from), String(p.to));
-      } else {
-        showNotification('Ошибка', data.detail || 'не применено', 'error');
-      }
-    } catch (e) {
-      showNotification('Ошибка', e.message, 'error');
-    }
-  };
 
 // ================================================================
 // ДИАГРАММА ГАНТА
@@ -6931,5 +6993,82 @@ function renderDashboardAlerts(alerts) {
         </div>`).join('');
 }
 
+window.applyBridgeLink = async function (p) {
+    try {
+      showLoading('Применение связи...');
+      const res = await fetch(`${API_BASE}/ai/gaps/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          links: [{ from: String(p.from), to: String(p.to) }],
+          persist: true
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.status !== 'ok') {
+        showNotification('Ошибка', data.detail || `HTTP ${res.status}`, 'error');
+        return;
+      }
+      showNotification('Связь', `#${p.from} → #${p.to} сохранена`, 'success');
+  
+      // 1) данные из БД
+      await loadAllData();
+  
+      // 2) граф + гантт
+      if (typeof renderGraph === 'function') renderGraph();
+      else if (typeof buildGraph === 'function') buildGraph();
+      if (typeof renderGantt === 'function') renderGantt();
+  
+      // 3) дашборд
+      const ops = window.allOperationsCache || AdminState.operations || [];
+      if (typeof updateDashboardCards === 'function') {
+        updateDashboardCards(ops, AdminState.brigades || []);
+      }
+      if (typeof renderCharts === 'function') renderCharts();
+      if (typeof collectDashboardAlerts === 'function' && typeof renderDashboardAlerts === 'function') {
+        renderDashboardAlerts(
+          collectDashboardAlerts(ops, AdminState.brigades || [], AdminState.criticalPath || [])
+        );
+      }
+  
+      // 4) убрать применённое предложение из панели (без полного optimize)
+      if (typeof aiPanel !== 'undefined' && aiPanel) {
+        const br = aiPanel.lastBridge || { proposals: [], auto_apply: [], need_confirm: [] };
+        const filter = (arr) =>
+          (arr || []).filter(
+            (x) => !(String(x.from) === String(p.from) && String(x.to) === String(p.to))
+          );
+        aiPanel.lastBridge = {
+          ...br,
+          proposals: filter(br.proposals),
+          auto_apply: filter(br.auto_apply),
+          need_confirm: filter(br.need_confirm),
+          count: filter(br.proposals).length
+        };
+        // убрать и из lastGaps одноимённый dangling, если есть
+        if (aiPanel.lastGaps && Array.isArray(aiPanel.lastGaps.gaps)) {
+          aiPanel.lastGaps = {
+            ...aiPanel.lastGaps,
+            gaps: aiPanel.lastGaps.gaps.filter(
+              (g) => !(String(g.op_number) === String(p.to) && g.type === 'dangling_prev')
+            ),
+            total: undefined
+          };
+          aiPanel.lastGaps.total = aiPanel.lastGaps.gaps.length;
+        }
+        aiPanel.renderGaps('aiGapsPanel', aiPanel.lastGaps, aiPanel.lastBridge);
+      }
+  
+      // 5) подсветка на гантте
+      if (typeof highlightGanttPath === 'function') {
+        highlightGanttPath(Number(p.to) || Number(p.from));
+      }
+    } catch (e) {
+      console.error(e);
+      showNotification('Ошибка', e.message || String(e), 'error');
+    } finally {
+      hideLoading();
+    }
+  };
 
 document.addEventListener('DOMContentLoaded', initAdmin);

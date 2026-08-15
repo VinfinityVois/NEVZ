@@ -89,9 +89,15 @@ export class AIPanel {
             const planData = {
                 tasks: activeOps.map(op => ({
                     id: String(op.op_number),
+                    op_number: String(op.op_number),
                     name: op.name,
                     duration_days: Math.max(0.1, ((op.duration || (op.labor_hours && op.people_count ? op.labor_hours / op.people_count : 0)) || 1)) / 8.0,
                     dependencies: (op.prev_ops || []).map(p => String(p)),
+                    prev_ops: (op.prev_ops || []).map(p => String(p)),
+                    next_ops: (op.next_ops || []).map(p => String(p)),
+                    post: op.post != null ? op.post : null,
+                    drawing: op.drawing || '',
+                    status: op.status || 'pending',
                     priority: op.priority === 'critical' ? 1 : op.priority === 'high' ? 2 : 3,
                     brigade_id: op.brigade_id ? String(op.brigade_id) : null,
                     required_skills: []
@@ -130,11 +136,13 @@ export class AIPanel {
             
             const result = await response.json();
             console.log('📥 Ответ от /ai/build-plan:', result);
-            
-            this.lastPlan = result.plan;
-            
-            this.lastGaps = result.plan?.gaps || null;
-            this.lastBridge = result.plan?.bridge_proposals || null; 
+
+            // API раньше отдавал plan «голым» — поддерживаем оба формата
+            const plan = result.plan || result;
+            this.lastPlan = plan;
+            this.lastGaps = plan?.gaps ?? result.gaps ?? null;
+            this.lastBridge = plan?.bridge_proposals ?? result.bridge_proposals ?? null;
+            console.log('gaps payload', this.lastGaps, this.lastBridge);
 
             
             
@@ -189,26 +197,25 @@ export class AIPanel {
             
             return {
                 success: result.success !== false,
-                plan: result.plan,
+                plan: plan,
                 recommendations: recommendations,
                 summary: {
-                    totalOperations: result.plan?.tasks?.length || activeOps.length,
+                    totalOperations: plan?.tasks?.length || activeOps.length,
                     loadedOperations: filterReport.loaded,
                     skippedOperations: filterReport.skippedTotal,
                     filterReport,
                     projectDuration:
-                      result.plan?.project_duration_days
-                      ?? result.plan?.total_duration_days
+                      plan?.project_duration_days
+                      ?? plan?.total_duration_days
                       ?? 0,
                     criticalPath:
-                      result.plan?.critical_path_ids
-                      || result.plan?.critical_path
+                      plan?.critical_path_ids
+                      || plan?.critical_path
                       || [],
-                    leveled:
-                      !!(result.plan?.leveled
-                        || result.plan?.leveling?.leveled
-                        || result.plan?.stats?.leveling_applied)
-                  }
+                    leveled: !!(plan?.leveled
+                        || plan?.leveling?.leveled
+                        || plan?.stats?.leveling_applied)
+                }
             };
             
         } catch (error) {
@@ -239,6 +246,8 @@ export class AIPanel {
             this.optimizationInProgress = false;
         }
     }
+
+    
 
     async fallbackOptimize(operations, brigades) {
         const res = await fetch('http://127.0.0.1:8000/optimize', { method: 'POST' });
