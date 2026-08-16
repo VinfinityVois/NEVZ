@@ -5073,7 +5073,10 @@ function buildGraphElements() {
   // ===== 4. СВЯЗИ МЕЖДУ ОПЕРАЦИЯМИ =====
   ops.forEach(op => {
     (op.next_ops || []).forEach(targetId => {
-        const targetOp = ops.find(o => o.op_number === targetId);
+        const tid = Number(targetId);
+        const targetOp = ops.find(o => Number(o.op_number) === tid);
+        if (!targetOp) return;
+        // в data: target: `op${tid}`, id: `edge_${op.op_number}_${tid}`
         if (!targetOp) return;
 
         const sourceCompleted = op.status === 'completed';
@@ -5093,9 +5096,9 @@ function buildGraphElements() {
 
         elements.push({
             data: {
-                id: `edge_${op.op_number}_${targetId}`,
+                id: `edge_${op.op_number}_${tid}`,
                 source: `op${op.op_number}`,
-                target: `op${targetId}`,
+                target: `op${tid}`,
                 type: 'dependency',
                 sourceCompleted: sourceCompleted
             },
@@ -7307,93 +7310,77 @@ window.applyBridgeLink = async function (p) {
         })
       });
       const data = await res.json().catch(() => ({}));
+      console.log('[apply] response', data);
+  
       if (!res.ok || data.status !== 'ok') {
         showNotification('Ошибка', data.detail || `HTTP ${res.status}`, 'error');
         return;
       }
-      showNotification('Связь', `#${p.from} → #${p.to} сохранена`, 'success');
+      // показать полный ответ сервера
+      const appliedN = Number(data.applied) || 0;
+      const alreadyN = Number(data.already) || 0;
+      const ok =
+        appliedN > 0 ||
+        alreadyN > 0 ||
+        data.ok === true ||
+        (data.status === "ok" &&
+          (!data.missed || data.missed.length === 0) &&
+          (data.ops_count > 0));
+
+      showNotification(
+        "Apply",
+        `applied=${appliedN} already=${alreadyN}`,
+        ok ? "success" : "warning"
+      );
+      if (!ok) return;
+
+      // убрать карточку + loadAllData + renderGraph/Gantt — как сейчас ниже
+
+      showNotification('Связь', `#${p.from} → #${p.to} (applied=${data.applied})`, 'success');
   
+      // 1) сразу убрать из панели предложений
+      if (window.aiPanel?.lastBridge?.proposals) {
+        const key = `${p.from}|${p.to}`;
+        const filter = (arr) =>
+          (arr || []).filter((x) => `${x.from}|${x.to}` !== key);
+        const br = aiPanel.lastBridge;
+        aiPanel.lastBridge = {
+          ...br,
+          proposals: filter(br.proposals),
+          auto_apply: filter(br.auto_apply),
+          need_confirm: filter(br.need_confirm),
+          count: filter(br.proposals).length
+        };
+        aiPanel.renderGaps('aiGapsPanel', aiPanel.lastGaps, aiPanel.lastBridge);
+        persistAiPanelSnapshot?.();
+      }
+  
+      // 2) свежие операции из БД → граф / гантт
       await loadAllData();
-  
       if (typeof renderGraph === 'function') renderGraph();
       if (typeof renderGantt === 'function') renderGantt();
   
-      const ops = window.allOperationsCache || AdminState.operations || [];
-      if (typeof updateDashboardCards === 'function') {
-        updateDashboardCards(ops, AdminState.brigades || []);
-      }
-      if (typeof renderCharts === 'function') renderCharts();
-
-      restoreAIPaths();
-      const cp = AdminState.aiCriticalPath.length
-        ? AdminState.aiCriticalPath
-        : (AdminState.criticalPath || []);
-      if (typeof updateCriticalPathUI === 'function') {
-        updateCriticalPathUI({ critical_path: cp, critical_path_length: cp.length });
-      }
-      if (typeof collectDashboardAlerts === 'function' && typeof renderDashboardAlerts === 'function') {
-        renderDashboardAlerts(collectDashboardAlerts(ops, AdminState.brigades || [], cp));
-      }
-      setTimeout(() => {
-        if (cy && graphFilters.highlightCritical) markCriticalPathContinuous(cp);
-        if (cy && graphFilters.highlightAdvantage) highlightAdvantagePath(true);
-      }, 120);
-
-      if (typeof updateCriticalPathUI === 'function') {
-        updateCriticalPathUI({ critical_path: cp, critical_path_length: cp.length });
-      }
-      if (typeof collectDashboardAlerts === 'function' && typeof renderDashboardAlerts === 'function') {
-        renderDashboardAlerts(collectDashboardAlerts(ops, AdminState.brigades || [], cp));
-      }
-      // renderGraph уже ставит setTimeout(80) на подсветку; дублируем на всякий случай
-      setTimeout(() => {
-        if (cy && graphFilters.highlightCritical) markCriticalPathContinuous(cp);
-        if (cy && graphFilters.highlightAdvantage) highlightAdvantagePath(true);
-      }, 120);
-  
-    //   if (typeof aiPanel !== 'undefined' && aiPanel) {
-    //     const br = aiPanel.lastBridge || { proposals: [], auto_apply: [], need_confirm: [] };
-    //     const filter = (arr) =>
-    //       (arr || []).filter(
-    //         (x) => !(String(x.from) === String(p.from) && String(x.to) === String(p.to))
-    //       );
-    //     aiPanel.lastBridge = {
-    //       ...br,
-    //       proposals: filter(br.proposals),
-    //       auto_apply: filter(br.auto_apply),
-    //       need_confirm: filter(br.need_confirm),
-    //       count: filter(br.proposals).length
-    //     };
-    //     if (aiPanel.lastGaps && Array.isArray(aiPanel.lastGaps.gaps)) {
-    //       aiPanel.lastGaps = {
-    //         ...aiPanel.lastGaps,
-    //         gaps: aiPanel.lastGaps.gaps.filter(
-    //           (g) => !(String(g.op_number) === String(p.to) && g.type === 'dangling_prev')
-    //         )
-    //       };
-    //       aiPanel.lastGaps.total = aiPanel.lastGaps.gaps.length;
-    //     }
-    //     aiPanel.renderGaps('aiGapsPanel', aiPanel.lastGaps, aiPanel.lastBridge);
-    //   }
-      // пересчёт разрывов + снимок
+      // 3) пересчёт разрывов (не обязательно для появления ребра)
       try {
-        const ops2 = window.allOperationsCache || AdminState.operations || [];
-        const br2 = AdminState.brigades || [];
-        await window.aiPanel.runOptimization(ops2, br2);
-        if (window.aiPanel.lastGaps != null) {
-          window.aiPanel.renderGaps(
-            'aiGapsPanel',
-            window.aiPanel.lastGaps,
-            window.aiPanel.lastBridge
-          );
+        const ops2 = window.allOperationsCache || [];
+        await window.aiPanel.runOptimization(ops2, AdminState.brigades || []);
+        // снова выкинуть уже применённую пару
+        const key = `${p.from}|${p.to}`;
+        const filter = (arr) =>
+          (arr || []).filter((x) => `${x.from}|${x.to}` !== key);
+        if (aiPanel.lastBridge) {
+          aiPanel.lastBridge = {
+            ...aiPanel.lastBridge,
+            proposals: filter(aiPanel.lastBridge.proposals),
+            auto_apply: filter(aiPanel.lastBridge.auto_apply),
+            need_confirm: filter(aiPanel.lastBridge.need_confirm),
+            count: filter(aiPanel.lastBridge.proposals).length
+          };
         }
-        window.persistAiPanelSnapshot?.();
+        aiPanel.renderGaps('aiGapsPanel', aiPanel.lastGaps, aiPanel.lastBridge);
+        persistAiPanelSnapshot?.();
       } catch (e) {
-        console.warn('re-optimize after single apply', e);
-      }
-  
-      if (typeof highlightGanttPath === 'function') {
-        highlightGanttPath(Number(p.to) || Number(p.from));
+        console.warn('re-optimize after apply', e);
       }
     } catch (e) {
       console.error(e);

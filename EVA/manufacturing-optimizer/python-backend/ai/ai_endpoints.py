@@ -1,4 +1,11 @@
 """AI Endpoints — роутер для /ai/*."""
+import json
+import logging
+import os
+import sqlite3
+
+logger = logging.getLogger(__name__)
+
 from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
@@ -128,69 +135,118 @@ async def detect_gaps(payload: Optional[Dict[str, Any]] = None):
 
 
 @router.post("/gaps/apply")
-async def apply_gap_links(payload: Dict[str, Any]):
+
+def get_db_path() -> str:
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.path.normpath(os.path.join(here, "..", "..", "data", "manufacturing.db")),
+        os.path.normpath(os.path.join(here, "..", "data", "manufacturing.db")),
+        os.path.normpath(os.path.join(here, "..", "manufacturing.db")),
+        os.path.normpath(os.path.join(here, "manufacturing.db")),
+        "manufacturing.db",
+    ]
+    for p in candidates:
+        if os.path.isfile(p):
+            return p
+    return candidates[0]
+
+async def apply_gap_links(payload: dict):
     import json
+
     links = payload.get("links") or []
-    persist = bool(payload.get("persist", True))
+    persist = bool(payload.get("persist", False))
     if not links:
-        raise HTTPException(400, detail="links empty")
-
+        return {"status": "error", "detail": "no links"}
     if not persist:
-        return {"status": "ok", "applied": links, "persist": False}
+        return {"status": "ok", "applied": 0, "dry_run": True, "links": links}
 
-    from db_unified import get_db
-    conn = get_db()
+    # НЕ from api import get_db
+    path = get_db_path()
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
     cur = conn.cursor()
-    applied = []
+    applied = 0
+    missed = []
+
+    def _load_list(val):
+        if val is None:
+            return []
+        if isinstance(val, list):
+            out = val
+        else:
+            try:
+                out = json.loads(val or "[]")
+            except Exception:
+                out = []
+        # всегда числа op_number — как в графе/Гантте
+        res = []
+        for x in out:
+            try:
+                res.append(int(float(x)))
+            except Exception:
+                continue
+        return res
+
     try:
         for link in links:
-            frm, to = str(link["from"]), str(link["to"])
+            try:
+                frm = int(float(str(link.get("from")).strip()))
+                to = int(float(str(link.get("to")).strip()))
+            except Exception:
+                missed.append({"link": link, "reason": "bad from/to"})
+                continue
 
+            # from: next_ops += to
             cur.execute(
-                "SELECT id, next_ops FROM operations WHERE CAST(op_number AS TEXT) = ?",
+                "SELECT id, prev_ops, next_ops FROM operations WHERE op_number = ?",
                 (frm,),
             )
-            row = cur.fetchone()
-            if not row:
-                continue
-            rid = row["id"] if hasattr(row, "keys") else row[0]
-            raw = row["next_ops"] if hasattr(row, "keys") else row[1]
-            nxt = json.loads(raw) if isinstance(raw, str) and raw else (list(raw) if raw else [])
-            nxt = [str(x) for x in nxt]
-            if to not in nxt:
-                nxt.append(to)
-                cur.execute(
-                    "UPDATE operations SET next_ops = ? WHERE id = ?",
-                    (json.dumps(nxt), rid),
-                )
+            r = cur.fetchone()
+            if not r:
+                missed.append({"op": frm, "reason": "from not found"})
+            else:
+                nxt = _load_list(r["next_ops"])
+                if to not in nxt:
+                    nxt.append(to)
+                    cur.execute(
+                        "UPDATE operations SET next_ops = ? WHERE id = ?",
+                        (json.dumps(nxt), r["id"]),
+                    )
+                    applied += 1
 
+            # to: prev_ops += from
             cur.execute(
-                "SELECT id, prev_ops FROM operations WHERE CAST(op_number AS TEXT) = ?",
+                "SELECT id, prev_ops, next_ops FROM operations WHERE op_number = ?",
                 (to,),
             )
-            row = cur.fetchone()
-            if not row:
-                continue
-            rid = row["id"] if hasattr(row, "keys") else row[0]
-            raw = row["prev_ops"] if hasattr(row, "keys") else row[1]
-            prev = json.loads(raw) if isinstance(raw, str) and raw else (list(raw) if raw else [])
-            prev = [str(x) for x in prev]
-            if frm not in prev:
-                prev.append(frm)
-                cur.execute(
-                    "UPDATE operations SET prev_ops = ? WHERE id = ?",
-                    (json.dumps(prev), rid),
-                )
+            r2 = cur.fetchone()
+            if not r2:
+                missed.append({"op": to, "reason": "to not found"})
+            else:
+                prev = _load_list(r2["prev_ops"])
+                if frm not in prev:
+                    prev.append(frm)
+                    cur.execute(
+                        "UPDATE operations SET prev_ops = ? WHERE id = ?",
+                        (json.dumps(prev), r2["id"]),
+                    )
+                    applied += 1
 
-            applied.append({"from": frm, "to": to})
         conn.commit()
     except Exception as e:
         conn.rollback()
-        raise HTTPException(500, detail=str(e))
+        logger.exception("gaps/apply")
+        return {"status": "error", "detail": str(e), "applied": 0}
     finally:
         conn.close()
 
-    return {"status": "ok", "applied": applied, "persist": True}
+    return {
+        "status": "ok",
+        "applied": applied,
+        "links": links,
+        "missed": missed,
+        "db": path,
+    }
 
 @router.get("/explain/feature-importance")
 def explain_feature_importance():

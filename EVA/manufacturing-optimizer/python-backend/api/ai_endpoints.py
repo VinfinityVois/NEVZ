@@ -6,12 +6,13 @@ from typing import List, Dict, Optional, Any
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Body
 from pydantic import BaseModel, Field
+import json
 import logging
-import sqlite3
 import os
+import sqlite3
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
-
 
 try:
     from db_adapter import build_ai_plan_from_db, get_historical_for_ml
@@ -57,17 +58,29 @@ _engine: Optional[AIEngine] = None
 #     logger.warning(f"DB not found, using fallback: {fallback}")
 #     return fallback
 def get_db_path() -> str:
-    """Путь к manufacturing.db — как у api.py / db_unified"""
+    """Тот же manufacturing.db, что у api.py / UI."""
     here = os.path.dirname(os.path.abspath(__file__))
+    # __file__ = .../python-backend/api/ai_endpoints.py  ИЛИ  .../python-backend/ai_endpoints.py
     candidates = [
+        # EVA/manufacturing-optimizer/data/manufacturing.db
         os.path.normpath(os.path.join(here, "..", "..", "data", "manufacturing.db")),
+        # если ai_endpoints лежит в python-backend/ (не в api/)
         os.path.normpath(os.path.join(here, "..", "data", "manufacturing.db")),
+        os.path.normpath(os.path.join(here, "data", "manufacturing.db")),
         os.path.normpath(os.path.join(here, "..", "manufacturing.db")),
-        "manufacturing.db",
+        os.path.normpath(os.path.join(here, "manufacturing.db")),
     ]
     for path in candidates:
-        if os.path.exists(path):
+        if os.path.isfile(path):
+            logger.info("DB path: %s", path)
             return path
+
+    # ЖЁСТКО: вставь путь из Get-ChildItem, если candidates пустые
+    hardcoded = r"C:\MYDESK\code\NEVZ\EVA\manufacturing-optimizer\data\manufacturing.db"
+    if os.path.isfile(hardcoded):
+        return hardcoded
+
+    logger.warning("DB not found, fallback %s", candidates[0])
     return candidates[0]
 
 def get_engine() -> AIEngine:
@@ -872,7 +885,6 @@ async def detect_gaps(payload: dict = None):
 
 @router.post("/gaps/apply")
 async def apply_gap_links(payload: dict):
-    import json
     links = payload.get("links") or []
     persist = bool(payload.get("persist", False))
     if not links:
@@ -880,56 +892,112 @@ async def apply_gap_links(payload: dict):
     if not persist:
         return {"status": "ok", "applied": 0, "dry_run": True, "links": links}
 
-    from api import get_db  # ← путь к get_db как у тебя в проекте
-    conn = get_db()
+    path = get_db_path()  # ТОЛЬКО модульная функция, без local def
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     applied = 0
+    already = 0
+    missed = []
 
     def _load_list(val):
         if val is None:
             return []
         if isinstance(val, list):
-            return [str(x) for x in val]
-        try:
-            return [str(x) for x in json.loads(val or "[]")]
-        except Exception:
-            return []
+            out = val
+        else:
+            try:
+                out = json.loads(val or "[]")
+            except Exception:
+                out = []
+        res = []
+        for x in out:
+            try:
+                res.append(int(float(str(x).strip())))
+            except Exception:
+                continue
+        return res
 
-    for link in links:
-        frm, to = str(link["from"]), str(link["to"])
-
+    def _find_op(num: int):
         cur.execute(
-            "SELECT id, prev_ops, next_ops FROM operations WHERE CAST(op_number AS TEXT) = ?",
-            (frm,),
+            "SELECT id, prev_ops, next_ops, op_number FROM operations WHERE op_number = ?",
+            (num,),
         )
         r = cur.fetchone()
         if r:
-            rid = r[0] if not hasattr(r, "keys") else r["id"]
-            nxt = _load_list(r[2] if not hasattr(r, "keys") else r["next_ops"])
-            if to not in nxt:
+            return r
+        cur.execute(
+            "SELECT id, prev_ops, next_ops, op_number FROM operations "
+            "WHERE CAST(op_number AS TEXT) = ?",
+            (str(num),),
+        )
+        return cur.fetchone()
+
+    try:
+        cur.execute("SELECT COUNT(*) AS c FROM operations")
+        ops_count = cur.fetchone()["c"]
+
+        for link in links:
+            try:
+                frm = int(float(str(link.get("from")).strip()))
+                to = int(float(str(link.get("to")).strip()))
+            except Exception:
+                missed.append({"link": link, "reason": "bad from/to"})
+                continue
+
+            r = _find_op(frm)
+            r2 = _find_op(to)
+            if not r:
+                missed.append({"op": frm, "reason": "from not found"})
+            if not r2:
+                missed.append({"op": to, "reason": "to not found"})
+            if not r or not r2:
+                continue
+
+            # from → next_ops += to
+            nxt = _load_list(r["next_ops"])
+            if to in nxt:
+                already += 1
+            else:
                 nxt.append(to)
                 cur.execute(
                     "UPDATE operations SET next_ops = ? WHERE id = ?",
-                    (json.dumps(nxt), rid),
+                    (json.dumps(nxt), r["id"]),
                 )
                 applied += 1
 
-        cur.execute(
-            "SELECT id, prev_ops, next_ops FROM operations WHERE CAST(op_number AS TEXT) = ?",
-            (to,),
-        )
-        r2 = cur.fetchone()
-        if r2:
-            rid2 = r2[0] if not hasattr(r2, "keys") else r2["id"]
-            prev = _load_list(r2[1] if not hasattr(r2, "keys") else r2["prev_ops"])
-            if frm not in prev:
+            # to → prev_ops += from
+            prev = _load_list(r2["prev_ops"])
+            if frm in prev:
+                already += 1
+            else:
                 prev.append(frm)
                 cur.execute(
                     "UPDATE operations SET prev_ops = ? WHERE id = ?",
-                    (json.dumps(prev), rid2),
+                    (json.dumps(prev), r2["id"]),
                 )
                 applied += 1
 
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        logger.exception("gaps/apply")
+        return {"status": "error", "detail": str(e), "applied": 0, "db": path}
+    finally:
+        conn.close()
+
+    # успех, если что-то записали ИЛИ связь уже была
+    ok_count = applied + already
+    return {
+        "status": "ok",
+        "applied": applied,
+        "already": already,
+        "ok": (applied + already) > 0,
+        "links": links,
+        "missed": missed,
+        "db": path,
+        "ops_count": ops_count,
+    }
     conn.commit()
     conn.close()
     return {"status": "ok", "applied": applied, "links": links}

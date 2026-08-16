@@ -11,11 +11,36 @@ class GapBridger:
         min_confidence: float = 0.3,
         auto_threshold: float = 0.70,
     ) -> Dict[str, Any]:
-        by_num = {}
+        by_num: Dict[str, Dict] = {}
         for op in operations or []:
             num = str(op.get("op_number") or op.get("id") or "").strip()
             if num:
                 by_num[num] = op
+
+        def _norm_list(xs):
+            out = []
+            for x in xs or []:
+                try:
+                    out.append(int(float(str(x).strip())))
+                except Exception:
+                    pass
+            return out
+
+        def _has_edge(frm, to) -> bool:
+            """Уже есть ребро frm→to в next_ops/prev_ops."""
+            a = by_num.get(str(frm))
+            b = by_num.get(str(to))
+            if not a or not b:
+                return False
+            try:
+                fi, ti = int(float(str(frm))), int(float(str(to)))
+            except Exception:
+                return False
+            if ti in _norm_list(a.get("next_ops")):
+                return True
+            if fi in _norm_list(b.get("prev_ops")):
+                return True
+            return False
 
         proposals: List[Dict] = []
         seen = set()
@@ -92,7 +117,7 @@ class GapBridger:
                     reasons.append(f"названия {sim:.2f}")
 
             return max(conf, 0.0), reasons
-            
+
         nums = list(by_num.keys())
         for t in targets:
             a = by_num.get(t)
@@ -106,7 +131,6 @@ class GapBridger:
                 if conf < min_confidence:
                     continue
 
-
                 a_op, b_op = by_num[t], by_num[other]
                 pa_n, pb_n = _post_num(a_op), _post_num(b_op)
                 try:
@@ -117,6 +141,10 @@ class GapBridger:
                     frm, to = (t, other) if pa_n < pb_n else (other, t)
                 else:
                     frm, to = (t, other) if na <= nb else (other, t)
+
+                # уже есть ребро — не предлагать
+                if _has_edge(frm, to):
+                    continue
 
                 key = (frm, to)
                 if key in seen:

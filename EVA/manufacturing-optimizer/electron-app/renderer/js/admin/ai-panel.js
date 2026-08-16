@@ -142,7 +142,21 @@ export class AIPanel {
             const plan = result.plan || result;
             this.lastPlan = plan;
             this.lastGaps = plan?.gaps ?? result.gaps ?? null;
-            this.lastBridge = plan?.bridge_proposals ?? result.bridge_proposals ?? null;
+
+            const bridge =
+                plan?.bridge_proposals ??
+                result.bridge_proposals ??
+                plan?.bridge ??
+                result.bridge ??
+                null;
+            this.lastBridge = bridge;
+          // если пришло { proposals: [...] } — ок для renderGaps
+          // если пришёл сразу массив — обернуть:
+            if (Array.isArray(this.lastBridge)) {
+                this.lastBridge = { proposals: this.lastBridge, auto_apply: [], need_confirm: [] };
+            }
+
+
             console.log('gaps payload', this.lastGaps, this.lastBridge);
 
             
@@ -764,6 +778,7 @@ export class AIPanel {
             </div>
           </div>`;
       }
+      
     /**
      * Рендер сводки плана
      */
