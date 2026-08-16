@@ -194,9 +194,50 @@ async def apply_gap_links(payload: Dict[str, Any]):
 
 @router.get("/explain/feature-importance")
 def explain_feature_importance():
-    engine = get_engine()  # как у тебя в других хендлерах
     try:
-        payload = engine.predictor.get_delay_explanation()
-        return {"status": "ok", **payload}
+        local_engine = AIEngine()
+
+        if local_engine.predictor is None:
+            return {
+                "status": "ok",
+                "available": False,
+                "features": [],
+                "detail": "Predictor is not available",
+            }
+
+        model = local_engine.predictor.delay_model
+
+        if model is None:
+            return {
+                "status": "ok",
+                "available": False,
+                "features": [],
+                "detail": "Delay model is not trained or not loaded",
+            }
+
+        from ai.explainability.feature_importance import (
+            build_explanation_payload
+        )
+
+        payload = build_explanation_payload(
+            model=model
+        )
+
+        return {
+            "status": "ok",
+            **payload,
+        }
+
     except Exception as e:
-        return {"status": "error", "available": False, "detail": str(e), "features": []}
+        import logging
+
+        logging.getLogger(__name__).exception(
+            "Feature importance explanation failed"
+        )
+
+        return {
+            "status": "error",
+            "available": False,
+            "detail": str(e),
+            "features": [],
+        }

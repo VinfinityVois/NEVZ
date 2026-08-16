@@ -56,7 +56,7 @@ class Predictor:
                 "features": [],
             }
         return build_explanation_payload(self.delay_model)
-        
+
     def _load_models(self):
         """Пытаемся загрузить ранее обученные модели"""
         if not HAS_SKLEARN:
@@ -469,4 +469,34 @@ class Predictor:
         from .explainability.feature_importance import build_explanation_payload
         if self.delay_model is None:
             return {"available": False, "message": "Модель не загружена", "features": []}
-        return build_explanation_payload(self.delay_model)  
+        return build_explanation_payload(self.delay_model)
+
+    def get_delay_explanation(self) -> Dict[str, Any]:
+        """
+        Возвращает объяснение важности признаков модели прогнозирования задержек.
+        """
+
+        try:
+            from ai.explainability.feature_importance import (
+                build_explanation_payload
+            )
+
+            return build_explanation_payload(
+                model=self.delay_model
+            )
+
+        except Exception as e:
+            logger.exception(
+                "Не удалось получить объяснение модели задержек"
+            )
+
+            return {
+                "available": False,
+                "method": None,
+                "features": [],
+                "top_feature": None,
+                "summary_ru": None,
+                "r2_train": None,
+                "samples": None,
+                "error": str(e),
+            }
