@@ -4844,28 +4844,23 @@ function renderGraph() {
         applyGraphFilters();
         setupGraphEvents(cy);
         window.cy = cy;
-
         applyBridgeProposalsToGraph();
 
         setTimeout(() => {
-          const cp = AdminState.aiCriticalPath.length
+          restoreAIPaths();
+          const cp = (AdminState.aiCriticalPath?.length
             ? AdminState.aiCriticalPath
-            : (AdminState.criticalPath || []);
-          if (graphFilters.highlightCritical) markCriticalPathContinuous(cp);
-          if (graphFilters.highlightAdvantage) highlightAdvantagePath(true);
-        }, 80);
+            : (AdminState.criticalPath || []))
+            .map((id) => Number(String(id).replace(/^T/i, '')))
+            .filter((n) => !Number.isNaN(n));
 
-        setTimeout(() => {
-          const cp = AdminState.aiCriticalPath.length
-            ? AdminState.aiCriticalPath
-            : (AdminState.criticalPath || []);
-          if (graphFilters.highlightCritical) {
+          if (graphFilters.highlightCritical !== false && cp.length) {
             markCriticalPathContinuous(cp);
           }
           if (graphFilters.highlightAdvantage) {
             highlightAdvantagePath(true);
           }
-        }, 80);
+        }, 120);
 
         if (nodeCount < 80 && typeof animateNodesAppearance === 'function') {
           animateNodesAppearance();
@@ -5410,17 +5405,17 @@ function applyGraphFilters() {
   
   // Показываем только критический путь
   if (graphFilters.showCriticalOnly) {
-      cy.nodes().forEach(node => {
-          if (!node.data('isCritical') && node.hasClass('operation')) {
-              node.addClass('hidden');
-          }
-      });
-      cy.edges().forEach(edge => {
-          if (!edge.data('isCritical') && edge.hasClass('dependency')) {
-              edge.addClass('hidden');
-          }
-      });
-  }
+    cy.nodes('.operation').forEach((node) => {
+      if (!node.hasClass('critical') && !node.data('isCritical')) {
+        node.addClass('hidden');
+      }
+    });
+    cy.edges().forEach((edge) => {
+      if (!edge.hasClass('critical') && !edge.data('isCritical')) {
+        edge.addClass('hidden');
+      }
+    });
+}
   
   // Скрываем заблокированные
   if (!graphFilters.showBlocked) {
@@ -5589,23 +5584,49 @@ function ensurePathEdges(path, className) {
   }
   
   function markCriticalPathContinuous(cpList) {
-    if (!cy || !cpList || !cpList.length) return [];
-    cy.edges('.critical').removeClass('critical');
-    cy.nodes('.operation').removeClass('critical');
+    if (!cy) return [];
+    const path = (cpList || [])
+      .map((id) => Number(String(id).replace(/^T/i, '')))
+      .filter((n) => !Number.isNaN(n));
+
+    // сброс
+    cy.nodes('.operation').removeClass('critical').data('isCritical', false);
+    cy.edges('.critical').removeClass('critical').data('isCritical', false);
     cy.edges('.path-virtual.critical').remove();
-  
-    cpList.forEach((num) => {
+
+    if (!path.length) {
+      console.warn('[CP] пустой critical path');
+      return [];
+    }
+
+    path.forEach((num) => {
       const node = cy.$id(`op${num}`);
-      if (node.nonempty()) node.addClass('critical');
+      if (node.nonempty()) {
+        node.addClass('critical');
+        node.data('isCritical', true);
+      } else {
+        console.warn('[CP] нет узла op' + num);
+      }
     });
-    const gaps = ensurePathEdges(cpList, 'critical');
+
+    const gaps = ensurePathEdges(path, 'critical');
+    // пометить рёбра
+    for (let i = 0; i < path.length - 1; i++) {
+      const a = `op${path[i]}`;
+      const b = `op${path[i + 1]}`;
+      cy.edges().filter((e) => e.data('source') === a && e.data('target') === b)
+        .addClass('critical')
+        .data('isCritical', true);
+    }
+
     if (gaps.length) {
       showNotification(
         'Разрыв критического пути',
-        gaps.slice(0, 4).map((g) => `#${g.from} → #${g.to}`).join('; ') + ' (показан пунктиром)',
+        gaps.slice(0, 4).map((g) => `#${g.from} → #${g.to}`).join('; '),
         'warning'
       );
     }
+    console.log('[CP] подсвечено узлов', path.length, 'разрывов', gaps.length);
     return gaps;
   }
   
