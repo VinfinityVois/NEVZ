@@ -22,16 +22,15 @@ const AdminState = {
 
 function persistAIPaths() {
     try {
-      sessionStorage.setItem('aiCriticalPath', JSON.stringify(AdminState.aiCriticalPath || []));
-      sessionStorage.setItem('aiAdvantagePath', JSON.stringify(AdminState.aiAdvantagePath || []));
+      localStorage.setItem('aiCriticalPath', JSON.stringify(AdminState.aiCriticalPath || []));
+      localStorage.setItem('aiAdvantagePath', JSON.stringify(AdminState.aiAdvantagePath || []));
     } catch (_) {}
   }
   
-  
   function restoreAIPaths() {
     try {
-      const cp = JSON.parse(sessionStorage.getItem('aiCriticalPath') || '[]');
-      const ap = JSON.parse(sessionStorage.getItem('aiAdvantagePath') || '[]');
+      const cp = JSON.parse(localStorage.getItem('aiCriticalPath') || '[]');
+      const ap = JSON.parse(localStorage.getItem('aiAdvantagePath') || '[]');
       if (Array.isArray(cp) && cp.length) AdminState.aiCriticalPath = cp;
       if (Array.isArray(ap) && ap.length) AdminState.aiAdvantagePath = ap;
     } catch (_) {}
@@ -226,7 +225,13 @@ async function initAdmin() {
     initSidebarBehavior();
     setupFileInput();
     await loadAllData();
-    
+
+    try {
+      await aiPanel.loadFeatureImportance?.();
+    } catch (e) {
+      console.warn('explain on init', e);
+    }
+
     console.log('[Admin] ✅ Готово!');
     showNotification('Добро пожаловать!', 'Админ-панель загружена', 'success');
 }

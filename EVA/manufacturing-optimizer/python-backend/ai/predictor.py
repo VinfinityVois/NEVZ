@@ -8,6 +8,8 @@ from collections import defaultdict
 from pathlib import Path
 import logging
 import joblib
+import json
+from datetime import datetime
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -41,6 +43,8 @@ class Predictor:
         self.anomaly_model = None        # IsolationForest
         self.scaler = None
 
+        self._delay_train_meta = {}
+
         self.default_delay_factor = self.config.get("default_delay_factor", 1.15)
         self._load_models()
 
@@ -55,7 +59,12 @@ class Predictor:
                 "message": "Модель задержек не загружена",
                 "features": [],
             }
-        return build_explanation_payload(self.delay_model)
+        meta = getattr(self, "_delay_train_meta", None) or {}
+        return build_explanation_payload(
+            self.delay_model,
+            r2_train=meta.get("r2_train"),
+            samples=meta.get("samples"),
+        )
 
     def _load_models(self):
         """Пытаемся загрузить ранее обученные модели"""
@@ -69,6 +78,10 @@ class Predictor:
             if delay_path.exists():
                 self.delay_model = joblib.load(delay_path)
                 logger.info("Загружена модель прогноза задержек")
+                meta_path = self.model_dir / "delay_train_meta.json"
+                if meta_path.exists():
+                    with open(meta_path, encoding="utf-8") as f:
+                        self._delay_train_meta = json.load(f)
             if anomaly_path.exists():
                 self.anomaly_model = joblib.load(anomaly_path)
                 logger.info("Загружена модель anomaly detection")
@@ -82,6 +95,9 @@ class Predictor:
         try:
             if self.delay_model is not None:
                 joblib.dump(self.delay_model, self.model_dir / "delay_model.joblib")
+                meta = getattr(self, "_delay_train_meta", None) or {}
+                with open(self.model_dir / "delay_train_meta.json", "w", encoding="utf-8") as f:
+                    json.dump(meta, f, ensure_ascii=False, indent=2)
             if self.anomaly_model is not None:
                 joblib.dump(self.anomaly_model, self.model_dir / "anomaly_model.joblib")
             logger.info("Модели сохранены")
@@ -399,6 +415,12 @@ class Predictor:
                 self.anomaly_model.fit(X_anom)
                 if save:
                     self.save_models()
+                    self._delay_train_meta = {
+                    "r2_train": round(train_score, 3),
+                    "samples": len(historical),
+                    "trained_at": datetime.now().isoformat(),
+                }
+        # в return explanation уже передаёшь r2/samples — ок
                 logger.info("Anomaly model (IsolationForest) trained on %s samples", len(X_anom))
         except Exception as e:
             logger.warning("Anomaly model training skipped: %s", e)
@@ -433,6 +455,12 @@ class Predictor:
         self.delay_model = model
 
         train_score = model.score(X, y)
+
+        self._delay_train_meta = {
+            "r2_train": round(float(train_score), 3),
+            "samples": len(historical),
+            "trained_at": datetime.now().isoformat(),
+        }
 
         if save:
             self.save_models()

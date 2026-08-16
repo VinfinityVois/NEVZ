@@ -260,10 +260,25 @@ def explain_last_decision(decision_id: Optional[str] = None):
 @router.get("/explain/feature-importance")
 def explain_feature_importance():
     try:
+        engine = get_engine()   # ← как в /ai/status, /train и т.д.
+        if engine is None or getattr(engine, "predictor", None) is None:
+            return {
+                "status": "error",
+                "available": False,
+                "message": "Predictor не инициализирован",
+                "features": [],
+            }
         payload = engine.predictor.get_delay_explanation()
         return {"status": "ok", **payload}
     except Exception as e:
-        return {"status": "error", "available": False, "detail": str(e), "features": []}
+        logger.exception("explain feature-importance")
+        return {
+            "status": "error",
+            "available": False,
+            "detail": str(e),
+            "message": str(e),
+            "features": [],
+        }
 # ====================== Синхронизация данных ======================
 
 @router.post("/sync-training-data")
