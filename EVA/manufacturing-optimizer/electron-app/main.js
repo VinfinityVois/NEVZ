@@ -16,6 +16,19 @@ let loginWindow = null;
 let adminWindow = null;
 let pythonProcess = null;
 
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    const win = adminWindow || loginWindow;
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
+  });
+}
+
 function log(level, ...args) {
     console.log(`[${new Date().toISOString()}] [${level}]`, ...args);
 }

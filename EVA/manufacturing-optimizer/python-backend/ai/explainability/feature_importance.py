@@ -65,11 +65,11 @@ def build_explanation_payload(
             f"({top['pct']}%). Чем выше столбец — тем больше вклад признака в модель."
         )
     return {
-        "available": bool(items),
+        "available": True,
         "method": "gradient_boosting_feature_importances",
-        "features": items,
+        "features": features,
         "top_feature": top,
-        "summary_ru": summary,
+        "summary_ru": summary_ru,
         "r2_train": r2_train,
         "samples": samples,
     }

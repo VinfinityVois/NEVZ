@@ -36,6 +36,51 @@ function persistAIPaths() {
     } catch (_) {}
   }
 
+  function persistAiPanelSnapshot() {
+    try {
+      const p = window.aiPanel;
+      if (!p) return;
+      const snap = {
+        lastGaps: p.lastGaps,
+        lastBridge: p.lastBridge,
+        lastPlan: p.lastPlan,
+        lastBottlenecks: p.lastBottlenecks,
+        lastExplanation: p.lastExplanation,
+        recommendations: p._lastRecommendations || null,
+        summary: p._lastSummary || null,
+        savedAt: Date.now()
+      };
+      localStorage.setItem('aiPanelSnapshot', JSON.stringify(snap));
+    } catch (_) {}
+  }
+  
+  function restoreAiPanelSnapshot() {
+    try {
+      const raw = localStorage.getItem('aiPanelSnapshot');
+      if (!raw || !window.aiPanel) return;
+      const s = JSON.parse(raw);
+      const p = window.aiPanel;
+      if (s.lastGaps) p.lastGaps = s.lastGaps;
+      if (s.lastBridge) p.lastBridge = s.lastBridge;
+      if (s.lastPlan) p.lastPlan = s.lastPlan;
+      if (s.lastBottlenecks) p.lastBottlenecks = s.lastBottlenecks;
+      if (s.lastExplanation) p.lastExplanation = s.lastExplanation;
+      if (s.summary) p._lastSummary = s.summary;
+      if (s.recommendations) p._lastRecommendations = s.recommendations;
+  
+      // отрисовать, если есть DOM
+      if (s.summary) p.renderPlanSummary?.('aiPlanSummary', s.summary);
+      if (s.recommendations) p.renderRecommendations?.('aiRecommendations', s.recommendations);
+      if (s.lastGaps || s.lastBridge) p.renderGaps?.('aiGapsPanel', s.lastGaps, s.lastBridge);
+      if (s.lastBottlenecks) p.renderBottleneckAnalysis?.('aiBottleneckList', s.lastBottlenecks);
+      if (s.lastExplanation) p.renderFeatureImportance?.('aiExplainPanel', s.lastExplanation);
+    } catch (e) {
+      console.warn('restoreAiPanelSnapshot', e);
+    }
+  }
+  
+  window.persistAiPanelSnapshot = persistAiPanelSnapshot;
+  window.restoreAiPanelSnapshot = restoreAiPanelSnapshot;
 // ================================================================
 // API КЛИЕНТ
 // ================================================================
@@ -225,6 +270,9 @@ async function initAdmin() {
     initSidebarBehavior();
     setupFileInput();
     await loadAllData();
+
+    // после DOM/данных — восстановить рекомендации, gaps, plan
+    restoreAiPanelSnapshot();
 
     try {
       await aiPanel.loadFeatureImportance?.();
@@ -6156,6 +6204,10 @@ async function runOptimization() {
         ['aiRecommendations', 'aiRecommendationsDash'].forEach(id => {
             if (document.getElementById(id)) {
                 aiPanel.renderRecommendations(id, recs);
+                aiPanel._lastRecommendations = recommendations;
+                aiPanel._lastSummary = result.summary;
+                persistAiPanelSnapshot();
+                persistAIPaths();
             }
         });
 
@@ -6191,7 +6243,7 @@ async function runOptimization() {
                     .filter((n) => !Number.isNaN(n));
             }
         }
-
+        
         persistAIPaths();
 
         const cpShow = AdminState.aiCriticalPath.length
@@ -7270,7 +7322,7 @@ window.applyBridgeLink = async function (p) {
       }
       if (typeof renderCharts === 'function') renderCharts();
 
-      restoreAIPaths();   // ← СЮДА, перед const cp
+      restoreAIPaths();
       const cp = AdminState.aiCriticalPath.length
         ? AdminState.aiCriticalPath
         : (AdminState.criticalPath || []);
@@ -7297,29 +7349,45 @@ window.applyBridgeLink = async function (p) {
         if (cy && graphFilters.highlightAdvantage) highlightAdvantagePath(true);
       }, 120);
   
-      if (typeof aiPanel !== 'undefined' && aiPanel) {
-        const br = aiPanel.lastBridge || { proposals: [], auto_apply: [], need_confirm: [] };
-        const filter = (arr) =>
-          (arr || []).filter(
-            (x) => !(String(x.from) === String(p.from) && String(x.to) === String(p.to))
+    //   if (typeof aiPanel !== 'undefined' && aiPanel) {
+    //     const br = aiPanel.lastBridge || { proposals: [], auto_apply: [], need_confirm: [] };
+    //     const filter = (arr) =>
+    //       (arr || []).filter(
+    //         (x) => !(String(x.from) === String(p.from) && String(x.to) === String(p.to))
+    //       );
+    //     aiPanel.lastBridge = {
+    //       ...br,
+    //       proposals: filter(br.proposals),
+    //       auto_apply: filter(br.auto_apply),
+    //       need_confirm: filter(br.need_confirm),
+    //       count: filter(br.proposals).length
+    //     };
+    //     if (aiPanel.lastGaps && Array.isArray(aiPanel.lastGaps.gaps)) {
+    //       aiPanel.lastGaps = {
+    //         ...aiPanel.lastGaps,
+    //         gaps: aiPanel.lastGaps.gaps.filter(
+    //           (g) => !(String(g.op_number) === String(p.to) && g.type === 'dangling_prev')
+    //         )
+    //       };
+    //       aiPanel.lastGaps.total = aiPanel.lastGaps.gaps.length;
+    //     }
+    //     aiPanel.renderGaps('aiGapsPanel', aiPanel.lastGaps, aiPanel.lastBridge);
+    //   }
+      // пересчёт разрывов + снимок
+      try {
+        const ops2 = window.allOperationsCache || AdminState.operations || [];
+        const br2 = AdminState.brigades || [];
+        await window.aiPanel.runOptimization(ops2, br2);
+        if (window.aiPanel.lastGaps != null) {
+          window.aiPanel.renderGaps(
+            'aiGapsPanel',
+            window.aiPanel.lastGaps,
+            window.aiPanel.lastBridge
           );
-        aiPanel.lastBridge = {
-          ...br,
-          proposals: filter(br.proposals),
-          auto_apply: filter(br.auto_apply),
-          need_confirm: filter(br.need_confirm),
-          count: filter(br.proposals).length
-        };
-        if (aiPanel.lastGaps && Array.isArray(aiPanel.lastGaps.gaps)) {
-          aiPanel.lastGaps = {
-            ...aiPanel.lastGaps,
-            gaps: aiPanel.lastGaps.gaps.filter(
-              (g) => !(String(g.op_number) === String(p.to) && g.type === 'dangling_prev')
-            )
-          };
-          aiPanel.lastGaps.total = aiPanel.lastGaps.gaps.length;
         }
-        aiPanel.renderGaps('aiGapsPanel', aiPanel.lastGaps, aiPanel.lastBridge);
+        window.persistAiPanelSnapshot?.();
+      } catch (e) {
+        console.warn('re-optimize after single apply', e);
       }
   
       if (typeof highlightGanttPath === 'function') {
@@ -7344,9 +7412,11 @@ window.applyBridgeLink = async function (p) {
   };
   
   window.applyAllBridgeLinks = async function () {
-    const proposals = (window.aiPanel?.lastBridge?.proposals || []).slice(0, 20);
+    const proposals = (window.aiPanel?.lastBridge?.proposals || [])
+      .filter(p => (Number(p.confidence) || 0) >= 0.25)
+      .slice(0, 20);
     if (!proposals.length) {
-      showNotification('Связи', 'Нет предложений', 'warning');
+      showNotification('Связи', 'Нет предложений с confidence ≥ 25%', 'warning');
       return;
     }
     await window.applyBridgeLinksBatch(
@@ -7373,42 +7443,48 @@ window.applyBridgeLink = async function (p) {
       if (typeof renderGraph === 'function') renderGraph();
       if (typeof renderGantt === 'function') renderGantt();
 
+      // пересчёт разрывов с сервера
+      try {
+        const ops = window.allOperationsCache || AdminState.operations || [];
+        const br = AdminState.brigades || [];
+        const r = await window.aiPanel.runOptimization(ops, br);
+        if (window.aiPanel.lastGaps != null) {
+          window.aiPanel.renderGaps(
+            'aiGapsPanel',
+            window.aiPanel.lastGaps,
+            window.aiPanel.lastBridge
+          );
+        }
+        // сохранить снимок AI-панели (п.3)
+        window.persistAiPanelSnapshot?.();
+      } catch (e) {
+        console.warn('re-optimize after apply', e);
+      }
+
       restoreAIPaths();
-  
+      // НЕ вызывать restoreAiPanelSnapshot здесь — затрёт свежий optimize
+
       const ops = window.allOperationsCache || AdminState.operations || [];
       if (typeof updateDashboardCards === 'function') {
         updateDashboardCards(ops, AdminState.brigades || []);
       }
       if (typeof renderCharts === 'function') renderCharts();
   
-      const cp = AdminState.aiCriticalPath.length
-        ? AdminState.aiCriticalPath
-        : (AdminState.criticalPath || []);
-      if (typeof updateCriticalPathUI === 'function') {
-        updateCriticalPathUI({ critical_path: cp, critical_path_length: cp.length });
-      }
-      if (typeof collectDashboardAlerts === 'function' && typeof renderDashboardAlerts === 'function') {
-        renderDashboardAlerts(collectDashboardAlerts(ops, AdminState.brigades || [], cp));
-      }
-      setTimeout(() => {
-        if (cy && graphFilters.highlightCritical) markCriticalPathContinuous(cp);
-        if (cy && graphFilters.highlightAdvantage) highlightAdvantagePath(true);
-      }, 120);
   
-      if (window.aiPanel?.lastBridge) {
-        const key = (x) => `${x.from}|${x.to}`;
-        const done = new Set(links.map(key));
-        const filter = (arr) => (arr || []).filter((x) => !done.has(key(x)));
-        const br = aiPanel.lastBridge;
-        aiPanel.lastBridge = {
-          ...br,
-          proposals: filter(br.proposals),
-          need_confirm: filter(br.need_confirm),
-          auto_apply: filter(br.auto_apply),
-          count: filter(br.proposals).length
-        };
-        aiPanel.renderGaps('aiGapsPanel', aiPanel.lastGaps, aiPanel.lastBridge);
-      }
+    //   if (window.aiPanel?.lastBridge) {
+    //     const key = (x) => `${x.from}|${x.to}`;
+    //     const done = new Set(links.map(key));
+    //     const filter = (arr) => (arr || []).filter((x) => !done.has(key(x)));
+    //     const br = aiPanel.lastBridge;
+    //     aiPanel.lastBridge = {
+    //       ...br,
+    //       proposals: filter(br.proposals),
+    //       need_confirm: filter(br.need_confirm),
+    //       auto_apply: filter(br.auto_apply),
+    //       count: filter(br.proposals).length
+    //     };
+    //     aiPanel.renderGaps('aiGapsPanel', aiPanel.lastGaps, aiPanel.lastBridge);
+    //   }
     } catch (e) {
       showNotification('Ошибка', e.message || String(e), 'error');
     } finally {

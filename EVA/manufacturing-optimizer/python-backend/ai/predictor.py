@@ -413,15 +413,10 @@ class Predictor:
                     n_estimators=100,
                 )
                 self.anomaly_model.fit(X_anom)
-                if save:
-                    self.save_models()
-                    self._delay_train_meta = {
-                    "r2_train": round(train_score, 3),
-                    "samples": len(historical),
-                    "trained_at": datetime.now().isoformat(),
-                }
-        # в return explanation уже передаёшь r2/samples — ок
-                logger.info("Anomaly model (IsolationForest) trained on %s samples", len(X_anom))
+                logger.info(
+                    "Anomaly model (IsolationForest) trained on %s samples",
+                    len(X_anom),
+                )
         except Exception as e:
             logger.warning("Anomaly model training skipped: %s", e)
             
@@ -458,7 +453,7 @@ class Predictor:
 
         self._delay_train_meta = {
             "r2_train": round(float(train_score), 3),
-            "samples": len(historical),
+            "samples": int(len(historical)),
             "trained_at": datetime.now().isoformat(),
         }
 
@@ -470,61 +465,17 @@ class Predictor:
             build_explanation_payload,
         )
 
-        importances = extract_feature_importances(model)
-        explanation = build_explanation_payload(
-            model, r2_train=round(train_score, 3), samples=len(historical)
-        )
-
-        from .explainability.feature_importance import (
-            extract_feature_importances,
-            build_explanation_payload,
-        )
-
         return {
             "success": True,
             "samples": len(historical),
-            "r2_train": round(train_score, 3),
+            "r2_train": round(float(train_score), 3),
             "message": "Модель прогноза задержек обучена",
             "feature_importances": extract_feature_importances(model),
             "explanation": build_explanation_payload(
                 model,
-                r2_train=round(train_score, 3),
+                r2_train=round(float(train_score), 3),
                 samples=len(historical),
             ),
         }
 
-    def get_delay_explanation(self):
-        from .explainability.feature_importance import build_explanation_payload
-        if self.delay_model is None:
-            return {"available": False, "message": "Модель не загружена", "features": []}
-        return build_explanation_payload(self.delay_model)
-
-    def get_delay_explanation(self) -> Dict[str, Any]:
-        """
-        Возвращает объяснение важности признаков модели прогнозирования задержек.
-        """
-
-        try:
-            from ai.explainability.feature_importance import (
-                build_explanation_payload
-            )
-
-            return build_explanation_payload(
-                model=self.delay_model
-            )
-
-        except Exception as e:
-            logger.exception(
-                "Не удалось получить объяснение модели задержек"
-            )
-
-            return {
-                "available": False,
-                "method": None,
-                "features": [],
-                "top_feature": None,
-                "summary_ru": None,
-                "r2_train": None,
-                "samples": None,
-                "error": str(e),
-            }
+      
