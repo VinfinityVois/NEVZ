@@ -665,12 +665,7 @@
                 <div class="tab-pane" id="brigade-groups-tab">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
                         <h2>👥 Группы бригад</h2>
-                        <button class="btn btn-primary" id="addBrigadeGroupBtn" onclick="createBrigadeGroup()">
-                            <svg viewBox="0 0 20 20" fill="currentColor" width="16">
-                                <path d="M10 4V16M4 10H16" stroke="currentColor" stroke-width="1.5"/>
-                            </svg>
-                            <!-- Создать группу -->
-                        </button>
+                        
                     </div>
                     
                     <div id="brigadeGroupsContainer">
@@ -763,6 +758,18 @@
                 <div>
                     <h4 style="font-size:13px;color:#6b7280;margin:0 0 8px 0;">ML Модели</h4>
                     <div id="aiModelStatus">Загрузка...</div>
+                </div>
+                <div class="card" style="margin-bottom:16px;">
+                    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+                        <h3 class="card-title">🔎 Объяснимость модели задержек</h3>
+                        <button type="button" class="btn btn-outline btn-sm"
+                                onclick="window.aiPanel&&window.aiPanel.loadFeatureImportance()">
+                            Обновить
+                        </button>
+                    </div>
+                    <div id="aiExplainPanel" style="padding:16px;">
+                        <p style="color:#6b7280;margin:0;">Обучите модель — появятся важности признаков.</p>
+                    </div>
                 </div>
             </div>
         </div>

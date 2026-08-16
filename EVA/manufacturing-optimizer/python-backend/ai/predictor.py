@@ -47,7 +47,16 @@ class Predictor:
     # ------------------------------------------------------------------
     # Загрузка / сохранение моделей
     # ------------------------------------------------------------------
-
+    def get_delay_explanation(self):
+        from .explainability.feature_importance import build_explanation_payload
+        if self.delay_model is None:
+            return {
+                "available": False,
+                "message": "Модель задержек не загружена",
+                "features": [],
+            }
+        return build_explanation_payload(self.delay_model)
+        
     def _load_models(self):
         """Пытаемся загрузить ранее обученные модели"""
         if not HAS_SKLEARN:
@@ -428,9 +437,36 @@ class Predictor:
         if save:
             self.save_models()
 
+        from .explainability.feature_importance import (
+            extract_feature_importances,
+            build_explanation_payload,
+        )
+
+        importances = extract_feature_importances(model)
+        explanation = build_explanation_payload(
+            model, r2_train=round(train_score, 3), samples=len(historical)
+        )
+
+        from .explainability.feature_importance import (
+            extract_feature_importances,
+            build_explanation_payload,
+        )
+
         return {
             "success": True,
             "samples": len(historical),
             "r2_train": round(train_score, 3),
-            "message": "Модель прогноза задержек обучена"
+            "message": "Модель прогноза задержек обучена",
+            "feature_importances": extract_feature_importances(model),
+            "explanation": build_explanation_payload(
+                model,
+                r2_train=round(train_score, 3),
+                samples=len(historical),
+            ),
         }
+
+    def get_delay_explanation(self):
+        from .explainability.feature_importance import build_explanation_payload
+        if self.delay_model is None:
+            return {"available": False, "message": "Модель не загружена", "features": []}
+        return build_explanation_payload(self.delay_model)  

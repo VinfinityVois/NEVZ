@@ -53,6 +53,7 @@ export class AIPanel {
         this.trainingInProgress = false;
         this.lastPlan = null;
         this.lastBottlenecks = [];
+        this.lastExplanation = null;   // ← NEW
         this.API_BASE = 'http://127.0.0.1:8000';
     }
 
@@ -421,12 +422,25 @@ export class AIPanel {
             }
             
             const result = await response.json();
-            
+            console.log('[AI] train result', result);
+
+            this.lastExplanation = result.explanation || {
+                available: !!(result.feature_importances && result.feature_importances.length),
+                features: result.feature_importances || [],
+                r2_train: result.r2_train,
+                samples: result.samples,
+                summary_ru: result.explanation?.summary_ru || null,
+                method: 'gradient_boosting_feature_importances'
+            };
+            this.renderFeatureImportance('aiExplainPanel', this.lastExplanation);
+
             return {
                 status: result.success ? 'success' : 'failed',
                 message: result.message || (result.success ? 'Модель обучена' : 'Ошибка обучения'),
                 samples: result.samples || 0,
-                modelAvailable: result.model_available || false
+                modelAvailable: result.model_available || false,
+                r2_train: result.r2_train,
+                feature_importances: result.feature_importances || []
             };
             
         } catch (error) {
@@ -485,6 +499,7 @@ export class AIPanel {
                         console.log('[AI Panel] Сервер готов');
                         return true;
                     }
+                    
                 } catch (_) {}
                 await new Promise(r => setTimeout(r, 800));
             }
@@ -987,4 +1002,152 @@ export class AIPanel {
             `;
         }).join('');
     }
+        /**
+     * Загрузить глобальную важность признаков delay_model
+     */
+    async loadFeatureImportance() {
+        try {
+            const res = await fetch(`${this.API_BASE}/ai/explain/feature-importance`, {
+                signal: AbortSignal.timeout(8000)
+            });
+            if (!res.ok) {
+                this.renderFeatureImportance('aiExplainPanel', {
+                    available: false,
+                    message: `HTTP ${res.status}: обучите модель или проверьте API`
+                });
+                return null;
+            }
+            const data = await res.json();
+            this.lastExplanation = data;
+            this.renderFeatureImportance('aiExplainPanel', data);
+            return data;
+        } catch (e) {
+            console.warn('loadFeatureImportance', e);
+            this.renderFeatureImportance('aiExplainPanel', {
+                available: false,
+                message: e.message || 'Не удалось загрузить объяснимость'
+            });
+            return null;
+        }
+    }
+
+    /**
+     * Полоски feature_importances_ в UI
+     */
+    renderFeatureImportance(containerId, explanation) {
+        const el = document.getElementById(containerId);
+        if (!el) return;
+
+        if (!explanation || !explanation.available || !(explanation.features || []).length) {
+            el.innerHTML = `<p style="color:#6b7280;font-size:13px;margin:0;">
+                ${explanation?.message
+                    || 'Обучите модель задержек — здесь появится важность признаков (feature_importances_).'}
+            </p>`;
+            return;
+        }
+
+        const feats = explanation.features;
+        const maxPct = Math.max(...feats.map((f) => Number(f.pct) || 0), 1);
+
+        el.innerHTML = `
+          <div style="margin-bottom:10px;font-size:13px;color:#334155;line-height:1.45;">
+            ${explanation.summary_ru
+                || 'Вклад признаков в прогноз задержки (глобальная важность GradientBoosting).'}
+          </div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:12px;">
+            R² train: <b>${explanation.r2_train ?? '—'}</b>
+            · выборка: <b>${explanation.samples ?? '—'}</b>
+            · ${explanation.method || 'GB importances'}
+          </div>
+          ${feats.map((f) => `
+            <div style="margin-bottom:10px;">
+              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+                <span style="color:#1e293b;font-weight:500;">${f.label || f.feature}</span>
+                <span style="color:#64748b;">${f.pct}%</span>
+              </div>
+              <div style="height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;">
+                <div style="height:100%;width:${((Number(f.pct) || 0) / maxPct) * 100}%;
+                  background:linear-gradient(90deg,#0961f6,#38bdf8);border-radius:4px;"></div>
+              </div>
+            </div>
+          `).join('')}
+        `;
+    }
+
+    async loadFeatureImportance() {
+        try {
+            const res = await fetch(`${this.API_BASE}/ai/explain/feature-importance`, {
+                signal: AbortSignal.timeout(8000)
+            });
+            if (!res.ok) {
+                const t = await res.text().catch(() => '');
+                console.warn('[AI] explain HTTP', res.status, t);
+                this.renderFeatureImportance('aiExplainPanel', {
+                    available: false,
+                    message: `API ${res.status}. Нужен endpoint /ai/explain/feature-importance и обучение модели.`
+                });
+                return null;
+            }
+            const data = await res.json();
+            console.log('[AI] explain payload', data);
+            this.lastExplanation = data;
+            this.renderFeatureImportance('aiExplainPanel', data);
+            return data;
+        } catch (e) {
+            console.warn('loadFeatureImportance', e);
+            this.renderFeatureImportance('aiExplainPanel', {
+                available: false,
+                message: e.message || 'Не удалось загрузить объяснимость'
+            });
+            return null;
+        }
+    }
+
+    renderFeatureImportance(containerId, explanation) {
+        const el = document.getElementById(containerId);
+        if (!el) {
+            console.warn('[AI] #aiExplainPanel не найден в DOM');
+            return;
+        }
+
+        const feats = explanation?.features || explanation?.feature_importances || [];
+        const available = explanation?.available !== false && feats.length > 0;
+
+        if (!available) {
+            el.innerHTML = `<p style="color:#6b7280;font-size:13px;margin:0;">
+                ${explanation?.message
+                    || explanation?.detail
+                    || 'Обучите модель задержек — здесь появится важность признаков (feature_importances_).'}
+            </p>`;
+            return;
+        }
+
+        const maxPct = Math.max(...feats.map((f) => Number(f.pct ?? (f.importance || 0) * 100) || 0), 1);
+
+        el.innerHTML = `
+          <div style="margin-bottom:10px;font-size:13px;color:#334155;line-height:1.45;">
+            ${explanation.summary_ru
+                || 'Вклад признаков в прогноз задержки (feature_importances_).'}
+          </div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:12px;">
+            R²: <b>${explanation.r2_train ?? '—'}</b>
+            · n=<b>${explanation.samples ?? '—'}</b>
+          </div>
+          ${feats.map((f) => {
+            const pct = Number(f.pct ?? (f.importance || 0) * 100);
+            return `
+            <div style="margin-bottom:10px;">
+              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+                <span style="color:#1e293b;font-weight:500;">${f.label || f.feature}</span>
+                <span style="color:#64748b;">${pct.toFixed(1)}%</span>
+              </div>
+              <div style="height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;">
+                <div style="height:100%;width:${(pct / maxPct) * 100}%;
+                  background:linear-gradient(90deg,#0961f6,#38bdf8);border-radius:4px;"></div>
+              </div>
+            </div>`;
+          }).join('')}
+        `;
+    }
+
 }

@@ -249,10 +249,21 @@ def analyze_bottlenecks(
 
 @router.get("/explain")
 def explain_last_decision(decision_id: Optional[str] = None):
-    """Объяснение последнего решения ИИ"""
-    engine = get_engine()
-    return engine.explain_decision(decision_id)
+    fi = engine.predictor.get_delay_explanation()
+    return {
+        "status": "ok",
+        "decision_id": decision_id,
+        "feature_importance": fi,
+        "note": "Глобальная важность признаков delay_model (не локальный SHAP по одной задаче)",
+    }
 
+@router.get("/explain/feature-importance")
+def explain_feature_importance():
+    try:
+        payload = engine.predictor.get_delay_explanation()
+        return {"status": "ok", **payload}
+    except Exception as e:
+        return {"status": "error", "available": False, "detail": str(e), "features": []}
 # ====================== Синхронизация данных ======================
 
 @router.post("/sync-training-data")

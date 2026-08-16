@@ -191,3 +191,12 @@ async def apply_gap_links(payload: Dict[str, Any]):
         conn.close()
 
     return {"status": "ok", "applied": applied, "persist": True}
+
+@router.get("/explain/feature-importance")
+def explain_feature_importance():
+    engine = get_engine()  # как у тебя в других хендлерах
+    try:
+        payload = engine.predictor.get_delay_explanation()
+        return {"status": "ok", **payload}
+    except Exception as e:
+        return {"status": "error", "available": False, "detail": str(e), "features": []}

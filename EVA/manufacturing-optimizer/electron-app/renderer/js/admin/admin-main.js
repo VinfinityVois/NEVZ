@@ -6307,6 +6307,8 @@ async function trainAIModel() {
             if (DOM.aiModelStatus) {
                 aiPanel.renderModelStatus('aiModelStatus', modelStatus);
             }
+            // NEW — полоски feature_importances_ после train
+            await aiPanel.loadFeatureImportance?.();
         } catch (statusErr) {
             console.warn('Не удалось обновить статус моделей:', statusErr);
         }
@@ -6388,6 +6390,13 @@ function switchTab(tabId) {
             updateWorkersCache();
             renderWorkersGrid();
         }, 50);
+    }
+
+    // NEW — объяснимость модели при открытии AI
+    if (tabId === 'ai' && window.aiPanel) {
+        setTimeout(() => {
+            window.aiPanel.loadFeatureImportance?.();
+        }, 80);
     }
 }
 
