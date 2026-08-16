@@ -6201,15 +6201,17 @@ async function runOptimization() {
         }
         
         const recs = result.recommendations || [];
+        aiPanel._lastRecommendations = recs;
+        aiPanel._lastSummary = result.summary || null;
+
         ['aiRecommendations', 'aiRecommendationsDash'].forEach(id => {
             if (document.getElementById(id)) {
                 aiPanel.renderRecommendations(id, recs);
-                aiPanel._lastRecommendations = recommendations;
-                aiPanel._lastSummary = result.summary;
-                persistAiPanelSnapshot();
-                persistAIPaths();
             }
         });
+
+        persistAiPanelSnapshot();
+        persistAIPaths();
 
         const plan = result.plan || result;
 
