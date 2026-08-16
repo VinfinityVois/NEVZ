@@ -153,6 +153,8 @@ const getDOM = () => ({
     
     // AI Panel elements
     aiPlanSummary: document.getElementById('aiPlanSummary'),
+    aiMlRiskPanel: document.getElementById('aiMlRiskPanel'),
+    aiAnomalyPanel: document.getElementById('aiAnomalyPanel'),
     aiCriticalPathChart: document.getElementById('aiCriticalPathChart'),
     aiBottleneckList: document.getElementById('aiBottleneckList'),
     aiRecommendations: document.getElementById('aiRecommendations'),
@@ -6123,6 +6125,26 @@ async function runOptimization() {
         
         if (DOM.aiBottleneckList) {
             aiPanel.renderBottleneckAnalysis('aiBottleneckList', aiPanel.lastBottlenecks);
+        }
+        
+        if (DOM.aiMlRiskPanel) {
+            try {
+                const mlRisk = await aiPanel.predictProjectRisk(result.plan);
+                aiPanel.renderMlRisk('aiMlRiskPanel', mlRisk);
+            } catch (riskErr) {
+                console.warn('ML risk prediction failed:', riskErr);
+                aiPanel.renderMlRisk('aiMlRiskPanel', { success: false, message: 'Прогноз риска недоступен' });
+            }
+        }
+
+        if (DOM.aiAnomalyPanel) {
+            try {
+                const anomalyData = await aiPanel.detectAnomalies();
+                aiPanel.renderAnomalies('aiAnomalyPanel', anomalyData);
+            } catch (anomErr) {
+                console.warn('Anomaly detection failed:', anomErr);
+                aiPanel.renderAnomalies('aiAnomalyPanel', { success: false, message: 'Проверка аномалий недоступна' });
+            }
         }
         
         const recs = result.recommendations || [];

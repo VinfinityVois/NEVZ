@@ -407,6 +407,8 @@ class OperationUpdate(BaseModel):
     status: Optional[str] = None
     priority: Optional[str] = None
     end_date: Optional[str] = None
+    actual_start: Optional[str] = None
+    actual_end: Optional[str] = None
 
 class BrigadeCreate(BaseModel):
     name: str
@@ -898,10 +900,15 @@ async def update_operation(op_id: int, op: OperationUpdate):
     conn = get_db()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT id FROM operations WHERE id = ?", (op_id,))
-    if not cursor.fetchone():
+    cursor.execute("SELECT id, status, actual_start, actual_end FROM operations WHERE id = ?", (op_id,))
+    existing = cursor.fetchone()
+    if not existing:
         conn.close()
         raise HTTPException(status_code=404, detail="Операция не найдена")
+    
+    prev_status = existing[1]
+    had_actual_start = existing[2] is not None
+    had_actual_end = existing[3] is not None
     
     data = op.dict(exclude_unset=True)
     if data:
@@ -913,9 +920,31 @@ async def update_operation(op_id: int, op: OperationUpdate):
                 params.append(json.dumps(value))
             elif field in ['post', 'op_number', 'name', 'drawing', 'labor_hours', 
                           'people_count', 'duration', 'brigade_id', 'location', 
-                          'time_reserve', 'status', 'priority', 'start_date', 'end_date']:
+                          'time_reserve', 'status', 'priority', 'start_date', 'end_date',
+                          'actual_start', 'actual_end']:
                 updates.append(f"{field} = ?")
                 params.append(value)
+        
+        # Автоматически фиксируем факт начала/завершения работы, если
+        # статус меняется, а точную дату никто явно не передал.
+        # Без этого в БД никогда не появится «правда» о реальных сроках,
+        # и AI-модель прогноза задержек не сможет ни на чём обучиться.
+        new_status = data.get('status', prev_status)
+        today = datetime.now().strftime('%Y-%m-%d')
+        
+        if new_status == 'in_progress' and not had_actual_start and 'actual_start' not in data:
+            updates.append("actual_start = ?")
+            params.append(today)
+        
+        if new_status == 'completed' and not had_actual_end and 'actual_end' not in data:
+            updates.append("actual_end = ?")
+            params.append(today)
+            # Если работу закрыли, а факт начала так и не был зафиксирован —
+            # проставляем и его, иначе позже нельзя будет посчитать задержку.
+            if not had_actual_start and 'actual_start' not in data:
+                updates.append("actual_start = COALESCE(actual_start, ?)")
+                params.append(today)
+        
         updates.append("updated_at = CURRENT_TIMESTAMP")
         params.append(op_id)
         cursor.execute(f"UPDATE operations SET {', '.join(updates)} WHERE id = ?", params)

@@ -257,27 +257,40 @@ def explain_last_decision(decision_id: Optional[str] = None):
 
 @router.post("/sync-training-data")
 def sync_training_data():
+    """
+    Синхронизирует реальные завершённые операции в ai_training_data
+    для последующего обучения модели прогноза задержек.
+
+    ВАЖНО: берём только операции, у которых реально проставлена
+    actual_end (см. PUT /operations/{id} — она теперь заполняется
+    автоматически при переводе статуса в 'completed'). Без этого
+    actual_delay_days всегда был бы 0, и модель училась бы
+    предсказывать «задержки никогда не будет» — то есть ничему
+    полезному на самом деле не училась бы.
+    """
     db_path = get_db_path()
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        
-        # Проверяем структуру таблицы operations
+
         cursor.execute("PRAGMA table_info(operations)")
         columns = [c[1] for c in cursor.fetchall()]
-        
+
         if not columns:
             conn.close()
             return {"success": False, "error": "Таблица operations не найдена"}
-        
-        # Адаптивный INSERT — только существующие колонки
-        available_cols = [c for c in ['id','op_number','name','duration','labor_hours',
-                         'people_count','status','brigade_id','start_date','end_date'] 
-                         if c in columns]
-        
-    # Удаляем старую таблицу если схема не совпадает (пересоздаём)
+
+        required = {'end_date', 'actual_end', 'status'}
+        missing = required - set(columns)
+        if missing:
+            conn.close()
+            return {
+                "success": False,
+                "error": f"В таблице operations нет колонок: {', '.join(missing)}"
+            }
+
         cursor.execute("DROP TABLE IF EXISTS ai_training_data")
-        
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS ai_training_data (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -289,23 +302,46 @@ def sync_training_data():
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        
+
+        # Реальный сигнал: только завершённые операции с фактической
+        # датой окончания. actual_delay_days считаем прямо в SQL как
+        # разницу между фактом и планом (не даём уйти в минус, чтобы не
+        # путать модель "досрочным" исполнением, которое сюда не о том).
+        cursor.execute(f"""
+            INSERT INTO ai_training_data
+                (operation_id, op_number, name, duration, labor_hours,
+                 people_count, priority, status, brigade_id,
+                 start_date, end_date, actual_delay_days)
+            SELECT
+                id, op_number, name, duration, labor_hours,
+                people_count, priority, status, brigade_id,
+                start_date, end_date,
+                MAX(0, julianday(actual_end) - julianday(end_date)) AS actual_delay_days
+            FROM operations
+            WHERE status = 'completed'
+              AND actual_end IS NOT NULL
+              AND end_date IS NOT NULL
+            LIMIT 5000
+        """)
+        conn.commit()
+
         cursor.execute("SELECT COUNT(*) FROM ai_training_data")
         count = cursor.fetchone()[0]
-        
-        if count < 20 and 'id' in columns:
-            # Безопасный INSERT
-            cursor.execute(f"""
-                INSERT INTO ai_training_data 
-                (operation_id, op_number, name, {','.join(available_cols[3:])})
-                SELECT id, op_number, name, {','.join(available_cols[3:])}
-                FROM operations WHERE id IS NOT NULL LIMIT 1000
-            """)
-            conn.commit()
-            cursor.execute("SELECT COUNT(*) FROM ai_training_data")
-            count = cursor.fetchone()[0]
-        
+
         conn.close()
+
+        if count == 0:
+            return {
+                "success": True,
+                "samples": 0,
+                "message": (
+                    "Синхронизировано 0 записей — пока ни одна операция не "
+                    "завершена с проставленной фактической датой (actual_end). "
+                    "Данные появятся по мере того, как бригады будут закрывать "
+                    "реальные работы."
+                )
+            }
+
         return {"success": True, "samples": count, "message": f"Данные синхронизированы. Записей: {count}"}
     except Exception as e:
         logger.exception("sync_training_data error")
@@ -524,6 +560,85 @@ def predict_project_risk(plan: Dict[str, Any] = Body(...)):
         return {"success": True, **result}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/anomalies/detect")
+def detect_anomalies():
+    """
+    Поиск операций с аномальным поведением среди активных (in_progress)
+    работ через IsolationForest.
+
+    Признаки считаются прямо из operations: насколько работа уже вышла
+    за плановый срок (schedule_ratio), насколько трудозатраты отличаются
+    от ожидаемых по плану (labor_intensity) и насколько нетипичен размер
+    бригады относительно длительности (people_density). Раньше у этого
+    метода не было REST-входа вообще — обученная модель была недостижима
+    из интерфейса.
+    """
+    engine = get_engine()
+    if engine.predictor is None:
+        raise HTTPException(status_code=503, detail="Predictor недоступен")
+
+    db_path = get_db_path()
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, op_number, name, duration, labor_hours, people_count,
+                   start_date, actual_start
+            FROM operations
+            WHERE status = 'in_progress'
+        """)
+        rows = [dict(r) for r in cursor.fetchall()]
+        conn.close()
+    except Exception as e:
+        logger.exception("detect_anomalies: ошибка чтения operations")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    if not rows:
+        return {"success": True, "anomalies": [], "checked": 0, "message": "Нет активных операций для проверки"}
+
+    today = datetime.now().date()
+    tasks_actual = []
+    op_lookup = {}
+    for r in rows:
+        effective_start = r.get("actual_start") or r.get("start_date")
+        elapsed_days = 0.0
+        if effective_start:
+            try:
+                start_dt = datetime.strptime(effective_start, "%Y-%m-%d").date()
+                elapsed_days = max((today - start_dt).days, 0)
+            except ValueError:
+                elapsed_days = 0.0
+
+        task_id = str(r["id"])
+        tasks_actual.append({
+            "id": task_id,
+            "duration_days": r.get("duration") or 1,
+            "labor_hours": r.get("labor_hours") or 0,
+            "people_count": r.get("people_count") or 1,
+            "elapsed_days": elapsed_days
+        })
+        op_lookup[task_id] = {"op_number": r.get("op_number"), "name": r.get("name")}
+
+    anomalies = engine.predictor.detect_anomalies_ml(tasks_actual)
+
+    for a in anomalies:
+        info = op_lookup.get(a["task_id"], {})
+        a["op_number"] = info.get("op_number")
+        a["name"] = info.get("name")
+
+    return {
+        "success": True,
+        "anomalies": anomalies,
+        "checked": len(tasks_actual),
+        "message": (
+            f"Проверено операций: {len(tasks_actual)}"
+            if len(tasks_actual) >= 10
+            else f"Проверено операций: {len(tasks_actual)} (меньше 10 — результат ненадёжен)"
+        )
+    }
 
 
 

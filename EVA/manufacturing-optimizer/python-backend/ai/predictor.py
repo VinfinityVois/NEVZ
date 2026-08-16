@@ -243,44 +243,95 @@ class Predictor:
     def detect_anomalies_ml(
         self,
         tasks_actual: List[Dict],
-        contamination: float = 0.1
+        contamination: float = 0.1,
+        min_samples: int = 10
     ) -> List[Dict]:
         """
-        Поиск аномальных задач по прогрессу / задержкам с помощью IsolationForest.
+        Поиск операций с аномальным поведением через IsolationForest.
+
+        Признаки считаются из реальных, измеримых характеристик работы:
+          - schedule_ratio: во сколько раз уже прошедшее время превышает
+            плановую длительность (>1 значит работа уже не укладывается
+            в срок, хотя формально ещё не завершена)
+          - labor_intensity: фактические labor_hours относительно
+            "ожидаемых" (duration_days * people_count * 8ч) — сильное
+            отклонение говорит либо о недооценке трудоёмкости при
+            планировании, либо о проблеме на месте
+          - people_density: people_count относительно длительности —
+            подозрительно большие бригады на короткие работы (и наоборот)
+
+        Раньше здесь использовались две фичи progress/(1-progress), которые
+        линейно зависимы друг от друга — на таких данных IsolationForest
+        физически не может найти ничего осмысленного, только выбросы по
+        единственной реальной оси. Сейчас признаки независимы и опираются
+        на реальные поля из operations, а не на несуществующий "progress".
         """
         if not HAS_SKLEARN or not tasks_actual:
+            return []
+
+        if len(tasks_actual) < min_samples:
+            logger.info(
+                f"Недостаточно операций для anomaly detection: "
+                f"{len(tasks_actual)} < {min_samples}"
+            )
             return []
 
         try:
             features = []
             ids = []
+            meta = []
             for t in tasks_actual:
-                progress = float(t.get("progress", 0))
-                # Простая фича: насколько прогресс отстаёт от "нормального"
-                features.append([progress, 1.0 - progress])
+                duration = max(float(t.get("duration_days", t.get("duration", 0)) or 0), 0.1)
+                labor_hours = float(t.get("labor_hours", 0) or 0)
+                people_count = max(float(t.get("people_count", 1) or 1), 1.0)
+                elapsed_days = float(t.get("elapsed_days", 0) or 0)
+
+                schedule_ratio = elapsed_days / duration
+                expected_labor = duration * people_count * 8.0
+                labor_intensity = labor_hours / expected_labor if expected_labor > 0 else 0.0
+                people_density = people_count / duration
+
+                features.append([schedule_ratio, labor_intensity, people_density])
                 ids.append(t["id"])
+                meta.append({
+                    "schedule_ratio": round(schedule_ratio, 2),
+                    "labor_intensity": round(labor_intensity, 2)
+                })
 
             X = np.array(features)
 
-            if self.anomaly_model is None:
-                self.anomaly_model = IsolationForest(
-                    contamination=contamination,
-                    random_state=42,
-                    n_estimators=100
-                )
-                self.anomaly_model.fit(X)
-
-            preds = self.anomaly_model.predict(X)          # -1 = anomaly
-            scores = self.anomaly_model.decision_function(X)
+            # Каждый вызов обучается заново на текущем срезе активных
+            # операций — это не "накопленное обучение", а поиск выбросов
+            # относительно текущей картины (это и есть корректное
+            # применение IsolationForest для разовой диагностики, в
+            # отличие от переиспользования модели, обученной на другом
+            # распределении признаков).
+            model = IsolationForest(
+                contamination=contamination,
+                random_state=42,
+                n_estimators=150
+            )
+            preds = model.fit_predict(X)
+            scores = model.decision_function(X)
 
             anomalies = []
             for i, pred in enumerate(preds):
                 if pred == -1:
+                    reason_parts = []
+                    if meta[i]["schedule_ratio"] > 1.2:
+                        reason_parts.append("сильно вышла за плановый срок")
+                    if meta[i]["labor_intensity"] > 1.5:
+                        reason_parts.append("трудозатраты сильно выше плана")
+                    elif meta[i]["labor_intensity"] < 0.3:
+                        reason_parts.append("трудозатраты подозрительно ниже плана")
+                    reason = "; ".join(reason_parts) or "нетипичное сочетание признаков"
+
                     anomalies.append({
                         "task_id": ids[i],
                         "anomaly_score": float(scores[i]),
                         "type": "ml_anomaly",
-                        "message": "ML-модель считает поведение задачи аномальным"
+                        "message": f"AI считает операцию аномальной: {reason}",
+                        **meta[i]
                     })
             return anomalies
         except Exception as e:

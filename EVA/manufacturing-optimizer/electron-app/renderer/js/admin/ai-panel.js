@@ -249,6 +249,127 @@ export class AIPanel {
 
     
 
+    /**
+     * Прогноз риска срыва срока проекта — реально использует обученную
+     * ML-модель (GradientBoostingRegressor) через engine.predictor,
+     * а не эвристику build-plan. Если модель ещё не обучена, backend
+     * сам откатится на эвристический метод (см. predictor.py) и это
+     * будет видно в ответе по полю method внутри каждого прогноза.
+     */
+    async predictProjectRisk(plan) {
+        if (!plan || !Array.isArray(plan.tasks) || plan.tasks.length === 0) {
+            return { success: false, message: 'Нет плана для оценки риска' };
+        }
+        try {
+            const response = await fetch(`${this.API_BASE}/ai/predict/project-risk`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(plan)
+            });
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`ML risk error ${response.status}: ${errorText}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.warn('predictProjectRisk failed:', error);
+            return { success: false, message: error.message };
+        }
+    }
+
+    renderMlRisk(containerId, risk) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        if (!risk || risk.success === false) {
+            container.innerHTML = `<p style="color:#6b7280;">${risk?.message || 'Прогноз риска недоступен'}</p>`;
+            return;
+        }
+
+        const colors = {
+            high: { bg: '#fef2f2', fg: '#ef4444' },
+            medium: { bg: '#fffbeb', fg: '#f59e0b' },
+            low: { bg: '#f0fdf4', fg: '#22c55e' }
+        };
+        const c = colors[risk.level] || colors.low;
+
+        container.innerHTML = `
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+            <div style="flex:1;min-width:120px;background:${c.bg};border-radius:8px;padding:10px;text-align:center;">
+              <div style="font-size:18px;font-weight:700;color:${c.fg};">${risk.message || risk.level}</div>
+              <div style="font-size:11px;color:#6b7280;">риск-скор: ${risk.risk_score ?? '—'}</div>
+            </div>
+            <div style="flex:1;min-width:100px;background:#f8fafc;border-radius:8px;padding:10px;text-align:center;">
+              <div style="font-size:18px;font-weight:700;color:#374151;">${risk.critical_tasks_count ?? 0}</div>
+              <div style="font-size:11px;color:#6b7280;">крит. работ</div>
+            </div>
+            <div style="flex:1;min-width:100px;background:#f8fafc;border-radius:8px;padding:10px;text-align:center;">
+              <div style="font-size:18px;font-weight:700;color:#374151;">${risk.expected_total_delay_days ?? 0} дн</div>
+              <div style="font-size:11px;color:#6b7280;">ожид. суммарная задержка</div>
+            </div>
+          </div>
+          <div style="font-size:11px;color:#94a3b8;">
+            Прогноз построен по критическим работам моделью прогноза задержек
+            (обучается через кнопку «Обучить модель» на реальных завершённых операциях).
+          </div>
+        `;
+    }
+
+    async detectAnomalies() {
+        try {
+            const response = await fetch(`${this.API_BASE}/ai/anomalies/detect`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Anomaly detection error ${response.status}: ${errorText}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.warn('detectAnomalies failed:', error);
+            return { success: false, message: error.message, anomalies: [] };
+        }
+    }
+
+    renderAnomalies(containerId, data) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        if (!data || data.success === false) {
+            container.innerHTML = `<p style="color:#6b7280;">${data?.message || 'Проверка аномалий недоступна'}</p>`;
+            return;
+        }
+
+        const anomalies = data.anomalies || [];
+        if (anomalies.length === 0) {
+            container.innerHTML = `
+              <p style="color:#22c55e;font-weight:600;">✓ Аномалий не найдено</p>
+              <p style="font-size:11px;color:#94a3b8;">${data.message || ''}</p>
+            `;
+            return;
+        }
+
+        const rows = anomalies.map(a => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border-radius:8px;background:#fef2f2;margin-bottom:6px;">
+            <div>
+              <div style="font-weight:600;color:#991b1b;font-size:13px;">
+                Операция №${a.op_number ?? a.task_id}${a.name ? ' — ' + a.name : ''}
+              </div>
+              <div style="font-size:12px;color:#7f1d1d;margin-top:2px;">${a.message}</div>
+            </div>
+            <div style="font-size:11px;color:#991b1b;white-space:nowrap;margin-left:10px;">
+              score: ${a.anomaly_score.toFixed(2)}
+            </div>
+          </div>
+        `).join('');
+
+        container.innerHTML = `
+          ${rows}
+          <div style="font-size:11px;color:#94a3b8;margin-top:6px;">${data.message || ''}</div>
+        `;
+    }
+
     async fallbackOptimize(operations, brigades) {
         const res = await fetch('http://127.0.0.1:8000/optimize', { method: 'POST' });
         return res.json();

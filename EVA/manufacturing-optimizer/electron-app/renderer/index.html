@@ -377,21 +377,7 @@
             }
             
             // ===== ПЕРЕКЛЮЧЕНИЕ ВИДИМОСТИ ПАРОЛЯ =====
-            togglePasswordBtn.addEventListener('click', () => {
-                const type = passwordInput.type === 'password' ? 'text' : 'password';
-                passwordInput.type = type;
-                
-                // Анимация иконки
-                const eyeIcon = togglePasswordBtn.querySelector('.eye-icon');
-                if (typeof anime !== 'undefined') {
-                    anime({
-                        targets: eyeIcon,
-                        scale: [1, 0.8, 1],
-                        duration: 300,
-                        easing: 'easeInOutQuad'
-                    });
-                }
-            });
+           
             
             // ===== ОБРАБОТКА ОТПРАВКИ ФОРМЫ =====
             loginForm.addEventListener('submit', async (e) => {
