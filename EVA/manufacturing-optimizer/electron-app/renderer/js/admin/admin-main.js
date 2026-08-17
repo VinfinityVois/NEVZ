@@ -618,6 +618,166 @@ async function loadAllData() {
   }
 }
 
+/**
+ * После создания / правки / удаления операции:
+ * свежий кэш → дашборд → графики → CPM → граф/гантт.
+ * AI-снимок сбрасываем — иначе «старые» рекомендации.
+ */
+async function refreshAfterOperationsChange(options = {}) {
+    const {
+      invalidateAI = true,
+      rerenderGraph = true,
+      autoOptimize = false
+    } = options;
+  
+    try {
+      showLoading('Обновление данных...');
+  
+      // 1) операции
+      const allOps = await api.getOperations();
+      allOperationsCache = (allOps || []).sort((a, b) => a.id - b.id);
+      window.allOperationsCache = allOperationsCache;
+      AdminState.operations = allOperationsCache;
+  
+      // 2) фильтры таблицы
+      if (typeof applyFilters === 'function') applyFilters();
+      else {
+        filteredOperationsCache = [...allOperationsCache];
+        if (typeof loadOperationsPageFromCache === 'function') {
+          loadOperationsPageFromCache(currentPage || 1);
+        }
+      }
+  
+      // 3) бригады
+      try {
+        for (const b of AdminState.brigades || []) {
+          if (b?.id) await api.post(`/brigades/${b.id}/recalculate-load`, {});
+        }
+        AdminState.brigades = (await api.getBrigades()) || [];
+      } catch (e) {
+        console.warn('brigade load refresh', e);
+      }
+  
+      // 4) дашборд
+      if (typeof updateDashboardCards === 'function') {
+        updateDashboardCards(allOperationsCache, AdminState.brigades || []);
+      }
+      if (typeof updateStats === 'function') {
+        try {
+          updateStats(await api.getStatistics());
+        } catch (_) {
+          updateStats({
+            total: allOperationsCache.length,
+            completed: allOperationsCache.filter((o) => o.status === 'completed').length,
+            in_progress: allOperationsCache.filter((o) => o.status === 'in_progress').length
+          });
+        }
+      }
+      if (typeof renderCharts === 'function') renderCharts();
+  
+      // 5) CPM (один раз, после свежих ops)
+      try {
+        const cpm = await api.calculateCPM();
+        const raw = cpm.critical_path || cpm.criticalPath || [];
+        AdminState.criticalPath = raw
+          .map((id) => Number(String(id).replace(/^T/i, '')))
+          .filter((n) => !Number.isNaN(n));
+  
+        const cpShow = AdminState.aiCriticalPath?.length
+          ? AdminState.aiCriticalPath
+          : AdminState.criticalPath;
+  
+        if (typeof updateCriticalPathUI === 'function') {
+          updateCriticalPathUI({
+            critical_path: cpShow,
+            project_duration: cpm.project_duration,
+            critical_path_length: cpShow.length
+          });
+        }
+        if (typeof renderDashboardAlerts === 'function' && typeof collectDashboardAlerts === 'function') {
+          renderDashboardAlerts(
+            collectDashboardAlerts(allOperationsCache, AdminState.brigades || [], cpShow)
+          );
+        }
+      } catch (e) {
+        console.warn('CPM refresh', e);
+      }
+  
+      // 6) AI: сбросить UI-снимок (пути не трогаем)
+      if (invalidateAI) {
+        try {
+          localStorage.removeItem('aiPanelSnapshot');
+          if (window.aiPanel) {
+            window.aiPanel.lastGaps = null;
+            window.aiPanel.lastBridge = null;
+            window.aiPanel.lastPlan = null;
+            window.aiPanel._lastRecommendations = null;
+            window.aiPanel._lastSummary = null;
+          }
+        } catch (e) {
+          console.warn('invalidate AI', e);
+        }
+      }
+
+          // 7) autoOptimize — полный admin runOptimization (пути + сводка + gaps)
+    if (autoOptimize) {
+        try {
+          if (typeof runOptimization === 'function') {
+            await runOptimization();
+          } else if (window.aiPanel?.runOptimization) {
+            await window.aiPanel.runOptimization(
+              allOperationsCache,
+              AdminState.brigades || []
+            );
+            persistAiPanelSnapshot?.();
+            persistAIPaths?.();
+          }
+        } catch (e) {
+          console.warn('autoOptimize', e);
+        }
+      }
+  
+       
+      // 8) граф / гантт после данных и AI
+      if (rerenderGraph) {
+        if (typeof renderGraph === 'function') renderGraph();
+        if (typeof renderGantt === 'function') renderGantt();
+      }
+  
+      // 9) подсветка после layout
+      setTimeout(() => {
+        if (!window.cy) return;
+        const cp = (
+          AdminState.aiCriticalPath?.length
+            ? AdminState.aiCriticalPath
+            : AdminState.criticalPath || []
+        )
+          .map((id) => Number(String(id).replace(/^T/i, '')))
+          .filter((n) => !Number.isNaN(n));
+  
+        if (graphFilters.highlightCritical !== false && cp.length && typeof markCriticalPathContinuous === 'function') {
+          markCriticalPathContinuous(cp);
+        }
+        if (
+          graphFilters.highlightAdvantage &&
+          AdminState.aiAdvantagePath?.length &&
+          typeof highlightAdvantagePath === 'function'
+        ) {
+          highlightAdvantagePath(true);
+        }
+        console.log('[refresh] cp nodes', cp.length, 'ai', AdminState.aiCriticalPath?.length || 0);
+      }, 180);
+  
+      console.log('[refresh] ops=', allOperationsCache.length);
+    } catch (e) {
+      console.error('refreshAfterOperationsChange', e);
+      showNotification('Ошибка', 'Не удалось обновить связанные экраны', 'error');
+    } finally {
+      hideLoading();
+    }
+  }
+  
+  window.refreshAfterOperationsChange = refreshAfterOperationsChange;
 // Новая функция - загрузка страницы из кэша
 function loadOperationsPageFromCache(page) {
   currentPage = page;
@@ -1666,15 +1826,22 @@ async function saveOperation(id) {
           showNotification('Успех', 'Операция создана', 'success');
       }
       closeAllModals();
-      
-      // Перезагружаем данные
-      const allOps = await api.getOperations();
-      allOperationsCache = allOps.sort((a, b) => a.id - b.id);
-      
-      // Применяем текущие фильтры заново
-      applyFilters();
-      
-  } catch (e) { 
+
+      // полная пересборка: дашборд, граф, гантт, CPM; AI-снимок сбросить
+      await refreshAfterOperationsChange({
+        invalidateAI: true,
+        rerenderGraph: true,
+        autoOptimize: true
+      });
+      // больше ничего — optimize внутри refresh
+
+      showNotification(
+        'Данные обновлены',
+        'Дашборд, CPM и AI пересчитаны',
+        'success'
+      );
+
+  } catch (e) {
       alert('Ошибка: ' + e.message); 
   }
 }
@@ -1688,11 +1855,7 @@ async function deleteOperation(id) {
       showNotification('Успех', 'Операция удалена', 'success');
       
       // Перезагружаем данные
-      const allOps = await api.getOperations();
-      allOperationsCache = allOps.sort((a, b) => a.id - b.id);
-      
-      // Применяем текущие фильтры заново
-      applyFilters();
+      await refreshAfterOperationsChange({ invalidateAI: true, rerenderGraph: true });
       
       // Если текущая страница стала пустой, переходим на предыдущую
       const totalPages = Math.ceil(totalOperations / pageSize);
@@ -4847,20 +5010,25 @@ function renderGraph() {
         applyBridgeProposalsToGraph();
 
         setTimeout(() => {
-          restoreAIPaths();
-          const cp = (AdminState.aiCriticalPath?.length
-            ? AdminState.aiCriticalPath
-            : (AdminState.criticalPath || []))
-            .map((id) => Number(String(id).replace(/^T/i, '')))
-            .filter((n) => !Number.isNaN(n));
-
-          if (graphFilters.highlightCritical !== false && cp.length) {
-            markCriticalPathContinuous(cp);
-          }
-          if (graphFilters.highlightAdvantage) {
-            highlightAdvantagePath(true);
-          }
-        }, 120);
+            if (typeof restoreAIPaths === 'function') restoreAIPaths();
+  
+            const cp = (
+              AdminState.aiCriticalPath?.length
+                ? AdminState.aiCriticalPath
+                : AdminState.criticalPath || []
+            )
+              .map((id) => Number(String(id).replace(/^T/i, '')))
+              .filter((n) => !Number.isNaN(n));
+  
+            console.log('[graph] highlight cp', cp.length, cp.slice(0, 8));
+  
+            if (graphFilters.highlightCritical !== false && cp.length) {
+              markCriticalPathContinuous(cp);
+            }
+            if (graphFilters.highlightAdvantage && AdminState.aiAdvantagePath?.length) {
+              highlightAdvantagePath(true);
+            }
+          }, 120);
 
         if (nodeCount < 80 && typeof animateNodesAppearance === 'function') {
           animateNodesAppearance();
@@ -6254,7 +6422,13 @@ async function runOptimization() {
                 .map((id) => Number(String(id).replace(/^T/i, '')))
                 .filter((n) => !Number.isNaN(n));
             AdminState.criticalPath = [...AdminState.aiCriticalPath];
+            persistAIPaths();
         }
+        // ... advantage path ...
+        persistAiPanelSnapshot();
+
+        if (typeof renderGraph === 'function') renderGraph();
+        // после renderGraph setTimeout сам подсветит
 
                 // --- критический путь из AI ---
         // --- выгодный путь ---
