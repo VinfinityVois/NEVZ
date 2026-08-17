@@ -8,48 +8,54 @@
 
 /* ===== CSS ПЕРЕМЕННЫЕ ===== */
 :root {
-    /* Основные цвета */
-    --primary-bg: #d6e0e5;
+    /* ===== Бренд ТМХ / НЭВЗ ===== */
+    --tmh-blue: #0057A4;
+    --tmh-blue-deep: #2A5294;
+    --tmh-cyan: #66CEF6;
+    --tmh-sky: #5CC4F2;
+  
+    /* Алиасы приложения */
+    --accent-blue: var(--tmh-blue);
+    --accent-blue-hover: #004a8c;
     --accent-dark: #414B4E;
-    --accent-blue: #0961f6;
-    
-    /* Функциональные цвета */
-    --success: #10b981;
-    --warning: #f59e0b;
-    --error: #ef4444;
-    --info: #3b82f6;
-    
-    /* Текст */
-    --text-primary: #414B4E;
-    --text-secondary: #6b7280;
-    --text-light: #ffffff;
-    
-    /* Фоны */
-    --bg-primary: #d6e0e5;
-    --bg-secondary: #ffffff;
-    --bg-tertiary: #f3f4f6;
-    
-    /* Границы */
-    --border-light: #e5e7eb;
-    --border-medium: #d1d5db;
-    
-    /* Тени */
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
-    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
-    --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15);
-    
-    /* Скругления */
+  
+    --primary-bg: #E8EEF2;
+    --bg-primary: #E8EEF2;
+    --bg-secondary: #FFFFFF;
+    --bg-tertiary: #F1F5F9;
+    --bg-sidebar: #1e3a5f;          /* глубокий синий сайдбар, не серый */
+    --bg-sidebar-hover: #2A5294;
+  
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --text-muted: #94a3b8;
+    --text-on-brand: #FFFFFF;
+  
+    --success: #0F9D58;
+    --warning: #D97706;
+    --error: #DC2626;
+    --info: var(--tmh-blue);
+  
+    --border-light: #E2E8F0;
+    --border-medium: #CBD5E1;
+    --border-brand: rgba(0, 87, 164, 0.25);
+  
+    --shadow-sm: 0 1px 2px rgba(30, 58, 95, 0.06);
+    --shadow-md: 0 4px 12px rgba(30, 58, 95, 0.08);
+    --shadow-lg: 0 12px 28px rgba(30, 58, 95, 0.12);
+    --shadow-brand: 0 4px 14px rgba(0, 87, 164, 0.22);
+  
     --radius-sm: 6px;
-    --radius-md: 12px;
-    --radius-lg: 16px;
-    --radius-xl: 24px;
-    
-    /* Анимации */
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
+  
     --transition-fast: 150ms ease;
-    --transition-base: 250ms ease;
-    --transition-slow: 350ms ease;
-}
+    --transition-base: 220ms ease;
+    --transition-slow: 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  
+    --focus-ring: 0 0 0 3px rgba(0, 87, 164, 0.28);
+  }
 
 /* ===== СБРОС СТИЛЕЙ ===== */
 *,

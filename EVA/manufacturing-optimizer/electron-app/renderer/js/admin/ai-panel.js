@@ -323,9 +323,50 @@ export class AIPanel {
               <div style="font-size:11px;color:#6b7280;">ожид. суммарная задержка</div>
             </div>
           </div>
-          <div style="font-size:11px;color:#94a3b8;">
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:10px;">
             Прогноз построен по критическим работам моделью прогноза задержек
             (обучается через кнопку «Обучить модель» на реальных завершённых операциях).
+          </div>
+          ${this._renderTopRiskDriver(risk.top_risk_driver)}
+        `;
+    }
+
+    /**
+     * Показывает, ПОЧЕМУ модель считает проект рискованным — конкретная
+     * работа с наибольшим прогнозным сроком опоздания плюс факторы,
+     * на которые модель опиралась (feature_importances_ обученной
+     * GradientBoostingRegressor, а не выдуманное текстовое объяснение).
+     */
+    _renderTopRiskDriver(driver) {
+        if (!driver || !driver.explanation || !driver.explanation.top_factors || driver.explanation.top_factors.length === 0) {
+            return '';
+        }
+
+        const factorsHtml = driver.explanation.top_factors.map(f => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f1f5f9;">
+            <span style="font-size:12px;color:#374151;">${f.label}</span>
+            <span style="font-size:12px;color:#6b7280;">
+              значение: <b>${f.value}</b>
+              &nbsp;·&nbsp;
+              вес модели: <b>${(f.importance * 100).toFixed(0)}%</b>
+            </span>
+          </div>
+        `).join('');
+
+        return `
+          <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px;">
+            <div style="font-weight:600;font-size:13px;color:#9a3412;margin-bottom:4px;">
+              🎯 Главный фактор риска: ${driver.name}
+            </div>
+            <div style="font-size:12px;color:#9a3412;margin-bottom:8px;">
+              Прогнозная задержка: ${driver.expected_delay_days} дн — на эту работу модель обращает больше всего внимания
+            </div>
+            ${factorsHtml}
+            <div style="font-size:10px;color:#c2410c;margin-top:8px;">
+              Веса — это глобальная важность признаков обученной модели (feature_importances_),
+              применённая к значениям именно этой задачи. Это не точная SHAP-атрибуция,
+              а честная приближённая оценка "на что модель смотрит сильнее всего".
+            </div>
           </div>
         `;
     }
@@ -1016,77 +1057,6 @@ export class AIPanel {
                 </div>
             `;
         }).join('');
-    }
-        /**
-     * Загрузить глобальную важность признаков delay_model
-     */
-    async loadFeatureImportance() {
-        try {
-            const res = await fetch(`${this.API_BASE}/ai/explain/feature-importance`, {
-                signal: AbortSignal.timeout(8000)
-            });
-            if (!res.ok) {
-                this.renderFeatureImportance('aiExplainPanel', {
-                    available: false,
-                    message: `HTTP ${res.status}: обучите модель или проверьте API`
-                });
-                return null;
-            }
-            const data = await res.json();
-            this.lastExplanation = data;
-            this.renderFeatureImportance('aiExplainPanel', data);
-            return data;
-        } catch (e) {
-            console.warn('loadFeatureImportance', e);
-            this.renderFeatureImportance('aiExplainPanel', {
-                available: false,
-                message: e.message || 'Не удалось загрузить объяснимость'
-            });
-            return null;
-        }
-    }
-
-    /**
-     * Полоски feature_importances_ в UI
-     */
-    renderFeatureImportance(containerId, explanation) {
-        const el = document.getElementById(containerId);
-        if (!el) return;
-
-        if (!explanation || !explanation.available || !(explanation.features || []).length) {
-            el.innerHTML = `<p style="color:#6b7280;font-size:13px;margin:0;">
-                ${explanation?.message
-                    || 'Обучите модель задержек — здесь появится важность признаков (feature_importances_).'}
-            </p>`;
-            return;
-        }
-
-        const feats = explanation.features;
-        const maxPct = Math.max(...feats.map((f) => Number(f.pct) || 0), 1);
-
-        el.innerHTML = `
-          <div style="margin-bottom:10px;font-size:13px;color:#334155;line-height:1.45;">
-            ${explanation.summary_ru
-                || 'Вклад признаков в прогноз задержки (глобальная важность GradientBoosting).'}
-          </div>
-          <div style="font-size:11px;color:#94a3b8;margin-bottom:12px;">
-            R² train: <b>${explanation.r2_train ?? '—'}</b>
-            · выборка: <b>${explanation.samples ?? '—'}</b>
-            · ${explanation.method || 'GB importances'}
-          </div>
-          ${feats.map((f) => `
-            <div style="margin-bottom:10px;">
-              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
-                <span style="color:#1e293b;font-weight:500;">${f.label || f.feature}</span>
-                <span style="color:#64748b;">${f.pct}%</span>
-              </div>
-              <div style="height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;">
-                <div style="height:100%;width:${((Number(f.pct) || 0) / maxPct) * 100}%;
-                  background:linear-gradient(90deg,#0961f6,#38bdf8);border-radius:4px;"></div>
-              </div>
-            </div>
-          `).join('')}
-        `;
     }
 
     async loadFeatureImportance() {

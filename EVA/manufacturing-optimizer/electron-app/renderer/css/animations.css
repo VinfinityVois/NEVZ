@@ -285,3 +285,77 @@
     transform: translateY(-20px);
     transition: opacity 300ms, transform 300ms;
 }
+
+/* ===== Утилиты появления ===== */
+.anim-fade-in {
+    animation: fade-in var(--transition-base) both;
+  }
+  .anim-slide-up {
+    animation: slide-in-up var(--transition-slow) both;
+  }
+  .anim-slide-left {
+    animation: slide-in-left var(--transition-slow) both;
+  }
+  
+  /* Карточки дашборда по очереди */
+  .dash-card {
+    animation: slide-in-up 0.35s both;
+  }
+  .dash-card:nth-child(1) { animation-delay: 0.04s; }
+  .dash-card:nth-child(2) { animation-delay: 0.08s; }
+  .dash-card:nth-child(3) { animation-delay: 0.12s; }
+  .dash-card:nth-child(4) { animation-delay: 0.16s; }
+  
+  /* Кнопки */
+  .btn {
+    transition: background var(--transition-fast),
+                box-shadow var(--transition-fast),
+                transform var(--transition-fast);
+  }
+  .btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-brand);
+  }
+  .btn:active:not(:disabled) {
+    transform: translateY(0);
+  }
+  
+  /* Строки таблиц */
+  .table tbody tr {
+    transition: background var(--transition-fast);
+  }
+  .table tbody tr:hover {
+    background: rgba(0, 87, 164, 0.04);
+  }
+  
+  /* Скелетон загрузки */
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  .skeleton {
+    background: linear-gradient(90deg, #E2E8F0 25%, #F8FAFC 50%, #E2E8F0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.2s ease-in-out infinite;
+    border-radius: var(--radius-sm);
+  }
+  
+  /* Сайдбар пункты */
+  .nav-item {
+    transition: background var(--transition-fast), padding-left var(--transition-fast);
+  }
+  .nav-item:hover {
+    background: var(--bg-sidebar-hover);
+  }
+  .nav-item.active {
+    background: var(--tmh-blue);
+    box-shadow: inset 3px 0 0 var(--tmh-cyan);
+  }
+  
+  /* Уважение reduce-motion */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }

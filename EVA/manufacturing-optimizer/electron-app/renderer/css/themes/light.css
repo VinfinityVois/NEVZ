@@ -4,19 +4,19 @@
  * ================================================================
  */
 
-[data-theme="light"] {
-    --primary-bg: #d6e0e5;
+ [data-theme="light"] {
+    --accent-blue: #0057A4;
     --accent-dark: #414B4E;
-    --accent-blue: #0961f6;
-    --success: #10b981;
-    --warning: #f59e0b;
-    --error: #ef4444;
-    --info: #3b82f6;
-    --text-primary: #414B4E;
-    --text-secondary: #6b7280;
-    --bg-primary: #d6e0e5;
-    --bg-secondary: #ffffff;
-    --bg-tertiary: #f3f4f6;
-    --border-light: #e5e7eb;
-    --border-medium: #d1d5db;
-}
+    --primary-bg: #E8EEF2;
+    --bg-primary: #E8EEF2;
+    --bg-secondary: #FFFFFF;
+    --bg-tertiary: #F1F5F9;
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --border-light: #E2E8F0;
+    --border-medium: #CBD5E1;
+    --success: #0F9D58;
+    --warning: #D97706;
+    --error: #DC2626;
+    --info: #0057A4;
+  }

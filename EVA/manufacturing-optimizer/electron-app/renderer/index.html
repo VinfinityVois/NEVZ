@@ -30,9 +30,13 @@
     <div class="login-wrapper">
         
         <!-- Декоративный фон с градиентом -->
-        <div class="login-background">
-            <div class="bg-gradient"></div>
-            <div class="bg-pattern"></div>
+        <div class="login-background" aria-hidden="true">
+            <div class="bg-mesh"></div>
+            <div class="bg-grid"></div>
+            <div class="bg-orb bg-orb-1"></div>
+            <div class="bg-orb bg-orb-2"></div>
+            <div class="bg-orb bg-orb-3"></div>
+            <div class="bg-noise"></div>
         </div>
         
         <!-- Основная карточка входа -->
@@ -359,26 +363,83 @@
             
             // ===== АНИМАЦИЯ ПОЯВЛЕНИЯ =====
             function animateEntrance() {
-                if (typeof anime !== 'undefined') {
-                    anime({
-                        targets: '.login-container',
-                        opacity: [0, 1],
-                        translateY: [20, 0],
-                        duration: 600,
-                        easing: 'easeOutCubic'
-                    });
-                    
-                    anime({
-                        targets: '.info-panel',
-                        opacity: [0, 1],
-                        translateX: [20, 0],
-                        duration: 600,
-                        delay: 100,
-                        easing: 'easeOutCubic'
-                    });
-                }
-            }
-            
+    if (typeof anime === 'undefined') {
+        document.querySelector('.login-container')?.style.setProperty('opacity', '1');
+        document.querySelector('.info-panel')?.style.setProperty('opacity', '1');
+        return;
+    }
+
+    // орбы — бесконечный мягкий дрейф
+    anime({
+        targets: '.bg-orb-1',
+        translateX: [0, 40, 0],
+        translateY: [0, 30, 0],
+        duration: 14000,
+        easing: 'easeInOutSine',
+        loop: true
+    });
+    anime({
+        targets: '.bg-orb-2',
+        translateX: [0, -50, 0],
+        translateY: [0, 40, 0],
+        duration: 16000,
+        easing: 'easeInOutSine',
+        loop: true
+    });
+    anime({
+        targets: '.bg-orb-3',
+        translateX: [0, 30, -20, 0],
+        translateY: [0, -40, 10, 0],
+        duration: 18000,
+        easing: 'easeInOutSine',
+        loop: true
+    });
+
+    // карточка
+    anime({
+        targets: '.login-container',
+        opacity: [0, 1],
+        translateY: [28, 0],
+        duration: 700,
+        easing: 'easeOutCubic'
+    });
+
+    // правая панель
+    anime({
+        targets: '.info-panel',
+        opacity: [0, 1],
+        translateX: [24, 0],
+        duration: 700,
+        delay: 120,
+        easing: 'easeOutCubic'
+    });
+
+    // фичи по очереди
+    anime({
+        targets: '.feature-item',
+        opacity: [0, 1],
+        translateX: [16, 0],
+        delay: anime.stagger(90, { start: 280 }),
+        duration: 500,
+        easing: 'easeOutQuad'
+    });
+
+    // статистика
+    anime({
+        targets: '.stat-box',
+        opacity: [0, 1],
+        scale: [0.92, 1],
+        delay: anime.stagger(80, { start: 480 }),
+        duration: 450,
+        easing: 'easeOutBack'
+    });
+}
+
+// вызов после DOM
+document.addEventListener('DOMContentLoaded', () => {
+    animateEntrance();
+    // ... остальная инициализация
+});
             // ===== ПЕРЕКЛЮЧЕНИЕ ВИДИМОСТИ ПАРОЛЯ =====
            
             
@@ -543,5 +604,7 @@
   window.electronAPI?.app?.quit?.();
 });
     </script>
+
+<script src="js/libs/anime.min.js"></script>
 </body>
 </html>

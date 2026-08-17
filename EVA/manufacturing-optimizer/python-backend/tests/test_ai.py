@@ -152,3 +152,42 @@ class TestAnomalyDetection:
 
     def test_detect_anomalies_empty_input(self, predictor):
         assert predictor.detect_anomalies_ml([]) == []
+
+class TestExplainability:
+    @requires_sklearn
+    def test_global_feature_importance_before_training_is_empty(self, predictor):
+        assert predictor.get_global_feature_importance() == []
+
+    @requires_sklearn
+    def test_global_feature_importance_sums_to_one_and_is_sorted(self, predictor):
+        historical = _make_historical(n=50)
+        predictor.train_delay_model(historical=historical, save=False)
+
+        importance = predictor.get_global_feature_importance()
+        assert len(importance) == len(predictor.FEATURE_NAMES)
+
+        total = sum(f["importance"] for f in importance)
+        assert total == pytest.approx(1.0, abs=0.01)
+
+        values = [f["importance"] for f in importance]
+        assert values == sorted(values, reverse=True)
+
+    @requires_sklearn
+    def test_prediction_explanation_reflects_known_signal(self, predictor):
+        """
+        Синтетические данные сконструированы так, что задержка зависит
+        от duration и total_float. Проверяем, что объяснение прогноза
+        называет именно эти факторы, а не что-то нерелевантное вроде
+        priority (которая в _make_historical константа и не несёт
+        никакого сигнала).
+        """
+        historical = _make_historical(n=60)
+        predictor.train_delay_model(historical=historical, save=False)
+
+        task = {"id": "t1", "duration_days": 13, "total_float": 0.3, "progress": 0.0}
+        result = predictor.predict_task_delay(task, is_critical=True)
+
+        assert "explanation" in result
+        top_features = {f["feature"] for f in result["explanation"]["top_factors"]}
+        assert "priority" not in top_features
+        assert top_features & {"duration", "total_float", "duration_x_critical"}

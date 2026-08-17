@@ -6407,57 +6407,49 @@ async function trainAIModel() {
 function switchTab(tabId) {
     AdminState.currentTab = tabId;
     const DOM = getDOM();
-    
-    DOM.navItems?.forEach(i => i.classList.toggle('active', i.dataset.tab === tabId));
-    DOM.tabPanes?.forEach(p => p.classList.toggle('active', p.id === `${tabId}-tab`));
-    
-    const titles = { 
-        dashboard: 'Дашборд', 
-        graph: 'Граф', 
-        operations: 'Операции', 
+
+    DOM.navItems?.forEach((i) =>
+        i.classList.toggle('active', i.dataset.tab === tabId)
+    );
+    DOM.tabPanes?.forEach((p) =>
+        p.classList.toggle('active', p.id === `${tabId}-tab`)
+    );
+
+    const titles = {
+        dashboard: 'Дашборд',
+        graph: 'Граф процессов',
+        gantt: 'Диаграмма Ганта',
+        operations: 'Операции',
         brigades: 'Бригады',
         'brigade-groups': 'Группы бригад',
-        workers: 'Рабочие', 
-        ai: 'AI',
+        workers: 'Рабочие',
+        ai: 'AI Оптимизация',
         reports: 'Отчёты',
         settings: 'Настройки'
     };
-    
-    if (DOM.pageTitle) DOM.pageTitle.textContent = titles[tabId] || tabId;
-    
 
-    if (tabId === 'gantt') setTimeout(renderGantt, 100);
+    const title = titles[tabId] || tabId;
+
+    if (DOM.pageTitle) DOM.pageTitle.textContent = title;
+
+    // крошки: Главная / <текущая страница>
+    const crumbs = document.getElementById('breadcrumbs');
+    if (crumbs) {
+        if (tabId === 'dashboard') {
+            crumbs.innerHTML = `<span class="current">Главная</span>`;
+        } else {
+            crumbs.innerHTML = `
+                <span>Главная</span>
+                <span class="separator">/</span>
+                <span class="current">${title}</span>`;
+        }
+    }
+
     if (tabId === 'graph') setTimeout(renderGraph, 100);
-    if (tabId === 'dashboard') {
-        setTimeout(() => {
-            const ops = window.allOperationsCache || AdminState.operations || [];
-            if (typeof updateDashboardCards === 'function') {
-                updateDashboardCards(ops, AdminState.brigades || []);
-            }
-            if (typeof renderCharts === 'function') renderCharts();
-            const cp = AdminState.aiCriticalPath.length
-                ? AdminState.aiCriticalPath
-                : (AdminState.criticalPath || []);
-            if (typeof updateCriticalPathUI === 'function') {
-                updateCriticalPathUI({
-                    critical_path: cp,
-                    critical_path_length: cp.length
-                });
-            }
-            if (typeof collectDashboardAlerts === 'function' && typeof renderDashboardAlerts === 'function') {
-                renderDashboardAlerts(
-                    collectDashboardAlerts(ops, AdminState.brigades || [], cp)
-                );
-            }
-            // рекомендации уже в DOM — не трогаем
-        }, 100);
-    }
-    if (tabId === 'graph') {
-        setTimeout(() => {
-            renderGraph();
-            // после renderGraph пути навешиваются снова (см. Блок 4)
-        }, 100);
-    }
+    if (tabId === 'gantt') setTimeout(() => {
+        if (typeof renderGantt === 'function') renderGantt();
+    }, 100);
+    if (tabId === 'dashboard') setTimeout(renderCharts, 100);
     if (tabId === 'brigade-groups') loadBrigadeGroups();
 
     if (tabId === 'brigades') {
@@ -6473,13 +6465,6 @@ function switchTab(tabId) {
             updateWorkersCache();
             renderWorkersGrid();
         }, 50);
-    }
-
-    // NEW — объяснимость модели при открытии AI
-    if (tabId === 'ai' && window.aiPanel) {
-        setTimeout(() => {
-            window.aiPanel.loadFeatureImportance?.();
-        }, 80);
     }
 }
 

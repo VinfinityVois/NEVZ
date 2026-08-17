@@ -108,6 +108,23 @@ class Predictor:
     # Признаки (feature engineering)
     # ------------------------------------------------------------------
 
+    # Имена признаков строго в том же порядке, что и в _task_features —
+    # без этого feature_importances_ будет указывать не на то поле.
+    FEATURE_NAMES = [
+        "duration", "priority", "skills_count", "deps_count",
+        "total_float", "is_critical", "progress", "duration_x_critical"
+    ]
+    FEATURE_LABELS = {
+        "duration": "длительность работы",
+        "priority": "приоритет",
+        "skills_count": "требуемые навыки (кол-во)",
+        "deps_count": "зависимости (кол-во)",
+        "total_float": "резерв времени",
+        "is_critical": "критический путь",
+        "progress": "прогресс выполнения",
+        "duration_x_critical": "длительность на крит. пути",
+    }
+
     def _task_features(self, task: Dict, is_critical: bool = False) -> np.ndarray:
         """
         Простые числовые признаки задачи.
@@ -130,6 +147,73 @@ class Predictor:
             progress,
             duration * (1.5 if is_critical else 1.0),  # взаимодействие
         ], dtype=float)
+
+    def get_global_feature_importance(self) -> List[Dict[str, Any]]:
+        """
+        Глобальная важность признаков обученной модели прогноза задержек
+        (sklearn feature_importances_ у GradientBoostingRegressor).
+
+        Это НЕ per-предсказание объяснение (для этого нужен SHAP) — это
+        ответ на вопрос "на какие факторы модель в среднем опирается
+        сильнее всего, обучившись на всей истории". Честно, дёшево,
+        без тяжёлых зависимостей — но не путать с тем, "почему именно
+        для этой задачи получилась такая цифра".
+        """
+        if not HAS_SKLEARN or self.delay_model is None:
+            return []
+        if not hasattr(self.delay_model, "feature_importances_"):
+            return []
+
+        importances = self.delay_model.feature_importances_
+        result = [
+            {
+                "feature": name,
+                "label": self.FEATURE_LABELS.get(name, name),
+                "importance": round(float(imp), 4)
+            }
+            for name, imp in zip(self.FEATURE_NAMES, importances)
+        ]
+        return sorted(result, key=lambda x: x["importance"], reverse=True)
+
+    def _explain_prediction(self, task: Dict, feature_values: np.ndarray, top_n: int = 3) -> Dict[str, Any]:
+        """
+        Локальное объяснение конкретного прогноза: берём глобальную
+        важность признаков модели и показываем, какие из ТОП-важных
+        признаков и какими именно значениями обладает конкретная задача.
+
+        Это приближение, а не точная атрибуция (как в SHAP), но оно
+        честно отвечает на "почему модель вообще смотрит на такие вещи"
+        и "где эта задача стоит по самым весомым для модели признакам" —
+        достаточно для доверия к цифре без подключения SHAP/LIME.
+        """
+        global_importance = self.get_global_feature_importance()
+        if not global_importance:
+            return {"top_factors": [], "note": "Важность признаков недоступна"}
+
+        top_factors = []
+        for item in global_importance[:top_n]:
+            idx = self.FEATURE_NAMES.index(item["feature"])
+            value = float(feature_values[idx])
+
+            if item["feature"] == "is_critical":
+                value_str = "да" if value >= 0.5 else "нет"
+            elif item["feature"] in ("duration", "duration_x_critical"):
+                value_str = f"{value:.1f} дн"
+            elif item["feature"] == "total_float":
+                value_str = f"{value:.1f} дн резерва"
+            elif item["feature"] == "progress":
+                value_str = f"{value * 100:.0f}%"
+            else:
+                value_str = f"{value:.1f}"
+
+            top_factors.append({
+                "feature": item["feature"],
+                "label": item["label"],
+                "importance": item["importance"],
+                "value": value_str
+            })
+
+        return {"top_factors": top_factors}
 
     # ------------------------------------------------------------------
     # Основные методы прогноза
@@ -163,7 +247,8 @@ class Predictor:
                     "predicted_duration": round(predicted_duration, 1),
                     "expected_delay_days": round(predicted_delay, 1),
                     "risk_level": risk,
-                    "method": "ml"
+                    "method": "ml",
+                    "explanation": self._explain_prediction(task, features[0])
                 }
             except Exception as e:
                 logger.debug(f"ML-прогноз не удался, fallback: {e}")
@@ -202,11 +287,18 @@ class Predictor:
         critical_tasks = [t for t in tasks if t["id"] in critical_ids]
         long_critical = [t for t in critical_tasks if t.get("duration", t.get("duration_days", 0)) >= 8]
 
-        # Суммарный ожидаемый delay по критическим работам
+        # Суммарный ожидаемый delay по критическим работам + запоминаем
+        # худшую по прогнозу задачу, чтобы объяснить, ПОЧЕМУ риск такой,
+        # а не только показать голую цифру.
         total_expected_delay = 0.0
+        worst_task = None
+        worst_pred = None
         for t in critical_tasks:
             pred = self.predict_task_delay(t, is_critical=True)
             total_expected_delay += pred["expected_delay_days"]
+            if worst_pred is None or pred["expected_delay_days"] > worst_pred["expected_delay_days"]:
+                worst_pred = pred
+                worst_task = t
 
         risk_score = 0.0
         risk_score += len(critical_tasks) * 0.7
@@ -221,13 +313,23 @@ class Predictor:
         else:
             level, message = "low", "Риск низкий"
 
+        top_risk_driver = None
+        if worst_task is not None and worst_pred is not None and worst_pred["expected_delay_days"] > 0:
+            top_risk_driver = {
+                "task_id": worst_task["id"],
+                "name": worst_task.get("name") or worst_task.get("op_number") or worst_task["id"],
+                "expected_delay_days": worst_pred["expected_delay_days"],
+                "explanation": worst_pred.get("explanation", {})
+            }
+
         return {
             "risk_score": round(risk_score, 1),
             "level": level,
             "message": message,
             "critical_tasks_count": len(critical_tasks),
             "long_critical_count": len(long_critical),
-            "expected_total_delay_days": round(total_expected_delay, 1)
+            "expected_total_delay_days": round(total_expected_delay, 1),
+            "top_risk_driver": top_risk_driver
         }
 
     def predict_brigade_load(
@@ -477,5 +579,3 @@ class Predictor:
                 samples=len(historical),
             ),
         }
-
-      
