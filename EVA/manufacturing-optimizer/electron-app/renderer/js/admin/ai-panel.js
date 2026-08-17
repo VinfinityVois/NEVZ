@@ -67,10 +67,14 @@ export class AIPanel {
         
         try {
             const allOps = operations || [];
-            const activeOps = allOps.filter(op => op.status !== 'completed');
-            
+            // В граф/план — ВСЕ операции. Иначе рвутся prev→completed и AI даёт 0 дн / 0 крит.
+            const planOps = allOps.filter(
+              (op) => op.op_number != null && op.op_number !== ''
+            );
+            const activeOps = allOps.filter((op) => op.status !== 'completed');
+
             const skipped = {
-              completed: allOps.filter(op => op.status === 'completed').length,
+              completed: allOps.filter((op) => op.status === 'completed').length,
               noNumber: allOps.filter(op => op.op_number == null || op.op_number === '').length,
               noDuration: allOps.filter(op => {
                 const d = op.duration || (op.labor_hours && op.people_count ? op.labor_hours / op.people_count : 0);
@@ -80,22 +84,32 @@ export class AIPanel {
             };
             
             const filterReport = {
-              loaded: allOps.length,
-              inPlan: activeOps.length,
-              skippedTotal: allOps.length - activeOps.length,
-              reasons: skipped
+                loaded: allOps.length,
+                inPlan: planOps.length,
+                skippedTotal: allOps.length - planOps.length,
+                activeRemaining: activeOps.length,
+                reasons: skipped
             };
             console.log('📊 Фильтр операций:', filterReport);
             
             const planData = {
-                tasks: activeOps.map(op => ({
+                tasks: planOps.map(op => ({
                     id: String(op.op_number),
                     op_number: String(op.op_number),
                     name: op.name,
-                    duration_days: Math.max(0.1, ((op.duration || (op.labor_hours && op.people_count ? op.labor_hours / op.people_count : 0)) || 1)) / 8.0,
-                    dependencies: (op.prev_ops || []).map(p => String(p)),
-                    prev_ops: (op.prev_ops || []).map(p => String(p)),
-                    next_ops: (op.next_ops || []).map(p => String(p)),
+                    // completed — почти нулевая длительность, но узел в графе есть
+                    duration_days: op.status === 'completed'
+                      ? 0.01
+                      : Math.max(
+                          0.1,
+                          ((op.duration ||
+                            (op.labor_hours && op.people_count
+                              ? op.labor_hours / op.people_count
+                              : 0)) || 1) / 8.0
+                        ),
+                    dependencies: (op.prev_ops || []).map((p) => String(p)),
+                    prev_ops: (op.prev_ops || []).map((p) => String(p)),
+                    next_ops: (op.next_ops || []).map((p) => String(p)),
                     post: op.post != null ? op.post : null,
                     drawing: op.drawing || '',
                     status: op.status || 'pending',
@@ -199,15 +213,42 @@ export class AIPanel {
                     brigade_id: bn.brigade_id
                 }));
             }
-            if (recommendations.length === 0 && result.plan && result.plan.critical_path_ids) {
-                const cp = (result.plan.tasks || []).filter(t => result.plan.critical_path_ids.includes(t.id));
-                recommendations = cp.slice(0, 20).map(t => ({
-                    type: 'critical_path_task',
-                    task_name: t.name || t.id,
-                    task_id: t.id,
-                    op_number: String(t.id || '').replace(/^T/i, ''),
-                    duration: t.duration_days ?? t.duration
-                }));
+            if (recommendations.length === 0) {
+                const ids = (
+                  plan?.critical_path_ids ||
+                  plan?.critical_path ||
+                  []
+                )
+                  .map((x) =>
+                    typeof x === "object"
+                      ? String(x.id ?? x.op_number ?? "")
+                      : String(x ?? "")
+                  )
+                  .map((s) => s.replace(/^T/i, ""))
+                  .filter(Boolean);
+
+                if (ids.length) {
+                  const taskById = new Map(
+                    (plan?.tasks || []).map((t) => [
+                      String(t.id ?? t.op_number ?? "").replace(/^T/i, ""),
+                      t,
+                    ])
+                  );
+                  recommendations = ids.slice(0, 25).map((id) => {
+                    const t = taskById.get(id) || {};
+                    return {
+                      type: "critical_path_task",
+                      severity: "critical",
+                      task_name: t.name || `#${id}`,
+                      task_id: id,
+                      op_number: id,
+                      duration: t.duration_days ?? t.duration ?? null,
+                      message: `Критический путь: ${t.name || "#" + id}`,
+                      suggestion:
+                        "Контроль сроков — нет резерва времени",
+                    };
+                  });
+                }
             }
             
             return {
@@ -215,18 +256,37 @@ export class AIPanel {
                 plan: plan,
                 recommendations: recommendations,
                 summary: {
-                    totalOperations: plan?.tasks?.length || activeOps.length,
+                    // totalOperations: plan?.tasks?.length || activeOps.length,
+                    totalOperations: plan?.tasks?.length || planOps.length,
                     loadedOperations: filterReport.loaded,
                     skippedOperations: filterReport.skippedTotal,
                     filterReport,
-                    projectDuration:
-                      plan?.project_duration_days
-                      ?? plan?.total_duration_days
-                      ?? 0,
-                    criticalPath:
-                      plan?.critical_path_ids
-                      || plan?.critical_path
-                      || [],
+                    projectDuration: Number(
+                        plan?.total_duration_days
+                        ?? plan?.project_duration_days
+                        ?? plan?.project_duration
+                        ?? plan?.cpm_stats?.project_duration
+                        ?? result?.total_duration_days
+                        ?? 0
+                      ) || 0,
+                      criticalPath: (() => {
+                        const raw =
+                          plan?.critical_path_ids ||
+                          result?.critical_path_ids ||
+                          plan?.critical_path ||
+                          result?.critical_path ||
+                          [];
+                        if (!Array.isArray(raw)) return [];
+                        return raw
+                          .map((x) => {
+                            if (x == null) return null;
+                            if (typeof x === "object")
+                              return x.id ?? x.op_number ?? x.task_id ?? null;
+                            return x;
+                          })
+                          .filter((x) => x != null && x !== "")
+                          .map((x) => String(x).replace(/^T/i, ""));
+                      })(),
                     leveled: !!(plan?.leveled
                         || plan?.leveling?.leveled
                         || plan?.stats?.leveling_applied)
@@ -789,18 +849,24 @@ export class AIPanel {
           </div>`).join('');
           const propRows = proposals.slice(0, 40).map((p, idx) => {
             const payload = encodeURIComponent(JSON.stringify(p));
-            return `<div style="padding:8px 10px;border-bottom:1px solid #dbeafe;font-size:12px;">
-              <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;">
-                <input type="checkbox" class="bridge-check" data-from="${p.from}" data-to="${p.to}"
-                       ${p.auto_apply ? 'checked' : ''} style="margin-top:3px;" />
-                <span>
-                  <b>#${p.from}</b> → <b>#${p.to}</b>
-                  <span style="color:#0961f6;font-weight:600;"> ${Math.round((p.confidence||0)*100)}%</span>
+            return `
+            <div class="bridge-proposal-card" style="padding:8px;border-bottom:1px solid #e2e8f0;font-size:12px;">
+              <div style="display:flex;gap:8px;align-items:flex-start;">
+                <input type="checkbox" class="bridge-check"
+                  data-from="${p.from}" data-to="${p.to}"
+                  style="margin-top:3px;">
+                <div style="flex:1;">
+                  <div style="font-weight:600;">#${p.from} → #${p.to}
+                    <span style="color:#0961f6;">${Math.round((p.confidence||0)*100)}%</span>
+                  </div>
                   <div style="color:#64748b;">${(p.reasons||[]).join(' · ')}</div>
-                  <button type="button" style="margin-top:4px;font-size:11px;padding:4px 8px;border-radius:6px;border:1px solid #0961f6;background:#eff6ff;cursor:pointer;"
-                    onclick='event.preventDefault();window.applyBridgeLink&&window.applyBridgeLink(JSON.parse(decodeURIComponent("${payload}")))'>Применить</button>
-                </span>
-              </label>
+                  <button type="button"
+                    style="margin-top:4px;font-size:11px;padding:4px 8px;border-radius:6px;border:1px solid #0961f6;background:#eff6ff;cursor:pointer;"
+                    onclick='event.stopPropagation();window.applyBridgeLink&&window.applyBridgeLink(JSON.parse(decodeURIComponent("${payload}")))'>
+                    Применить
+                  </button>
+                </div>
+              </div>
             </div>`;
           }).join('');
         el.innerHTML = `
@@ -814,8 +880,20 @@ export class AIPanel {
               ${gapRows || '—'}
             </div>
             <div style="border:1px solid #bfdbfe;border-radius:8px;max-height:280px;overflow:auto;">
-              <div style="padding:8px;background:#eff6ff;font-weight:600;font-size:12px;">Предложенные связи</div>
-              ${propRows || '—'}
+              <div style="padding:8px;background:#eff6ff;font-weight:600;font-size:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:space-between;">
+                <span>Предложенные связи</span>
+                <span style="display:flex;flex-wrap:wrap;gap:6px;">
+                    <button type="button" class="btn btn-outline btn-sm"
+                    onclick="window.selectAllBridgeChecks(true)">Выбрать все</button>
+                    <button type="button" class="btn btn-outline btn-sm"
+                    onclick="window.selectAllBridgeChecks(false)">Снять</button>
+                    <button type="button" class="btn btn-primary btn-sm"
+                    onclick="window.applySelectedBridgeLinks&&window.applySelectedBridgeLinks()">Применить выбранные</button>
+                    <button type="button" class="btn btn-primary btn-sm"
+                    onclick="window.applyAllBridgeLinks&&window.applyAllBridgeLinks()">Применить все</button>
+                </span>
+                </div>
+                ${propRows || '—'}
             </div>
           </div>`;
       }

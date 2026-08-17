@@ -933,9 +933,42 @@ async def apply_gap_links(payload: dict):
         )
         return cur.fetchone()
 
+    def _reaches(graph: Dict[int, set], start: int, target: int) -> bool:
+        """BFS: можно ли дойти от start до target по next_ops."""
+        if start == target:
+            return True
+        seen = {start}
+        queue = [start]
+        while queue:
+            cur_node = queue.pop()
+            for nxt_node in graph.get(cur_node, ()):
+                if nxt_node == target:
+                    return True
+                if nxt_node not in seen:
+                    seen.add(nxt_node)
+                    queue.append(nxt_node)
+        return False
+
     try:
         cur.execute("SELECT COUNT(*) AS c FROM operations")
         ops_count = cur.fetchone()["c"]
+
+        # Полный граф next_ops по всей таблице — нужен, чтобы проверять
+        # КАЖДУЮ предлагаемую связь на цикл ДО записи в БД. Раньше эта
+        # проверка отсутствовала: связь писалась вслепую, и если
+        # эвристика gap_bridger ошибалась направлением, в operations
+        # навсегда оседал цикл — после чего GraphBuilder корректно
+        # ловит его и кидает ValueError, но уже на КАЖДОМ следующем
+        # построении плана, включая после перезапуска приложения
+        # (цикл живёт в БД, а не в памяти процесса).
+        cur.execute("SELECT op_number, next_ops FROM operations")
+        graph: Dict[int, set] = {}
+        for row in cur.fetchall():
+            try:
+                node = int(float(str(row["op_number"])))
+            except Exception:
+                continue
+            graph[node] = set(_load_list(row["next_ops"]))
 
         for link in links:
             try:
@@ -954,6 +987,17 @@ async def apply_gap_links(payload: dict):
             if not r or not r2:
                 continue
 
+            # Если из to уже можно дойти до frm — добавление frm→to
+            # замкнёт цикл. Такую связь не пишем в БД вообще.
+            if _reaches(graph, to, frm):
+                missed.append({
+                    "link": {"from": frm, "to": to},
+                    "reason": "would create cycle — связь не применена, "
+                              "иначе граф работ станет циклическим и "
+                              "AI-оптимизация перестанет строить план"
+                })
+                continue
+
             # from → next_ops += to
             nxt = _load_list(r["next_ops"])
             if to in nxt:
@@ -965,6 +1009,7 @@ async def apply_gap_links(payload: dict):
                     (json.dumps(nxt), r["id"]),
                 )
                 applied += 1
+                graph.setdefault(frm, set()).add(to)
 
             # to → prev_ops += from
             prev = _load_list(r2["prev_ops"])
@@ -998,6 +1043,3 @@ async def apply_gap_links(payload: dict):
         "db": path,
         "ops_count": ops_count,
     }
-    conn.commit()
-    conn.close()
-    return {"status": "ok", "applied": applied, "links": links}

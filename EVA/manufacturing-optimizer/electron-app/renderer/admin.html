@@ -850,49 +850,41 @@
                 
                 <!-- ===== ВКЛАДКА ОТЧЁТЫ ===== -->
                 <div class="tab-pane" id="reports-tab">
+                    <div class="reports-compare-wrap" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+                        <div class="report-card" style="padding:16px;background:#fff;border-radius:12px;border:1px solid #e2e8f0;">
+                            <h3 style="margin:0 0 12px;font-size:15px;">Сравнение по периодам</h3>
+                            <div id="reportPeriodTable">
+                                <p style="color:#64748b;font-size:13px;">Откройте вкладку или обновите дашборд</p>
+                            </div>
+                        </div>
+                        <div class="report-card" style="padding:16px;background:#fff;border-radius:12px;border:1px solid #e2e8f0;">
+                            <h3 style="margin:0 0 12px;font-size:15px;">До и после AI-оптимизации</h3>
+                            <div id="reportOptimizeTable">
+                                <p style="color:#64748b;font-size:13px;">Запустите AI оптимизацию</p>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="reports-grid">
                         <div class="report-card" data-report="efficiency">
-                            <svg viewBox="0 0 48 48" fill="none">
-                                <path d="M8 40H40M12 32V20M24 32V12M36 32V24" stroke="#0961f6" stroke-width="3" stroke-linecap="round"/>
-                            </svg>
                             <h3>Отчёт по эффективности</h3>
                             <p>Анализ производительности бригад и рабочих</p>
-                            <button class="btn btn-outline generate-report-btn">Сгенерировать</button>
+                            <button type="button" class="btn btn-outline generate-report-btn">Сгенерировать</button>
                         </div>
-                        
                         <div class="report-card" data-report="timeline">
-                            <svg viewBox="0 0 48 48" fill="none">
-                                <circle cx="12" cy="12" r="4" stroke="#0961f6" stroke-width="2"/>
-                                <circle cx="24" cy="24" r="4" stroke="#0961f6" stroke-width="2"/>
-                                <circle cx="36" cy="36" r="4" stroke="#0961f6" stroke-width="2"/>
-                                <path d="M16 12L20 20M28 28L32 36" stroke="#0961f6" stroke-width="2"/>
-                            </svg>
                             <h3>Временная диаграмма</h3>
                             <p>График выполнения операций во времени</p>
-                            <button class="btn btn-outline generate-report-btn">Сгенерировать</button>
+                            <button type="button" class="btn btn-outline generate-report-btn">Сгенерировать</button>
                         </div>
-                        
                         <div class="report-card" data-report="resources">
-                            <svg viewBox="0 0 48 48" fill="none">
-                                <rect x="8" y="8" width="14" height="14" rx="2" stroke="#0961f6" stroke-width="2"/>
-                                <rect x="26" y="8" width="14" height="14" rx="2" stroke="#0961f6" stroke-width="2"/>
-                                <rect x="8" y="26" width="14" height="14" rx="2" stroke="#0961f6" stroke-width="2"/>
-                                <rect x="26" y="26" width="14" height="14" rx="2" stroke="#0961f6" stroke-width="2"/>
-                            </svg>
                             <h3>Использование ресурсов</h3>
                             <p>Анализ загрузки бригад и рабочих</p>
-                            <button class="btn btn-outline generate-report-btn">Сгенерировать</button>
+                            <button type="button" class="btn btn-outline generate-report-btn">Сгенерировать</button>
                         </div>
-                        
                         <div class="report-card" data-report="ai-analysis">
-                            <svg viewBox="0 0 48 48" fill="none">
-                                <path d="M24 4L8 12V22C8 30 16 36 24 38C32 36 40 30 40 22V12L24 4Z" stroke="#0961f6" stroke-width="2"/>
-                                <circle cx="24" cy="22" r="4" stroke="#0961f6" stroke-width="2"/>
-                                <path d="M24 26V32" stroke="#0961f6" stroke-width="2"/>
-                            </svg>
                             <h3>AI Анализ</h3>
                             <p>Детальный анализ и рекомендации от AI</p>
-                            <button class="btn btn-outline generate-report-btn">Сгенерировать</button>
+                            <button type="button" class="btn btn-outline generate-report-btn">Сгенерировать</button>
                         </div>
                     </div>
                 </div>

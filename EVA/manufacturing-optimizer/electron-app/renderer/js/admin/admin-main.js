@@ -6343,19 +6343,173 @@ window.renderGantt = renderGantt;
 window.changeGanttView = changeGanttView;
 
 
+function captureOpsSnapshot(label) {
+    const ops = window.allOperationsCache || [];
+    const total = ops.length;
+    const completed = ops.filter((o) => o.status === 'completed').length;
+    const inProgress = ops.filter((o) => o.status === 'in_progress').length;
+    const blocked = ops.filter((o) => o.status === 'blocked').length;
+    return {
+      label,
+      ts: Date.now(),
+      total,
+      completed,
+      inProgress,
+      blocked,
+      pct: total ? +(completed / total * 100).toFixed(1) : 0,
+      criticalLen: (AdminState.aiCriticalPath || AdminState.criticalPath || []).length,
+      gaps:
+        window.aiPanel?.lastGaps?.count ??
+        window.aiPanel?.lastGaps?.gaps?.length ??
+        null,
+    };
+  }
+
+function buildPeriodReportRows() {
+    const loadSnap = (daysAgo) => {
+        const d = new Date();
+        d.setDate(d.getDate() - daysAgo);
+        const key = 'dash_snap_' + d.toISOString().slice(0, 10);
+        try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; }
+    };
+    const today = loadSnap(0) || captureOpsSnapshot('today');
+    const periods = [
+        { label: 'Сутки', snap: loadSnap(1) },
+        { label: 'Неделя', snap: loadSnap(7) },
+        { label: 'Месяц', snap: loadSnap(30) },
+        { label: 'Полгода', snap: loadSnap(180) },
+        { label: 'Год', snap: loadSnap(365) },
+    ];
+    const fmt = (v) => (v === null || v === undefined) ? 'нет данных' : (v > 0 ? `+${v}` : String(v));
+    return periods.map((p) => ({
+        label: p.label,
+        completed: p.snap ? fmt(today.completed - (p.snap.completed || 0)) : 'нет данных',
+        inProgress: p.snap ? fmt(today.inProgress - (p.snap.inProgress || 0)) : 'нет данных',
+        pctNow: today.pct,
+        pctThen: p.snap && p.snap.pct != null ? p.snap.pct : '—',
+    }));
+}
+
+function getOptimizeCompare() {
+    try {
+        return JSON.parse(localStorage.getItem('optimizeCompareLast') || 'null');
+    } catch {
+        return null;
+    }
+}
+
+function renderReportsCompare() {
+    const periodBox = document.getElementById('reportPeriodTable');
+    const optBox = document.getElementById('reportOptimizeTable');
+
+    if (periodBox) {
+        const rows = buildPeriodReportRows();
+        periodBox.innerHTML = `
+          <table class="report-table" style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead>
+              <tr style="text-align:left;color:#64748b;border-bottom:1px solid #e2e8f0;">
+                <th style="padding:8px 6px;">Период</th>
+                <th style="padding:8px 6px;">Δ Завершено</th>
+                <th style="padding:8px 6px;">Δ В работе</th>
+                <th style="padding:8px 6px;">% сейчас</th>
+                <th style="padding:8px 6px;">% тогда</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map((r) => `
+                <tr style="border-bottom:1px solid #f1f5f9;">
+                  <td style="padding:8px 6px;font-weight:600;">${r.label}</td>
+                  <td style="padding:8px 6px;">${r.completed}</td>
+                  <td style="padding:8px 6px;">${r.inProgress}</td>
+                  <td style="padding:8px 6px;">${r.pctNow}%</td>
+                  <td style="padding:8px 6px;">${r.pctThen}${r.pctThen !== '—' ? '%' : ''}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+          <p style="font-size:11px;color:#94a3b8;margin-top:8px;">
+            Снимки дня пишутся при обновлении дашборда. Пока нет снимка за период — «нет данных».
+          </p>`;
+    }
+
+    if (optBox) {
+        const cmp = getOptimizeCompare();
+        if (!cmp) {
+            optBox.innerHTML = `<p style="color:#64748b;font-size:13px;">Ещё не было оптимизации в этой сессии. Нажмите «AI оптимизация».</p>`;
+        } else {
+            const b = cmp.before || {};
+            const a = cmp.after || {};
+            const d = cmp.delta || {};
+            const fmtD = (v) => (v > 0 ? `+${v}` : String(v ?? '—'));
+            optBox.innerHTML = `
+              <div style="font-size:12px;color:#64748b;margin-bottom:8px;">
+                Последняя оптимизация: ${new Date(cmp.date).toLocaleString('ru-RU')}
+              </div>
+              <table class="report-table" style="width:100%;border-collapse:collapse;font-size:13px;">
+                <thead>
+                  <tr style="text-align:left;color:#64748b;border-bottom:1px solid #e2e8f0;">
+                    <th style="padding:8px 6px;">Метрика</th>
+                    <th style="padding:8px 6px;">До</th>
+                    <th style="padding:8px 6px;">После</th>
+                    <th style="padding:8px 6px;">Δ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:8px 6px;">Завершено</td><td>${b.completed ?? '—'}</td><td>${a.completed ?? '—'}</td><td>${fmtD(d.completed)}</td></tr>
+                  <tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:8px 6px;">В работе</td><td>${b.inProgress ?? '—'}</td><td>${a.inProgress ?? '—'}</td><td>${fmtD(d.inProgress)}</td></tr>
+                  <tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:8px 6px;">Блок</td><td>${b.blocked ?? '—'}</td><td>${a.blocked ?? '—'}</td><td>${fmtD(d.blocked)}</td></tr>
+                  <tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:8px 6px;">% выполнения</td><td>${b.pct ?? '—'}%</td><td>${a.pct ?? '—'}%</td><td>—</td></tr>
+                  <tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:8px 6px;">Крит. путь (длина)</td><td>${b.criticalLen ?? '—'}</td><td>${a.criticalLen ?? '—'}</td><td>${fmtD(d.criticalLen)}</td></tr>
+                  <tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:8px 6px;">Разрывы</td><td>${b.gaps ?? '—'}</td><td>${a.gaps ?? '—'}</td><td>${fmtD(d.gaps)}</td></tr>
+                  <tr><td style="padding:8px 6px;">Длительность проекта</td><td>—</td><td>${a.projectDuration != null ? Number(a.projectDuration).toFixed(1) + ' дн' : '—'}</td><td>—</td></tr>
+                </tbody>
+              </table>`;
+        }
+    }
+}
+
+window.renderReportsCompare = renderReportsCompare;
+window.buildPeriodReportRows = buildPeriodReportRows;
 async function runOptimization() {
     showLoading('AI оптимизация...');
     
     try {
-        if (!allOperationsCache || allOperationsCache.length === 0) {
-            showNotification('Внимание', 'Нет операций для оптимизации. Импортируйте данные.', 'warning');
-            return;
+        const opsForAI =
+          (window.allOperationsCache && window.allOperationsCache.length
+            ? window.allOperationsCache
+            : null) ||
+          (AdminState.operations && AdminState.operations.length
+            ? AdminState.operations
+            : null) ||
+          [];
+
+        if (!opsForAI.length) {
+          // одна попытка подтянуть с API
+          try {
+            await loadAllData();
+          } catch (_) {}
         }
-        
+        const ops2 =
+          (window.allOperationsCache && window.allOperationsCache.length
+            ? window.allOperationsCache
+            : AdminState.operations) || [];
+
+        if (!ops2.length) {
+          showNotification(
+            'Внимание',
+            'Нет операций для оптимизации. Откройте «Операции» или импорт.',
+            'warning'
+          );
+          return;
+        }
+
+        window.allOperationsCache = ops2;
+
+        const beforeOpt = captureOpsSnapshot('before_optimize');
+
         const result = await aiPanel.runOptimization(
-            allOperationsCache,
-            AdminState.brigades,
-            { availableWorkers: AdminState.workers?.length || 50 }
+          ops2,
+          AdminState.brigades || [],
+          { availableWorkers: AdminState.workers?.length || 50 }
         );
         
         const DOM = getDOM();
@@ -6392,16 +6546,6 @@ async function runOptimization() {
             }
         }
         
-        const recs = result.recommendations || [];
-        aiPanel._lastRecommendations = recs;
-        aiPanel._lastSummary = result.summary || null;
-
-        ['aiRecommendations', 'aiRecommendationsDash'].forEach(id => {
-            if (document.getElementById(id)) {
-                aiPanel.renderRecommendations(id, recs);
-            }
-        });
-
         persistAiPanelSnapshot();
         persistAIPaths();
 
@@ -6416,16 +6560,135 @@ async function runOptimization() {
             );
         }
 
-                // --- критический путь из AI ---
-        if (result.summary?.criticalPath?.length) {
-            AdminState.aiCriticalPath = result.summary.criticalPath
-                .map((id) => Number(String(id).replace(/^T/i, '')))
-                .filter((n) => !Number.isNaN(n));
-            AdminState.criticalPath = [...AdminState.aiCriticalPath];
-            persistAIPaths();
+        // --- критический путь из AI (+ fallback CPM) ---
+        const rawCp =
+          result.summary?.criticalPath ||
+          plan?.critical_path_ids ||
+          plan?.critical_path ||
+          [];
+
+        let cpIds = (Array.isArray(rawCp) ? rawCp : [])
+          .map((x) => {
+            if (x == null) return NaN;
+            if (typeof x === "object")
+              x = x.id ?? x.op_number ?? x.task_id;
+            return Number(String(x).replace(/^T/i, ""));
+          })
+          .filter((n) => !Number.isNaN(n));
+
+        if (!cpIds.length) {
+          try {
+            const cpm = await api.calculateCPM();
+            const fromCpm = cpm?.critical_path || cpm?.critical_path_ids || [];
+            cpIds = (fromCpm || [])
+              .map((x) => {
+                if (x == null) return NaN;
+                if (typeof x === "object")
+                  x = x.id ?? x.op_number ?? x.task_id;
+                return Number(String(x).replace(/^T/i, ""));
+              })
+              .filter((n) => !Number.isNaN(n));
+            console.warn("[AI] path empty → CPM fallback", cpIds.length);
+          } catch (e) {
+            console.warn("[AI] CPM fallback failed", e);
+          }
         }
-        // ... advantage path ...
-        persistAiPanelSnapshot();
+
+        if (cpIds.length) {
+          AdminState.aiCriticalPath = cpIds;
+          AdminState.criticalPath = [...cpIds];
+          if (result.summary) result.summary.criticalPath = cpIds;
+          persistAIPaths();
+        }
+
+        // --- длительность ---
+        if (!result.summary) result.summary = {};
+        {
+          let dur = Number(
+            plan?.total_duration_days ??
+              plan?.project_duration_days ??
+              plan?.stats?.project_duration_days ??
+              result.summary.projectDuration ??
+              0
+          );
+          if (!(dur > 0) && cpIds.length) {
+            const opsAll =
+              window.allOperationsCache ||
+              AdminState.operations ||
+              [];
+            const byNum = new Map();
+            opsAll.forEach((o) => {
+              const k = String(o.op_number ?? "").replace(/^T/i, "");
+              if (k) byNum.set(k, o);
+            });
+            let hours = 0;
+            cpIds.forEach((id) => {
+              const o = byNum.get(String(id).replace(/^T/i, ""));
+              if (!o) return;
+              let h = Number(o.duration);
+              if (!(h > 0) && o.labor_hours != null) {
+                h =
+                  Number(o.labor_hours) /
+                  Math.max(1, Number(o.people_count) || 1);
+              }
+              if (!(h > 0) && o.planned_hours != null) {
+                h = Number(o.planned_hours);
+              }
+              if (h > 0) hours += h;
+            });
+            // duration в БД часто в часах → дни
+            dur = hours / 8;
+          }
+          result.summary.projectDuration = dur > 0 ? dur : 0;
+          result.summary.criticalPath = cpIds.map(String);
+        }
+
+        // --- рекомендации из крит. пути, если AI пуст ---
+        let recs = Array.isArray(result.recommendations)
+          ? result.recommendations
+          : [];
+        if (!recs.length && cpIds.length) {
+          const opsAll =
+            window.allOperationsCache || AdminState.operations || [];
+          const byNum = new Map(
+            opsAll.map((o) => [
+              String(o.op_number ?? "").replace(/^T/i, ""),
+              o,
+            ])
+          );
+          recs = cpIds.slice(0, 25).map((id) => {
+            const key = String(id).replace(/^T/i, "");
+            const o = byNum.get(key) || {};
+            const h =
+              Number(o.duration) ||
+              (o.labor_hours != null
+                ? Number(o.labor_hours) /
+                  Math.max(1, Number(o.people_count) || 1)
+                : 0);
+            return {
+              type: "critical_path_task",
+              severity: "critical",
+              task_name: o.name || `#${key}`,
+              task_id: key,
+              op_number: key,
+              duration: h > 0 ? h / 8 : null,
+              message: `Критический путь: ${o.name || "#" + key}`,
+              suggestion:
+                "Контроль сроков и ресурсов — срыв сдвигает весь проект",
+            };
+          });
+          result.recommendations = recs;
+        }
+
+        aiPanel._lastRecommendations = recs;
+        aiPanel._lastSummary = result.summary;
+        aiPanel.renderPlanSummary?.("aiPlanSummary", result.summary);
+        ["aiRecommendations", "aiRecommendationsDash"].forEach((id) => {
+          if (document.getElementById(id)) {
+            aiPanel.renderRecommendations(id, recs);
+          }
+        });
+        persistAiPanelSnapshot?.();
 
         if (typeof renderGraph === 'function') renderGraph();
         // после renderGraph setTimeout сам подсветит
@@ -6477,10 +6740,67 @@ async function runOptimization() {
         
         await loadAIRecommendations();
         
-        if (result.success) {
-            showNotification('Успех', 
-                `Проект: ${result.summary.projectDuration.toFixed(1)} дн, Критических: ${result.summary.criticalPath.length}`, 
-                'success');
+        // --- снимок ПОСЛЕ + сравнение ---
+        const afterOpt = captureOpsSnapshot('after_optimize');
+        if (result?.summary) {
+            afterOpt.criticalLen = (result.summary.criticalPath || []).length || afterOpt.criticalLen;
+            afterOpt.projectDuration = result.summary.projectDuration ?? result.summary.duration ?? null;
+        }
+        afterOpt.gaps = window.aiPanel?.lastGaps?.count
+            ?? window.aiPanel?.lastGaps?.gaps?.length
+            ?? afterOpt.gaps;
+
+        const optCompare = {
+            date: new Date().toISOString(),
+            before: beforeOpt,
+            after: afterOpt,
+            delta: {
+                completed: afterOpt.completed - beforeOpt.completed,
+                inProgress: afterOpt.inProgress - beforeOpt.inProgress,
+                blocked: afterOpt.blocked - beforeOpt.blocked,
+                gaps: (afterOpt.gaps ?? 0) - (beforeOpt.gaps ?? 0),
+                criticalLen: afterOpt.criticalLen - beforeOpt.criticalLen,
+                projectDuration: (afterOpt.projectDuration ?? null),
+            }
+        };
+        try {
+            localStorage.setItem('optimizeCompareLast', JSON.stringify(optCompare));
+            const hist = JSON.parse(localStorage.getItem('optimizeCompareHist') || '[]');
+            hist.unshift(optCompare);
+            localStorage.setItem('optimizeCompareHist', JSON.stringify(hist.slice(0, 60)));
+        } catch (_) {}
+
+        if (typeof renderReportsCompare === 'function') {
+            renderReportsCompare();
+        }
+
+        const finalRecs =
+                result.recommendations ||
+                aiPanel._lastRecommendations ||
+                [];
+                if (finalRecs.length) {
+                ["aiRecommendations", "aiRecommendationsDash"].forEach((id) => {
+                    if (document.getElementById(id)) {
+                    aiPanel.renderRecommendations(id, finalRecs);
+                    }
+                });
+                }
+
+        const cpLen = (AdminState.aiCriticalPath || result.summary?.criticalPath || []).length;
+        const dur = Number(result.summary?.projectDuration) || 0;
+        if (result.success && (cpLen > 0 || dur > 0)) {
+            showNotification(
+              'Успех',
+              `Проект: ${dur.toFixed(1)} дн, Критических: ${cpLen}`,
+              'success'
+            );
+        } else if (result.success) {
+            showNotification(
+              'AI',
+              'Ответ получен, но критический путь пуст',
+              'warning'
+            );
+        } else if (result.error) {
         } else if (result.error) {
             showNotification('Предупреждение', 
                 `Оптимизация выполнена с ограничениями: ${result.error}`, 
@@ -6639,6 +6959,12 @@ function switchTab(tabId) {
             updateWorkersCache();
             renderWorkersGrid();
         }, 50);
+    }
+
+    if (tabId === 'reports') {
+        if (typeof renderReportsCompare === 'function') {
+            renderReportsCompare();
+        }
     }
 }
 
@@ -7592,8 +7918,41 @@ window.applyBridgeLink = async function (p) {
       proposals.map((p) => ({ from: String(p.from), to: String(p.to) }))
     );
   };
+
+  window.selectAllBridgeChecks = function (on = true) {
+    document
+      .querySelectorAll('#aiGapsPanel .bridge-check')
+      .forEach((el) => { el.checked = !!on; });
+  };
+
+  window.applyAllBridgeLinks = async function () {
+    // 1) если есть отмеченные — только они
+    const checked = [...document.querySelectorAll('#aiGapsPanel .bridge-check:checked')];
+    if (checked.length) {
+      await window.applyBridgeLinksBatch(
+        checked.map((el) => ({ from: el.dataset.from, to: el.dataset.to }))
+      );
+      return;
+    }
+    // 2) иначе — все предложения (без жёсткого лимита 20)
+    const proposals = window.aiPanel?.lastBridge?.proposals || [];
+    if (!proposals.length) {
+      showNotification('Связи', 'Нет предложений', 'warning');
+      return;
+    }
+    await window.applyBridgeLinksBatch(
+      proposals.map((p) => ({ from: String(p.from), to: String(p.to) }))
+    );
+  };
   
   window.applyBridgeLinksBatch = async function (links) {
+    if (!links || !links.length) {
+      showNotification('Связи', 'Список пуст', 'warning');
+      return;
+    }
+    // нормализация
+    links = links.map((l) => ({ from: String(l.from), to: String(l.to) }));
+
     try {
       showLoading(`Применение ${links.length} связей...`);
       const res = await fetch(`${API_BASE}/ai/gaps/apply`, {
@@ -7602,11 +7961,42 @@ window.applyBridgeLink = async function (p) {
         body: JSON.stringify({ links, persist: true })
       });
       const data = await res.json().catch(() => ({}));
+      console.log('[apply batch]', data);
+
       if (!res.ok || data.status !== 'ok') {
         showNotification('Ошибка', data.detail || `HTTP ${res.status}`, 'error');
         return;
       }
-      showNotification('Связи', `Применено: ${(data.applied || links).length}`, 'success');
+
+      // applied может быть числом ИЛИ массивом
+      const appliedN = Array.isArray(data.applied)
+        ? data.applied.length
+        : Number(data.applied) || 0;
+      const alreadyN = Array.isArray(data.already)
+        ? data.already.length
+        : Number(data.already) || 0;
+
+      showNotification(
+        'Связи',
+        `Применено: ${appliedN}, уже были: ${alreadyN}, запрошено: ${links.length}`,
+        appliedN + alreadyN > 0 ? 'success' : 'warning'
+      );
+
+      // убрать из панели все запрошенные пары
+      if (window.aiPanel?.lastBridge) {
+        const done = new Set(links.map((l) => `${l.from}|${l.to}`));
+        const filter = (arr) => (arr || []).filter((x) => !done.has(`${x.from}|${x.to}`));
+        const br = aiPanel.lastBridge;
+        aiPanel.lastBridge = {
+          ...br,
+          proposals: filter(br.proposals),
+          auto_apply: filter(br.auto_apply),
+          need_confirm: filter(br.need_confirm),
+          count: filter(br.proposals).length
+        };
+        aiPanel.renderGaps('aiGapsPanel', aiPanel.lastGaps, aiPanel.lastBridge);
+        persistAiPanelSnapshot?.();
+      }
   
       await loadAllData();
       if (typeof renderGraph === 'function') renderGraph();
