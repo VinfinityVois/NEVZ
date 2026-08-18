@@ -1831,7 +1831,7 @@ async function saveOperation(id) {
       await refreshAfterOperationsChange({
         invalidateAI: true,
         rerenderGraph: true,
-        autoOptimize: true
+        autoOptimize: false
       });
       // больше ничего — optimize внутри refresh
 
@@ -7926,7 +7926,6 @@ window.applyBridgeLink = async function (p) {
   };
 
   window.applyAllBridgeLinks = async function () {
-    // 1) если есть отмеченные — только они
     const checked = [...document.querySelectorAll('#aiGapsPanel .bridge-check:checked')];
     if (checked.length) {
       await window.applyBridgeLinksBatch(
@@ -7934,10 +7933,16 @@ window.applyBridgeLink = async function (p) {
       );
       return;
     }
-    // 2) иначе — все предложения (без жёсткого лимита 20)
-    const proposals = window.aiPanel?.lastBridge?.proposals || [];
+    // только уверенные, не больше 15 — иначе граф «плывёт»
+    const proposals = (window.aiPanel?.lastBridge?.proposals || [])
+      .filter((p) => (Number(p.confidence) || 0) >= 0.25)
+      .slice(0, 15);
     if (!proposals.length) {
-      showNotification('Связи', 'Нет предложений', 'warning');
+      showNotification(
+        'Связи',
+        'Нет предложений с confidence ≥ 25%. Отметьте вручную или снизьте порог.',
+        'warning'
+      );
       return;
     }
     await window.applyBridgeLinksBatch(
