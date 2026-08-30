@@ -395,10 +395,14 @@
                             
                             <div class="graph-toolbar-group">
                                 <select id="graphLayoutSelect" class="graph-select" onchange="changeGraphLayout(this.value)">
-                                    <option value="dagre:LR">➡️ Слева направо</option>
-                                    <option value="dagre:TB">⬇️ Сверху вниз</option>
-                                    <option value="breadthfirst">🌳 Дерево</option>
-                                    <option value="cose">🔄 Радиальный</option>
+                                    <option value="dagre:LR">➡️ Dagre слева→направо</option>
+                                    <option value="dagre:TB">⬇️ Dagre сверху→вниз</option>
+                                    <option value="elk">🌳 ELK иерархия</option>
+                                    <option value="fcose">🔷 fCoSE компоненты</option>
+                                    <option value="cose-bilkent">⚡ CoSE-Bilkent</option>
+                                    <option value="cola">🌀 Cola (медленно 300+)</option>
+                                    <option value="breadthfirst">🌳 Дерево (встроенный)</option>
+                                    <option value="cose">🔄 Cose (встроенный)</option>
                                 </select>
                             </div>
                             
@@ -985,14 +989,56 @@
     <div class="loading-overlay" id="loadingOverlay" style="display: none;">
         <div class="loading-spinner"></div>
         <p id="loadingText">Загрузка...</p>
-    </div>
+    </div><select id="graphLayoutSelect" class="graph-select" onchange="changeGraphLayout(this.value)">
     
 
 <!-- Скрипты -->
 <script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
 <script src="https://unpkg.com/cytoscape-dagre@4.0.0/dist/cytoscape-dagre.min.js"></script>
+
+<!-- обязательно ДО fcose / cose-bilkent -->
+<script src="https://unpkg.com/layout-base/layout-base.js"></script>
+<script src="https://unpkg.com/cose-base/cose-base.js"></script>
+<script src="https://unpkg.com/cytoscape-fcose/cytoscape-fcose.js"></script>
+<script src="https://unpkg.com/cytoscape-cose-bilkent/cytoscape-cose-bilkent.js"></script>
+
+<!-- Cola: сначала webcola -->
+<script src="https://unpkg.com/webcola/WebCola/cola.min.js"></script>
+<script src="https://unpkg.com/cytoscape-cola/cytoscape-cola.js"></script>
+
+<!-- ELK: путь именно /dist/ -->
+<script src="https://cdn.jsdelivr.net/npm/elkjs@0.9.3/lib/elk.bundled.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/cytoscape-elk@2.1.0/dist/cytoscape-elk.js"></script>
+
 <script>
-  cytoscape.use(cytoscapeDagre);
+(function () {
+  if (typeof cytoscape === 'undefined') {
+    console.error('[graph] cytoscape не загружен');
+    return;
+  }
+  const list = [
+    ['dagre', window.cytoscapeDagre],
+    ['fcose', window.cytoscapeFcose],
+    ['cose-bilkent', window.cytoscapeCoseBilkent],
+    ['cola', window.cytoscapeCola],
+    ['elk', window.cytoscapeElk],
+  ];
+  window.__cyRegisteredLayouts = {};
+  list.forEach(([name, ext]) => {
+    if (!ext) {
+      console.warn('[graph] нет global:', name);
+      return;
+    }
+    try {
+      cytoscape.use(ext);
+      window.__cyRegisteredLayouts[name] = true;
+      console.log('[graph] OK', name);
+    } catch (e) {
+      window.__cyRegisteredLayouts[name] = true; // часто уже registered
+      console.log('[graph] use', name, String(e.message || e));
+    }
+  });
+})();
 </script>
 
 <!-- <script type="module" src="js/admin/admin-main.js"></script> -->

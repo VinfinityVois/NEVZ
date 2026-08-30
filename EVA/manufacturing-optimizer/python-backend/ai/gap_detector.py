@@ -100,6 +100,7 @@ class GapDetector:
 
         components.sort(key=len, reverse=True)
         if len(components) > 1:
+            main = components[0]
             for comp in components[1:]:
                 sample = comp[0]
                 gaps.append({
@@ -108,6 +109,9 @@ class GapDetector:
                     "op_number": sample,
                     "name": (by_num.get(sample) or {}).get("name"),
                     "component_size": len(comp),
+                    "component": list(comp)[:40],
+                    "main_sample": main[0] if main else None,
+                    "main_size": len(main),
                     "message": f"Остров из {len(comp)} оп. (напр. #{sample})",
                 })
 

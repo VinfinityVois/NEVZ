@@ -163,16 +163,17 @@ const api = {
 };
 
 
-// Регистрация dagre
 if (typeof cytoscape !== 'undefined') {
-    const dagreExt = window.cytoscapeDagre || window.dagre;
-    if (dagreExt && !cytoscape.prototype.layout?.dagre) {
-      try {
-        cytoscape.use(dagreExt);
-      } catch (e) {
-        console.warn('Не удалось зарегистрировать dagre:', e);
-      }
-    }
+    [
+      window.cytoscapeDagre || window.dagre,
+      window.cytoscapeElk,
+      window.cytoscapeFcose,
+      window.cytoscapeCola,
+      window.cytoscapeCoseBilkent
+    ].forEach((ext) => {
+      if (!ext) return;
+      try { cytoscape.use(ext); } catch (_) {}
+    });
   }
 
 import { AIPanel } from './ai-panel.js';
@@ -4990,24 +4991,18 @@ function renderGraph() {
             }
           });
   
-        cy.layout({
-            name: 'dagre',
-            rankDir: 'LR',
-            nodeSep: 36,
-            rankSep: 80,
-            edgeSep: 16,
-            spacingFactor: 1.35,
-            ranker: 'tight-tree',
-            align: 'UL',
-            animate: false,
-            fit: true,
-            padding: 48
-        }).run();
+          applyGraphFilters();
+          setupGraphEvents(cy);
+          window.cy = cy;
+          applyBridgeProposalsToGraph();
   
-        applyGraphFilters();
-        setupGraphEvents(cy);
-        window.cy = cy;
-        applyBridgeProposalsToGraph();
+          const savedLayout =
+            localStorage.getItem('graphLayout') ||
+            document.getElementById('graphLayoutSelect')?.value ||
+            'dagre:LR';
+          const sel = document.getElementById('graphLayoutSelect');
+          if (sel) sel.value = savedLayout;
+          changeGraphLayout(savedLayout);
 
         setTimeout(() => {
             if (typeof restoreAIPaths === 'function') restoreAIPaths();
@@ -5854,32 +5849,195 @@ function toggleGroups(show) {
   renderGraph();
 }
 
+/**
+ * Заменить ЦЕЛИКОМ function changeGraphLayout(...) в admin-main.js
+ * (сейчас ~строка 5857)
+ */
 function changeGraphLayout(layoutValue) {
-  if (!cy) return;
+    if (!window.cy) return;
   
-  const [name, rankDir] = layoutValue.split(':');
-  const options = { 
-      name, 
-      animate: true, 
-      animationDuration: 500,
-      animationEasing: 'ease-out-cubic'
-  };
+    const raw = String(layoutValue || 'dagre:LR');
+    const parts = raw.split(':');
+    const name = parts[0];
+    const rankDir = parts[1] || 'LR';
+    const cy = window.cy;
+    const n = cy.nodes().length || 0;
   
-  if (name === 'dagre' && rankDir) {
-      options.rankDir = rankDir;
-      options.spacingFactor = 1.6;
-      options.nodeSep = rankDir === 'LR' ? 60 : 50;
-      options.rankSep = rankDir === 'LR' ? 100 : 80;
-  } else if (name === 'breadthfirst') {
-      options.directed = true;
-      options.spacingFactor = 1.5;
-  } else if (name === 'cose') {
-      options.idealEdgeLength = 100;
-      options.nodeOverlap = 20;
+    // какие layout реально доступны после cytoscape.use
+    function hasLayout(layoutName) {
+      try {
+        // cytoscape хранит расширения в plain object
+        const ext = cytoscape('core', 'layout') || {};
+        // более надёжно: пробный layout на пустом наборе не делаем —
+        // проверяем через прототип регистрацию
+        const layouts = (cytoscape.prototype && cytoscape.prototype._private) ? null : null;
+        void layouts;
+        // fallback: список известных зарегистрированных через use
+        const known = window.__cyRegisteredLayouts || {};
+        if (known[layoutName]) return true;
+        // dagre/breadthfirst/cose/circle/grid/random — встроенные или dagre
+        if (['breadthfirst', 'cose', 'circle', 'grid', 'random', 'preset', 'null'].includes(layoutName)) {
+          return true;
+        }
+        if (layoutName === 'dagre' && (window.cytoscapeDagre || true)) return true;
+        // если плагин на window — считаем доступным
+        const map = {
+          fcose: window.cytoscapeFcose,
+          'cose-bilkent': window.cytoscapeCoseBilkent,
+          cola: window.cytoscapeCola,
+          elk: window.cytoscapeElk,
+          dagre: window.cytoscapeDagre
+        };
+        return !!map[layoutName];
+      } catch (_) {
+        return false;
+      }
+    }
+  
+    let options;
+  
+    if (name === 'dagre') {
+      options = {
+        name: 'dagre',
+        rankDir: rankDir || 'LR',
+        nodeSep: rankDir === 'TB' ? 50 : 60,
+        rankSep: rankDir === 'TB' ? 80 : 100,
+        edgeSep: 16,
+        spacingFactor: 1.5,
+        ranker: 'tight-tree',
+        animate: n < 200,
+        animationDuration: 500,
+        fit: true,
+        padding: 48
+      };
+    } else if (name === 'elk') {
+      options = {
+        name: 'elk',
+        animate: n < 250,
+        animationDuration: 600,
+        fit: true,
+        padding: 48,
+        elk: {
+          algorithm: 'layered',
+          'elk.direction': 'RIGHT',
+          'elk.spacing.nodeNode': 48,
+          'elk.layered.spacing.nodeNodeBetweenLayers': 64,
+          'elk.edgeRouting': 'ORTHOGONAL'
+        }
+      };
+    } else if (name === 'fcose') {
+      options = {
+        name: 'fcose',
+        animate: true,
+        animationDuration: 800,
+        quality: n > 300 ? 'draft' : 'default',
+        randomize: false,
+        nodeSeparation: 70,
+        idealEdgeLength: 90,
+        packing: true,
+        fit: true,
+        padding: 48
+      };
+    } else if (name === 'cose-bilkent') {
+      options = {
+        name: 'cose-bilkent',
+        animate: n < 250 ? 'end' : false,
+        animationDuration: 700,
+        nodeRepulsion: 4500,
+        idealEdgeLength: 90,
+        edgeElasticity: 0.45,
+        gravity: 0.25,
+        numIter: n > 300 ? 1500 : 2500,
+        tile: true,
+        fit: true,
+        padding: 48
+      };
+    } else if (name === 'cola') {
+      if (n > 280 && typeof showNotification === 'function') {
+        showNotification('Граф', 'Cola на ' + n + ' узлах может тормозить', 'warning');
+      }
+      options = {
+        name: 'cola',
+        animate: true,
+        maxSimulationTime: n > 200 ? 1200 : 2500,
+        edgeLength: 100,
+        nodeSpacing: 24,
+        randomize: false,
+        fit: true,
+        padding: 48
+      };
+    } else if (name === 'breadthfirst') {
+      options = {
+        name: 'breadthfirst',
+        directed: true,
+        spacingFactor: 1.5,
+        animate: true,
+        animationDuration: 500,
+        fit: true,
+        padding: 48
+      };
+    } else if (name === 'cose') {
+      options = {
+        name: 'cose',
+        idealEdgeLength: 100,
+        nodeOverlap: 20,
+        animate: true,
+        animationDuration: 500,
+        fit: true,
+        padding: 48
+      };
+    } else {
+      options = {
+        name: 'dagre',
+        rankDir: 'LR',
+        fit: true,
+        padding: 48
+      };
+    }
+  
+    // проверка плагина до run
+    const needPlugin = ['elk', 'fcose', 'cose-bilkent', 'cola'].includes(name);
+    if (needPlugin && !hasLayout(name)) {
+      console.warn('[graph] layout plugin missing:', name, {
+        fcose: !!window.cytoscapeFcose,
+        bilkent: !!window.cytoscapeCoseBilkent,
+        cola: !!window.cytoscapeCola,
+        elk: !!window.cytoscapeElk
+      });
+      if (typeof showNotification === 'function') {
+        showNotification(
+          'Граф',
+          'Layout ' + name + ' не загружен (нет плагина/CDN). Ставлю dagre.',
+          'warning'
+        );
+      }
+      options = {
+        name: 'dagre',
+        rankDir: 'LR',
+        fit: true,
+        padding: 48,
+        animate: false
+      };
+    }
+  
+    try {
+      cy.layout(options).run();
+      try { localStorage.setItem('graphLayout', raw); } catch (_) {}
+    } catch (e) {
+      console.error('[graph] layout failed', name, e);
+      if (typeof showNotification === 'function') {
+        showNotification('Граф', 'Layout ' + name + ' упал: ' + (e.message || e), 'error');
+      }
+      try {
+        cy.layout({ name: 'dagre', rankDir: 'LR', fit: true, padding: 48 }).run();
+      } catch (e2) {
+        console.error('[graph] dagre fallback failed', e2);
+      }
+    }
   }
   
-  cy.layout(options).run();
-}
+  window.changeGraphLayout = changeGraphLayout;
+  
 
 // ================================================================
 // АНИМАЦИИ
