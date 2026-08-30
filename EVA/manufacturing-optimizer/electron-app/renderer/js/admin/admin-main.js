@@ -8107,6 +8107,35 @@ window.applyBridgeLink = async function (p) {
       proposals.map((p) => ({ from: String(p.from), to: String(p.to) }))
     );
   };
+
+  // В admin-main.js (глобально):
+window.checkAIDataQuality = async function () {
+    if (!window.aiPanel?.checkDataQuality) {
+      showNotification('ML', 'AIPanel.checkDataQuality не найден — обновите ai-panel.js', 'error');
+      return;
+    }
+    showLoading('Анализ данных...');
+    try {
+      const data = await window.aiPanel.checkDataQuality();
+      if (data?.ready_to_train) {
+        showNotification('Данные ML', `Готово: ${data.trainable_samples} образцов`, 'success');
+      } else {
+        showNotification('Данные ML', data?.message || 'Недостаточно фактов', 'warning');
+      }
+    } finally {
+      hideLoading();
+    }
+  };
+  
+  // trainAIModel — если вызывает старый путь, заменить на:
+  window.trainAIModel = async function () {
+    if (!window.aiPanel?.trainDelayModel) {
+      showNotification('ML', 'aiPanel.trainDelayModel отсутствует', 'error');
+      return;
+    }
+    await window.aiPanel.trainDelayModel();
+  };
+  
   
   window.applyBridgeLinksBatch = async function (links) {
     if (!links || !links.length) {

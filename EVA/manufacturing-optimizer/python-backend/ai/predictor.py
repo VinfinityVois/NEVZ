@@ -110,42 +110,71 @@ class Predictor:
 
     # Имена признаков строго в том же порядке, что и в _task_features —
     # без этого feature_importances_ будет указывать не на то поле.
+    # Признаки только из реальных полей operations / sample pipeline.
+    # skills_count убран: в operations нет required_skills — не выдумываем.
     FEATURE_NAMES = [
-        "duration", "priority", "skills_count", "deps_count",
-        "total_float", "is_critical", "progress", "duration_x_critical"
+        "duration", "priority", "deps_count", "people_count",
+        "labor_hours", "total_float", "post", "is_critical",
+        "progress", "duration_x_critical",
     ]
     FEATURE_LABELS = {
-        "duration": "длительность работы",
+        "duration": "плановая длительность (дн)",
         "priority": "приоритет",
-        "skills_count": "требуемые навыки (кол-во)",
-        "deps_count": "зависимости (кол-во)",
+        "deps_count": "число предшественников",
+        "people_count": "численность",
+        "labor_hours": "трудоёмкость (ч)",
         "total_float": "резерв времени",
+        "post": "пост",
         "is_critical": "критический путь",
         "progress": "прогресс выполнения",
-        "duration_x_critical": "длительность на крит. пути",
+        "duration_x_critical": "длительность × крит. путь",
     }
 
     def _task_features(self, task: Dict, is_critical: bool = False) -> np.ndarray:
         """
-        Простые числовые признаки задачи.
-        Порядок должен быть одинаковым при обучении и предсказании.
+        Числовые признаки из реальных полей операции.
+        Порядок = FEATURE_NAMES (обучение и predict должны совпадать).
         """
-        duration = float(task.get("duration_days", task.get("duration", 5)))
-        priority = float(task.get("priority", 1))
-        skills_count = len(task.get("required_skills", []) or [])
-        deps_count = len(task.get("dependencies", []) or [])
-        float_val = float(task.get("total_float", 5) or 5)
-        progress = float(task.get("progress", 0.0))
+        duration = float(task.get("duration_days", task.get("duration", 0)) or 0)
+        if duration <= 0:
+            labor = float(task.get("labor_hours", 0) or 0)
+            people = max(float(task.get("people_count", 1) or 1), 1.0)
+            duration = labor / (people * 8.0) if labor > 0 else 0.0
+
+        pr = task.get("priority", 2)
+        try:
+            priority = float(pr)
+        except Exception:
+            priority = {"low": 1, "medium": 2, "normal": 2, "high": 3, "critical": 4}.get(
+                str(pr).lower(), 2
+            )
+
+        deps = task.get("dependencies") or task.get("prev_ops") or []
+        if isinstance(deps, str):
+            try:
+                import json as _json
+                deps = _json.loads(deps)
+            except Exception:
+                deps = [x for x in deps.split(",") if x.strip()] if deps else []
+        deps_count = float(task.get("deps_count") if task.get("deps_count") is not None else len(deps or []))
+        people_count = float(task.get("people_count", 1) or 1)
+        labor_hours = float(task.get("labor_hours", 0) or 0)
+        float_val = float(task.get("total_float", task.get("time_reserve", 0)) or 0)
+        post = float(task.get("post", 0) or 0)
+        progress = float(task.get("progress", 0.0) or 0.0)
+        crit = 1.0 if is_critical or task.get("is_critical") else 0.0
 
         return np.array([
             duration,
             priority,
-            skills_count,
             deps_count,
+            people_count,
+            labor_hours,
             float_val,
-            1.0 if is_critical else 0.0,
+            post,
+            crit,
             progress,
-            duration * (1.5 if is_critical else 1.0),  # взаимодействие
+            duration * (1.5 if crit else 1.0),
         ], dtype=float)
 
     def get_global_feature_importance(self) -> List[Dict[str, Any]]:
