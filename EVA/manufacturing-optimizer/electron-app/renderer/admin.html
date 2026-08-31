@@ -746,6 +746,9 @@
             <button class="btn btn-secondary" id="trainModelBtn" onclick="trainAIModel()">
                 <span>🧠 Обучить модель</span>
             </button>
+            <button class="btn btn-secondary" id="dataQualityBtn" onclick="checkAIDataQuality()">
+                <span>📊 Качество данных</span>
+            </button>
         </div>
     </div>
     
@@ -770,6 +773,11 @@
                                 onclick="window.aiPanel&&window.aiPanel.loadFeatureImportance()">
                             Обновить
                         </button>
+                    </div>
+                    <div id="aiDataQualityPanel" class="card" style="margin-top:12px;min-height:48px;">
+                        <div style="padding:12px;color:#64748b;font-size:13px;">
+                            Нажмите «Качество данных» для анализа operations
+                        </div>
                     </div>
                     <div id="aiExplainPanel" style="padding:16px 20px; width:100%;">
                         <p style="color:#6b7280;margin:0;">Обучите модель — появятся важности признаков.</p>

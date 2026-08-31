@@ -11,6 +11,7 @@ import os
 import sys
 import json
 import sqlite3
+import urllib.request
 from datetime import datetime
 from typing import List, Dict, Optional, Any
 from pathlib import Path
@@ -899,61 +900,80 @@ async def create_operation(op: OperationCreate):
 async def update_operation(op_id: int, op: OperationUpdate):
     conn = get_db()
     cursor = conn.cursor()
-    
-    cursor.execute("SELECT id, status, actual_start, actual_end FROM operations WHERE id = ?", (op_id,))
+
+    cursor.execute(
+        "SELECT id, status, actual_start, actual_end FROM operations WHERE id = ?",
+        (op_id,),
+    )
     existing = cursor.fetchone()
     if not existing:
         conn.close()
         raise HTTPException(status_code=404, detail="Операция не найдена")
-    
+
     prev_status = existing[1]
     had_actual_start = existing[2] is not None
     had_actual_end = existing[3] is not None
-    
+
     data = op.dict(exclude_unset=True)
     if data:
         updates = []
         params = []
         for field, value in data.items():
-            if field in ['prev_ops', 'next_ops']:
+            if field in ["prev_ops", "next_ops"]:
                 updates.append(f"{field} = ?")
                 params.append(json.dumps(value))
-            elif field in ['post', 'op_number', 'name', 'drawing', 'labor_hours', 
-                          'people_count', 'duration', 'brigade_id', 'location', 
-                          'time_reserve', 'status', 'priority', 'start_date', 'end_date',
-                          'actual_start', 'actual_end']:
+            elif field in [
+                "post", "op_number", "name", "drawing", "labor_hours",
+                "people_count", "duration", "brigade_id", "location",
+                "time_reserve", "status", "priority", "start_date", "end_date",
+                "actual_start", "actual_end",
+            ]:
                 updates.append(f"{field} = ?")
                 params.append(value)
-        
-        # Автоматически фиксируем факт начала/завершения работы, если
-        # статус меняется, а точную дату никто явно не передал.
-        # Без этого в БД никогда не появится «правда» о реальных сроках,
-        # и AI-модель прогноза задержек не сможет ни на чём обучиться.
-        new_status = data.get('status', prev_status)
-        today = datetime.now().strftime('%Y-%m-%d')
-        
-        if new_status == 'in_progress' and not had_actual_start and 'actual_start' not in data:
+
+        new_status = data.get("status", prev_status)
+        today = datetime.now().strftime("%Y-%m-%d")
+
+        if new_status == "in_progress" and not had_actual_start and "actual_start" not in data:
             updates.append("actual_start = ?")
             params.append(today)
-        
-        if new_status == 'completed' and not had_actual_end and 'actual_end' not in data:
+
+        if new_status == "completed" and not had_actual_end and "actual_end" not in data:
             updates.append("actual_end = ?")
             params.append(today)
-            # Если работу закрыли, а факт начала так и не был зафиксирован —
-            # проставляем и его, иначе позже нельзя будет посчитать задержку.
-            if not had_actual_start and 'actual_start' not in data:
+            if not had_actual_start and "actual_start" not in data:
                 updates.append("actual_start = COALESCE(actual_start, ?)")
                 params.append(today)
-        
+
         updates.append("updated_at = CURRENT_TIMESTAMP")
         params.append(op_id)
-        cursor.execute(f"UPDATE operations SET {', '.join(updates)} WHERE id = ?", params)
+        cursor.execute(
+            f"UPDATE operations SET {', '.join(updates)} WHERE id = ?",
+            params,
+        )
         conn.commit()
-    
+
     cursor.execute("SELECT * FROM operations WHERE id = ?", (op_id,))
     row = cursor.fetchone()
     conn.close()
-    return row_to_dict(row)
+    result = row_to_dict(row)
+
+    # Online feedback в ML (не ломает PUT, если /ai недоступен)
+    try:
+        if str(result.get("status") or "").lower() in ("completed", "done", "finished"):
+            payload = json.dumps(result, ensure_ascii=False, default=str).encode("utf-8")
+            req = urllib.request.Request(
+                "http://127.0.0.1:8000/ai/training/feedback",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                _ = resp.read()
+    except Exception as e:
+        print("[WARN] training feedback:", e)
+
+    return result
 
 @app.delete("/operations/{op_id}")
 async def delete_operation(op_id: int):

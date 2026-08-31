@@ -51,6 +51,7 @@ export class AIPanel {
         this.lastBridge = null;
         this.optimizationInProgress = false;
         this.trainingInProgress = false;
+        this.lastDataQuality = null;
         this.lastPlan = null;
         this.lastBottlenecks = [];
         this.lastExplanation = null;   // ← NEW
@@ -506,78 +507,114 @@ export class AIPanel {
         };
     }
 
+    async checkDataQuality() {
+        try {
+            const res = await fetch(`${this.API_BASE}/ai/data/quality`);
+            const data = await res.json();
+            this.lastDataQuality = data;
+            this.renderDataQuality('aiDataQualityPanel', data);
+            return data;
+        } catch (e) {
+            console.error('data quality', e);
+            if (typeof showNotification === 'function') {
+                showNotification('Данные ML', e.message || String(e), 'error');
+            }
+            return null;
+        }
+    }
+
+    renderDataQuality(containerId, data) {
+        const el = document.getElementById(containerId);
+        if (!el) return;
+        if (!data || data.status === 'error') {
+            el.innerHTML = `<div style="padding:12px;color:#b91c1c;font-size:13px;">
+                ${data?.message || data?.detail || 'Нет данных'}</div>`;
+            return;
+        }
+        const ready = data.ready_to_train;
+        const color = ready ? '#16a34a' : '#b45309';
+        const skipped = data.skipped || {};
+        const ds = data.delay_stats || {};
+        el.innerHTML = `
+          <div style="padding:12px 14px;font-size:13px;line-height:1.45;">
+            <div style="font-weight:600;margin-bottom:8px;color:${color}">
+              ${ready ? '✓ Можно обучать модель' : '⚠ Мало фактов для обучения'}
+            </div>
+            <div>Всего операций: <b>${data.total_operations ?? '—'}</b></div>
+            <div>Completed: <b>${data.completed ?? '—'}</b>
+                · с actual_end: <b>${data.completed_with_actual_end ?? '—'}</b></div>
+            <div>Образцов для ML: <b>${data.trainable_samples ?? 0}</b>
+                (нужно ≥ ${data.min_samples_recommended ?? 20})</div>
+            ${ds.mean != null ? `<div>Задержка: mean=${ds.mean} · median=${ds.median}
+                · &gt;0: ${ds.positive_delay_count} · ≤0: ${ds.zero_or_early_count}</div>` : ''}
+            <div style="margin-top:6px;color:#64748b;font-size:12px;">
+              Пропуски: ${Object.entries(skipped).map(([k,v]) => k+'='+v).join(', ') || '—'}
+            </div>
+            <div style="margin-top:8px;color:#475569;font-size:12px;">${data.message || ''}</div>
+          </div>`;
+    }
+
+
     async trainDelayModel() {
         if (this.trainingInProgress) {
             console.warn('Обучение уже выполняется');
-            return { status: 'already_running', message: 'Обучение уже выполняется' };
+            return { success: false, error: 'busy' };
         }
         this.trainingInProgress = true;
-        
         try {
-            try {
-                const syncRes = await fetch(`${this.API_BASE}/ai/sync-training-data`, { 
-                    method: 'POST',
-                    signal: AbortSignal.timeout(5000)
-                });
-                if (syncRes.ok) {
-                    console.log('✅ Данные синхронизированы');
+            if (typeof showLoading === 'function') showLoading('Синхронизация фактов и обучение...');
+
+            const q = await this.checkDataQuality();
+            if (q && q.ready_to_train === false) {
+                if (typeof showNotification === 'function') {
+                    showNotification(
+                        'Обучение',
+                        q.message || `Мало данных (${q.trainable_samples || 0}). Нужно ≥ 20 completed с actual_end.`,
+                        'warning'
+                    );
                 }
-            } catch (syncErr) {
-                console.warn('Синхронизация пропущена:', syncErr);
+                return { success: false, analysis: q };
             }
-            
-            const response = await fetch(`${this.API_BASE}/ai/train/delay-model-from-db`, {
-                method: 'POST',
-                signal: AbortSignal.timeout(60000)
-            });
-            
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Training error ${response.status}: ${errorText}`);
+
+            await fetch(`${this.API_BASE}/ai/sync-training-data`, { method: 'POST' });
+
+            const res = await fetch(`${this.API_BASE}/ai/train/delay-model-from-db`, { method: 'POST' });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.success === false) {
+                const msg = data.detail || data.message || data.error || `HTTP ${res.status}`;
+                if (typeof showNotification === 'function') showNotification('Обучение', msg, 'error');
+                if (data.analysis) this.renderDataQuality('aiDataQualityPanel', data.analysis);
+                return { success: false, ...data };
             }
-            
-            const result = await response.json();
-            console.log('[AI] train result', result);
 
-            this.lastExplanation = result.explanation || {
-                available: !!(result.feature_importances && result.feature_importances.length),
-                features: result.feature_importances || [],
-                r2_train: result.r2_train,
-                samples: result.samples,
-                summary_ru: result.explanation?.summary_ru || null,
-                method: 'gradient_boosting_feature_importances'
-            };
-            this.renderFeatureImportance('aiExplainPanel', this.lastExplanation);
+            if (typeof showNotification === 'function') {
+                showNotification(
+                    'Обучение',
+                    `Модель обучена на ${data.samples || data.analysis?.trainable_samples || 'N'} фактах`,
+                    'success'
+                );
+            }
 
-            return {
-                status: result.success ? 'success' : 'failed',
-                message: result.message || (result.success ? 'Модель обучена' : 'Ошибка обучения'),
-                samples: result.samples || 0,
-                modelAvailable: result.model_available || false,
-                r2_train: result.r2_train,
-                feature_importances: result.feature_importances || []
-            };
-            
-        } catch (error) {
-            console.error('Ошибка обучения модели:', error);
-            
             try {
-                const legacy = await fetch(`${this.API_BASE}/train`, { method: 'POST' });
-                const legacyResult = await legacy.json();
-                return { 
-                    status: legacyResult.status || 'success', 
-                    message: 'Legacy model trained', 
-                    samples: legacyResult.samples_available || 0 
-                };
-            } catch (legacyErr) {
-                return {
-                    status: 'error',
-                    message: error.message,
-                    samples: 0
-                };
+                const ex = await fetch(`${this.API_BASE}/ai/explain/feature-importance`);
+                if (ex.ok) {
+                    this.lastExplanation = await ex.json();
+                    if (typeof this.renderFeatureImportance === 'function') {
+                        this.renderFeatureImportance('aiExplainPanel', this.lastExplanation);
+                    }
+                }
+            } catch (_) {}
+
+            return { success: true, ...data };
+        } catch (e) {
+            console.error(e);
+            if (typeof showNotification === 'function') {
+                showNotification('Обучение', e.message || String(e), 'error');
             }
+            return { success: false, error: String(e) };
         } finally {
             this.trainingInProgress = false;
+            if (typeof hideLoading === 'function') hideLoading();
         }
     }
 

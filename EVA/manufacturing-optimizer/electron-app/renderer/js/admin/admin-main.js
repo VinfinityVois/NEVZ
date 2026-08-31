@@ -20,6 +20,43 @@ const AdminState = {
     draggedWorkerId: null
 };
 
+window.__BOOTSTRAP__ = null;
+
+function applyBootstrapCache(cache) {
+  if (!cache || !cache.ready) return false;
+  window.__BOOTSTRAP__ = cache;
+
+  const ops = (cache.operations || []).slice().sort((a, b) => (a.id || 0) - (b.id || 0));
+  allOperationsCache = ops;
+  window.allOperationsCache = ops;
+  if (typeof filteredOperationsCache !== 'undefined') {
+    filteredOperationsCache = [...ops];
+  }
+
+  AdminState.operations = ops;
+  AdminState.brigades = cache.brigades || [];
+  AdminState.workers = cache.workers || [];
+
+  console.log('[bootstrap] applied', {
+    ops: ops.length,
+    brigades: AdminState.brigades.length,
+    workers: AdminState.workers.length,
+    at: cache.loadedAt,
+  });
+  return ops.length > 0 || AdminState.brigades.length > 0;
+}
+
+async function tryLoadFromBootstrap() {
+  try {
+    if (!window.electronAPI?.bootstrap?.wait) return false;
+    const cache = await window.electronAPI.bootstrap.wait();
+    return applyBootstrapCache(cache);
+  } catch (e) {
+    console.warn('[bootstrap] wait failed', e);
+    return false;
+  }
+}
+
 function persistAIPaths() {
     try {
       localStorage.setItem('aiCriticalPath', JSON.stringify(AdminState.aiCriticalPath || []));
@@ -265,24 +302,40 @@ let graphFilters = {
 };
 
 async function initAdmin() {
-    console.log('[Admin] 🚀 Инициализация...');
-    restoreAIPaths();
-    setupEventListeners();
-    setupFileInput();
-    initSidebarBehavior();
-    await loadAllData();
+  console.log('[Admin] 🚀 Инициализация...');
+  restoreAIPaths();
+  setupEventListeners();
+  setupFileInput();
+  initSidebarBehavior();
 
-    // после DOM/данных — восстановить рекомендации, gaps, plan
-    restoreAiPanelSnapshot();
-
+  // 1) данные со старта приложения (main.js bootstrap)
+  const fromBoot = await tryLoadFromBootstrap();
+  if (fromBoot) {
     try {
-      await aiPanel.loadFeatureImportance?.();
+      if (typeof updateDashboardCards === 'function') {
+        updateDashboardCards(allOperationsCache, AdminState.brigades || []);
+      }
     } catch (e) {
-      console.warn('explain on init', e);
+      console.warn('dashboard from bootstrap', e);
     }
+    // фоновое обновление без блокировки UI
+    window.electronAPI?.bootstrap?.refresh?.(['operations', 'brigades', 'workers'])
+      .then((c) => applyBootstrapCache(c))
+      .catch(() => {});
+  } else {
+    // 2) как раньше — если кэш пуст
+    await loadAllData();
+  }
 
-    console.log('[Admin] ✅ Готово!');
-    showNotification('Добро пожаловать!', 'Админ-панель загружена', 'success');
+  restoreAiPanelSnapshot();
+  try {
+    await aiPanel.loadFeatureImportance?.();
+  } catch (e) {
+    console.warn('explain on init', e);
+  }
+
+  console.log('[Admin] ✅ Готово!');
+  showNotification('Добро пожаловать!', 'Админ-панель загружена', 'success');
 }
 
 // function setupEventListeners() {

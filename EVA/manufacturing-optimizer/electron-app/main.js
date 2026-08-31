@@ -16,6 +16,20 @@ let loginWindow = null;
 let adminWindow = null;
 let pythonProcess = null;
 
+/** Кэш данных со старта (до открытия админки) */
+let bootstrapCache = {
+  ready: false,
+  loading: false,
+  error: null,
+  loadedAt: null,
+  health: null,
+  operations: [],
+  brigades: [],
+  workers: [],
+  brigadeGroups: [],
+  aiStatus: null,
+};
+
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
@@ -66,6 +80,90 @@ async function waitForPythonApi(maxRetries = 30) {
     }
     return false;
 }
+
+async function fetchJson(url, timeoutMs = 15000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`);
+    return await res.json();
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function bootstrapAppData() {
+  if (bootstrapCache.loading) return bootstrapCache;
+  bootstrapCache.loading = true;
+  bootstrapCache.error = null;
+  log('INFO', 'Bootstrap: loading data...');
+  try {
+    const [health, operations, brigades, workers, groups, aiStatus] = await Promise.all([
+      fetchJson(`${PYTHON_API_URL}/health`).catch(() => ({ status: 'unknown' })),
+      fetchJson(`${PYTHON_API_URL}/operations`).catch(() => []),
+      fetchJson(`${PYTHON_API_URL}/brigades`).catch(() => []),
+      fetchJson(`${PYTHON_API_URL}/workers`).catch(() => []),
+      fetchJson(`${PYTHON_API_URL}/brigade-groups`).catch(() => []),
+      fetchJson(`${PYTHON_API_URL}/ai/status`).catch(() => null),
+    ]);
+
+    const asArr = (x) => (Array.isArray(x) ? x : (x?.items || x?.data || []));
+
+    bootstrapCache = {
+      ready: true,
+      loading: false,
+      error: null,
+      loadedAt: new Date().toISOString(),
+      health,
+      operations: asArr(operations),
+      brigades: asArr(brigades),
+      workers: asArr(workers),
+      brigadeGroups: asArr(groups),
+      aiStatus,
+    };
+    log(
+      'INFO',
+      `Bootstrap OK: ops=${bootstrapCache.operations.length} brigades=${bootstrapCache.brigades.length}`
+    );
+  } catch (e) {
+    bootstrapCache.loading = false;
+    bootstrapCache.ready = false;
+    bootstrapCache.error = e.message || String(e);
+    log('ERROR', 'Bootstrap failed:', bootstrapCache.error);
+  }
+  return bootstrapCache;
+}
+
+async function refreshBootstrapPartial(keys) {
+  const map = {
+    operations: '/operations',
+    brigades: '/brigades',
+    workers: '/workers',
+    brigadeGroups: '/brigade-groups',
+    health: '/health',
+    aiStatus: '/ai/status',
+  };
+  const asArr = (x) => (Array.isArray(x) ? x : (x?.items || x?.data || []));
+  for (const k of keys || Object.keys(map)) {
+    if (!map[k]) continue;
+    try {
+      const data = await fetchJson(`${PYTHON_API_URL}${map[k]}`);
+      if (k === 'operations') bootstrapCache.operations = asArr(data);
+      else if (k === 'brigades') bootstrapCache.brigades = asArr(data);
+      else if (k === 'workers') bootstrapCache.workers = asArr(data);
+      else if (k === 'brigadeGroups') bootstrapCache.brigadeGroups = asArr(data);
+      else if (k === 'health') bootstrapCache.health = data;
+      else if (k === 'aiStatus') bootstrapCache.aiStatus = data;
+    } catch (e) {
+      log('WARN', 'refreshBootstrap', k, e.message);
+    }
+  }
+  bootstrapCache.loadedAt = new Date().toISOString();
+  bootstrapCache.ready = true;
+  return bootstrapCache;
+}
+
 
 async function startPythonBackend() {
     if (await isPortInUse(8000)) {
@@ -210,7 +308,24 @@ function registerIpcHandlers() {
             return res.ok ? res.json() : { status: 'error' };
         } catch (e) { return { status: 'offline', message: e.message }; }
     });
-    
+
+    ipcMain.handle('bootstrap:get', () => bootstrapCache);
+
+    ipcMain.handle('bootstrap:refresh', async (_e, keys) => {
+      return refreshBootstrapPartial(keys);
+    });
+
+    ipcMain.handle('bootstrap:wait', async () => {
+      if (bootstrapCache.ready) return bootstrapCache;
+      if (!bootstrapCache.loading) await bootstrapAppData();
+      let n = 0;
+      while (bootstrapCache.loading && n < 40) {
+        await new Promise((r) => setTimeout(r, 250));
+        n++;
+      }
+      return bootstrapCache;
+    });
+
     ipcMain.handle('select-excel-file', async () => {
         const result = await dialog.showOpenDialog({
             properties: ['openFile'],
@@ -224,9 +339,14 @@ app.whenReady().then(async () => {
     log('INFO', 'Starting Manufacturing Optimizer v' + APP_VERSION);
   
     await startPythonBackend();
-    await waitForPythonApi();
+    const apiOk = await waitForPythonApi();
   
     registerIpcHandlers();
+
+    // Данные грузим СРАЗУ, ещё на splash/login — не ждать админку
+    if (apiOk) {
+      bootstrapAppData().catch((e) => log('ERROR', 'bootstrap', e));
+    }
   
     ipcMain.once('splash-done', () => {
       if (splash && !splash.isDestroyed()) splash.close();

@@ -42,7 +42,13 @@ try {
         storage: {
             set: (k, v) => localStorage.setItem(`mfg_${k}`, JSON.stringify(v)),
             get: (k, d = null) => { try { const v = localStorage.getItem(`mfg_${k}`); return v ? JSON.parse(v) : d; } catch { return d; } }
-        }
+        },
+
+        bootstrap: {
+            get: () => ipcRenderer.invoke('bootstrap:get'),
+            wait: () => ipcRenderer.invoke('bootstrap:wait'),
+            refresh: (keys) => ipcRenderer.invoke('bootstrap:refresh', keys),
+        },
         
     });
     

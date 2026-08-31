@@ -4,7 +4,7 @@ AI Endpoints — API для работы с ИИ-движком планиров
 
 from typing import List, Dict, Optional, Any
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, UploadFile, File
 from pydantic import BaseModel, Field
 import json
 import logging
@@ -13,6 +13,82 @@ import sqlite3
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+# --- Real-data ML pipeline (no synthetic rows) ---
+try:
+    from ai.training_data_pipeline import (
+        load_operations_from_db,
+        build_samples_from_rows,
+        sync_samples_to_training_table,
+        load_samples_from_training_table,
+        analyze_operations,
+        row_to_sample,
+    )
+except ImportError:
+    try:
+        from training_data_pipeline import (
+            load_operations_from_db,
+            build_samples_from_rows,
+            sync_samples_to_training_table,
+            load_samples_from_training_table,
+            analyze_operations,
+            row_to_sample,
+        )
+    except ImportError:
+        load_operations_from_db = None
+        build_samples_from_rows = None
+        sync_samples_to_training_table = None
+        load_samples_from_training_table = None
+        analyze_operations = None
+        row_to_sample = None
+        logger.warning("training_data_pipeline not found — /ai/data/quality & train-from-db limited")
+
+
+# --- Plan compare / horizons / lifecycle import ---
+try:
+    from ai.plan_compare import (
+        normalize_horizon,
+        horizon_window,
+        filter_tasks_by_horizon,
+        extract_plan_metrics,
+        compare_plans,
+        tasks_from_document_stub,
+        save_snapshot,
+        get_snapshot,
+        list_snapshots,
+        HORIZON_DAYS,
+    )
+except ImportError:
+    try:
+        from plan_compare import (
+            normalize_horizon,
+            horizon_window,
+            filter_tasks_by_horizon,
+            extract_plan_metrics,
+            compare_plans,
+            tasks_from_document_stub,
+            save_snapshot,
+            get_snapshot,
+            list_snapshots,
+            HORIZON_DAYS,
+        )
+    except ImportError:
+        normalize_horizon = None
+        horizon_window = None
+        filter_tasks_by_horizon = None
+        extract_plan_metrics = None
+        compare_plans = None
+        tasks_from_document_stub = None
+        save_snapshot = None
+        get_snapshot = None
+        list_snapshots = None
+        HORIZON_DAYS = {
+            "day": 1, "week": 7, "month": 30, "quarter": 90,
+            "half_year": 182, "year": 365,
+        }
+        logger.warning("plan_compare not found — /ai/plan/* limited")
+
+
 
 try:
     from db_adapter import build_ai_plan_from_db, get_historical_for_ml
@@ -126,7 +202,11 @@ class BuildPlanRequest(BaseModel):
     tasks: List[TaskIn]
     brigades: List[BrigadeIn]
     resources: List[ResourceIn] = []
-    horizon: str = Field("month", pattern="^(year|half_year|month)$")
+    horizon: str = Field(
+        "year",
+        pattern="^(day|week|month|quarter|three_months|half_year|year)$",
+        description="day|week|month|quarter(3 months)|half_year|year — year is default priority",
+    )
     start_date: Optional[str] = None
     do_leveling: bool = True
     constraints: Optional[Dict[str, Any]] = None
@@ -172,6 +252,7 @@ def build_plan(req: BuildPlanRequest):
     - Critical Path
     - Resource Leveling
     - анализ узких мест
+    - окно горизонта day|week|month|quarter|half_year|year
     """
     engine = get_engine()
 
@@ -180,20 +261,32 @@ def build_plan(req: BuildPlanRequest):
         brigades = [b.dict() for b in req.brigades]
         resources = [r.dict() for r in req.resources]
 
+        horizon = req.horizon
+        if normalize_horizon:
+            horizon = normalize_horizon(req.horizon)
+        if filter_tasks_by_horizon:
+            tasks = filter_tasks_by_horizon(tasks, horizon, req.start_date)
+
         plan = engine.build_plan(
             tasks=tasks,
             resources=resources,
             brigades=brigades,
-            horizon=req.horizon,
+            horizon=horizon,
             start_date=req.start_date,
             constraints=req.constraints,
             do_leveling=req.do_leveling
         )
+        plan["horizon"] = horizon
+        if horizon_window:
+            plan["horizon_window"] = horizon_window(horizon, req.start_date)
+        if extract_plan_metrics:
+            plan["metrics"] = extract_plan_metrics(plan)
 
         return {
             "success": True,
             "plan": plan,
-            "recommendations": engine.get_recommendations(plan)
+            "recommendations": engine.get_recommendations(plan),
+            "metrics": plan.get("metrics"),
         }
     except Exception as e:
         logger.exception("Ошибка построения плана")
@@ -262,13 +355,18 @@ def analyze_bottlenecks(
 
 @router.get("/explain")
 def explain_last_decision(decision_id: Optional[str] = None):
-    fi = engine.predictor.get_delay_explanation()
-    return {
-        "status": "ok",
-        "decision_id": decision_id,
-        "feature_importance": fi,
-        "note": "Глобальная важность признаков delay_model (не локальный SHAP по одной задаче)",
-    }
+    try:
+        engine = get_engine()
+        fi = engine.predictor.get_delay_explanation()
+        return {
+            "status": "ok",
+            "decision_id": decision_id,
+            "feature_importance": fi,
+            "note": "Глобальная важность признаков delay_model (не локальный SHAP по одной задаче)",
+        }
+    except Exception as e:
+        logger.exception("explain")
+        return {"status": "error", "decision_id": decision_id, "detail": str(e), "features": []}
 
 @router.get("/explain/feature-importance")
 def explain_feature_importance():
@@ -294,256 +392,153 @@ def explain_feature_importance():
         }
 # ====================== Синхронизация данных ======================
 
+
+# ====================== Данные и обучение (только факты из operations) ======================
+
+@router.get("/data/quality")
+def data_quality():
+    """
+    Анализ operations: сколько строк реально пригодно для ML.
+    Ничего не выдумывает — только счётчики по БД.
+    """
+    path = get_db_path()
+    if load_operations_from_db is None or analyze_operations is None:
+        return {
+            "status": "error",
+            "message": "training_data_pipeline не установлен",
+            "db_path": path,
+            "trainable_samples": 0,
+            "ready_to_train": False,
+        }
+    try:
+        rows = load_operations_from_db(path)
+        report = analyze_operations(rows)
+        return {"status": "ok", "db_path": path, **report}
+    except Exception as e:
+        logger.exception("data_quality")
+        return {"status": "error", "message": str(e), "trainable_samples": 0, "ready_to_train": False}
+
+
 @router.post("/sync-training-data")
 def sync_training_data():
     """
-    Синхронизирует реальные завершённые операции в ai_training_data
-    для последующего обучения модели прогноза задержек.
-
-    ВАЖНО: берём только операции, у которых реально проставлена
-    actual_end (см. PUT /operations/{id} — она теперь заполняется
-    автоматически при переводе статуса в 'completed'). Без этого
-    actual_delay_days всегда был бы 0, и модель училась бы
-    предсказывать «задержки никогда не будет» — то есть ничему
-    полезному на самом деле не училась бы.
+    Синхронизирует ai_training_data ТОЛЬКО из completed + actual_end.
+    Без seed и без случайных задержек.
     """
-    db_path = get_db_path()
+    path = get_db_path()
+    if load_operations_from_db is None or build_samples_from_rows is None:
+        return {"success": False, "error": "training_data_pipeline не установлен", "samples": 0}
     try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-
-        cursor.execute("PRAGMA table_info(operations)")
-        columns = [c[1] for c in cursor.fetchall()]
-
-        if not columns:
-            conn.close()
-            return {"success": False, "error": "Таблица operations не найдена"}
-
-        required = {'end_date', 'actual_end', 'status'}
-        missing = required - set(columns)
-        if missing:
-            conn.close()
-            return {
-                "success": False,
-                "error": f"В таблице operations нет колонок: {', '.join(missing)}"
-            }
-
-        cursor.execute("DROP TABLE IF EXISTS ai_training_data")
-
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS ai_training_data (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                operation_id INTEGER, op_number INTEGER, name TEXT,
-                duration REAL, labor_hours REAL, people_count INTEGER,
-                priority TEXT DEFAULT 'medium', status TEXT, brigade_id INTEGER,
-                start_date TEXT, end_date TEXT, actual_delay_days REAL DEFAULT 0,
-                is_critical INTEGER DEFAULT 0, total_float REAL DEFAULT 0,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-
-        # Реальный сигнал: только завершённые операции с фактической
-        # датой окончания. actual_delay_days считаем прямо в SQL как
-        # разницу между фактом и планом (не даём уйти в минус, чтобы не
-        # путать модель "досрочным" исполнением, которое сюда не о том).
-        cursor.execute(f"""
-            INSERT INTO ai_training_data
-                (operation_id, op_number, name, duration, labor_hours,
-                 people_count, priority, status, brigade_id,
-                 start_date, end_date, actual_delay_days)
-            SELECT
-                id, op_number, name, duration, labor_hours,
-                people_count, priority, status, brigade_id,
-                start_date, end_date,
-                MAX(0, julianday(actual_end) - julianday(end_date)) AS actual_delay_days
-            FROM operations
-            WHERE status = 'completed'
-              AND actual_end IS NOT NULL
-              AND end_date IS NOT NULL
-            LIMIT 5000
-        """)
-        conn.commit()
-
-        cursor.execute("SELECT COUNT(*) FROM ai_training_data")
-        count = cursor.fetchone()[0]
-
-        conn.close()
-
-        if count == 0:
-            return {
-                "success": True,
-                "samples": 0,
-                "message": (
-                    "Синхронизировано 0 записей — пока ни одна операция не "
-                    "завершена с проставленной фактической датой (actual_end). "
-                    "Данные появятся по мере того, как бригады будут закрывать "
-                    "реальные работы."
-                )
-            }
-
-        return {"success": True, "samples": count, "message": f"Данные синхронизированы. Записей: {count}"}
+        rows = load_operations_from_db(path)
+        samples, analysis = build_samples_from_rows(rows)
+        n = sync_samples_to_training_table(path, samples)
+        return {
+            "success": True,
+            "samples": n,
+            "analysis": analysis,
+            "message": analysis.get("message") or f"Синхронизировано {n} образцов",
+        }
     except Exception as e:
-        logger.exception("sync_training_data error")
-        return {"success": False, "error": str(e), "detail": "Проверьте структуру таблицы operations"}
-# ====================== Обучение моделей ======================
-
-class HistoricalTask(BaseModel):
-    """Одна историческая запись для обучения"""
-    id: Optional[str] = None
-    duration_days: float = Field(..., gt=0)
-    priority: int = 1
-    required_skills: List[str] = []
-    dependencies: List[str] = []
-    total_float: float = 5.0
-    is_critical: bool = False
-    progress: float = Field(1.0, ge=0.0, le=1.0)
-    actual_delay_days: float = Field(..., ge=0.0, description="Фактическая задержка в днях")
-
-
-class TrainDelayModelRequest(BaseModel):
-    historical: List[HistoricalTask]
-    save: bool = True
+        logger.exception("sync_training_data")
+        return {"success": False, "error": str(e), "samples": 0}
 
 
 @router.post("/train/delay-model")
-def train_delay_model(req: TrainDelayModelRequest):
+def train_delay_model(req: dict = Body(default=None)):
     """
-    Обучить модель прогноза задержек на исторических данных.
-    
-    Нужно минимум ~20–30 записей.
-    После обучения модель автоматически сохраняется и начинает использоваться
-    в predict_task_delay.
+    Обучение на переданном historical[] (клиент/тесты).
+    Для цеха предпочтителен /train/delay-model-from-db.
     """
-    engine = get_engine()
-
-    if engine.predictor is None:
-        raise HTTPException(
-            status_code=503,
-            detail="Predictor не инициализирован"
-        )
-
-    try:
-        historical = [h.dict() for h in req.historical]
-        result = engine.predictor.train_delay_model(
-            historical=historical,
-            save=req.save
-        )
-
-        if not result.get("success"):
-            raise HTTPException(status_code=400, detail=result.get("message", "Ошибка обучения"))
-
-        return {
-            "success": True,
-            **result,
-            "trained_at": datetime.now().isoformat()
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception("Ошибка обучения модели задержек")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/train/delay-model-from-db")
-def train_delay_model_from_db():
-    """Обучить модель на данных из manufacturing.db (ai_training_data)"""
-    # Создаём таблицу если её нет (защита от "no such table")
-    db_path = get_db_path()
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS ai_training_data (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            operation_id INTEGER,
-            op_number INTEGER,
-            name TEXT,
-            duration REAL,
-            labor_hours REAL,
-            people_count INTEGER,
-            priority TEXT DEFAULT 'medium',
-            status TEXT,
-            brigade_id INTEGER,
-            start_date TEXT,
-            end_date TEXT,
-            actual_delay_days REAL DEFAULT 0,
-            is_critical INTEGER DEFAULT 0,
-            total_float REAL DEFAULT 0,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    conn.commit()
-    conn.close()
-    
-    engine = get_engine()
-    if engine.predictor is None:
-        raise HTTPException(status_code=503, detail="Predictor не инициализирован")
-
-    if get_historical_for_ml is None:
-        # Fallback — читаем напрямую из БД
-        try:
-            db_path = get_db_path()
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                SELECT operation_id, duration, priority, status, 
-                       actual_delay_days, is_critical, total_float
-                FROM ai_training_data
-                LIMIT 1000
-            """)
-            rows = cursor.fetchall()
-            conn.close()
-            
-            historical = []
-            for row in rows:
-                historical.append({
-                    "id": str(row[0]),
-                    "duration_days": float(row[1] or 1),
-                    "priority": 1,
-                    "required_skills": [],
-                    "dependencies": [],
-                    "total_float": float(row[6] or 5),
-                    "is_critical": bool(row[5]),
-                    "progress": 1.0,
-                    "actual_delay_days": float(row[4] or 0)
-                })
-            
-            if len(historical) < 20:
-                return {
-                    "success": False,
-                    "message": f"Недостаточно данных ({len(historical)}). "
-                               f"Сначала заполните таблицу ai_training_data "
-                               f"(POST /ai/sync-training-data)",
-                    "samples": len(historical)
-                }
-            
-            result = engine.predictor.train_delay_model(historical=historical, save=True)
-            return {
-                "success": True,
-                **result,
-                "trained_at": datetime.now().isoformat()
-            }
-            
-        except Exception as e:
-            logger.exception("DB training fallback error")
-            raise HTTPException(status_code=503, detail=f"DB adapter не найден и fallback ошибка: {e}")
-
-    historical = get_historical_for_ml()
-
+    req = req or {}
+    historical = req.get("historical") or []
+    if not historical:
+        raise HTTPException(status_code=400, detail="historical пуст — передайте факты или используйте from-db")
     if len(historical) < 20:
         return {
             "success": False,
-            "message": f"Недостаточно данных ({len(historical)}). "
-                       f"Сначала заполните таблицу ai_training_data "
-                       f"(POST /ai/sync-training-data или POST /seed-test-data)",
-            "samples": len(historical)
+            "message": f"Мало данных ({len(historical)}). Нужно ≥ 20.",
         }
-
+    engine = get_engine()
     result = engine.predictor.train_delay_model(historical=historical, save=True)
     return {
-        "success": True,
+        "success": bool(result.get("success", True)),
         **result,
-        "trained_at": datetime.now().isoformat()
+        "trained_at": datetime.now().isoformat(),
     }
+
+
+@router.post("/train/delay-model-from-db")
+def train_delay_model_from_db():
+    """
+    1) Пересобрать samples из operations (факты)
+    2) Обучить GBR + IsolationForest
+    3) При N < 20 — честный отказ с analysis
+    """
+    path = get_db_path()
+    if load_operations_from_db is None:
+        return {
+            "success": False,
+            "status": "error",
+            "detail": "training_data_pipeline не установлен",
+        }
+    try:
+        rows = load_operations_from_db(path)
+        samples, analysis = build_samples_from_rows(rows)
+        sync_samples_to_training_table(path, samples)
+
+        if len(samples) < 20:
+            return {
+                "success": False,
+                "status": "error",
+                "detail": analysis.get("message")
+                or f"Мало данных ({len(samples)}). Нужно ≥ 20 completed с actual_end.",
+                "analysis": analysis,
+            }
+
+        engine = get_engine()
+        result = engine.predictor.train_delay_model(historical=samples, save=True)
+        return {
+            "success": bool(result.get("success", True)),
+            **result,
+            "analysis": analysis,
+            "samples": len(samples),
+            "trained_at": datetime.now().isoformat(),
+        }
+    except Exception as e:
+        logger.exception("train_delay_model_from_db")
+        return {"success": False, "status": "error", "detail": str(e)}
+
+
+@router.post("/training/feedback")
+def training_feedback(payload: dict = Body(...)):
+    """
+    Online feedback: одна завершённая операция → дописать в ai_training_data.
+    Вызывается из PUT /operations при status=completed.
+    """
+    if row_to_sample is None or sync_samples_to_training_table is None:
+        return {"success": False, "detail": "pipeline missing"}
+    try:
+        path = get_db_path()
+        sample = row_to_sample(payload)
+        if sample is None:
+            return {
+                "success": False,
+                "detail": "строка не подходит (нужны completed + actual_end + план длительности)",
+                "accepted": False,
+            }
+        # дописать к существующим
+        existing = load_samples_from_training_table(path) if load_samples_from_training_table else []
+        # заменить по op_number если уже есть
+        opn = str(sample.get("op_number") or "")
+        merged = [s for s in existing if str(s.get("op_number") or "") != opn]
+        merged.append(sample)
+        n = sync_samples_to_training_table(path, merged)
+        return {"success": True, "accepted": True, "samples_total": n, "op_number": opn}
+    except Exception as e:
+        logger.exception("training_feedback")
+        return {"success": False, "detail": str(e)}
+
+
 
 @router.get("/models/status")
 def models_status():
@@ -1043,3 +1038,132 @@ async def apply_gap_links(payload: dict):
         "db": path,
         "ops_count": ops_count,
     }
+
+
+# ====================== Горизонты, снимки, сравнение планов, импорт ЖЦ ======================
+
+@router.get("/horizons")
+def list_horizons():
+    """Доступные горизонты планирования (year — приоритетный)."""
+    items = []
+    for k, v in (HORIZON_DAYS or {}).items():
+        if k == "three_months":
+            continue
+        items.append({"id": k, "days": v, "priority": k == "year"})
+    return {"status": "ok", "horizons": items, "default": "year"}
+
+
+@router.get("/plan/metrics/explain-float")
+def explain_float():
+    """Справка: как считаются резервы (Total Float / Free Float) в CPM."""
+    return {
+        "status": "ok",
+        "formulas": {
+            "EF": "EF = ES + duration",
+            "ES": "ES = max(EF predecessors) or 0",
+            "LF": "LF = min(LS successors) or T (project duration)",
+            "LS": "LS = LF - duration",
+            "total_float": "TF = LS - ES = LF - EF",
+            "free_float": "FF = min(ES_succ) - EF (if no successors: FF = TF)",
+            "critical": "is_critical ⇔ abs(TF) < 1e-6",
+        },
+        "fields": {
+            "time_reserve": "Поле operations (норматив / ручной ввод)",
+            "total_float": "Результат CPM после build_plan / calculate_cpm",
+        },
+        "code": "python-backend/cpm/critical_path.py",
+    }
+
+
+class SnapshotRequest(BaseModel):
+    name: str = "before"
+    plan: Dict[str, Any]
+    meta: Optional[Dict[str, Any]] = None
+
+
+@router.post("/plan/snapshot")
+def plan_snapshot(req: SnapshotRequest):
+    """Сохранить снимок плана (до или после оптимизации) для сравнения в %."""
+    if save_snapshot is None:
+        raise HTTPException(status_code=503, detail="plan_compare не установлен")
+    return save_snapshot(req.name, req.plan, req.meta)
+
+
+@router.get("/plan/snapshots")
+def plan_snapshots_list():
+    if list_snapshots is None:
+        return {"status": "ok", "snapshots": []}
+    return {"status": "ok", "snapshots": list_snapshots()}
+
+
+class CompareBody(BaseModel):
+    before: Optional[Dict[str, Any]] = None
+    after: Optional[Dict[str, Any]] = None
+    before_name: Optional[str] = "before"
+    after_name: Optional[str] = "after"
+
+
+@router.post("/plan/compare")
+def plan_compare_endpoint(req: CompareBody):
+    """
+    Сравнение двух планов: абсолюты + pct_change.
+    Можно передать JSON before/after или имена снимков.
+    """
+    if compare_plans is None:
+        raise HTTPException(status_code=503, detail="plan_compare не установлен")
+    before = req.before
+    after = req.after
+    if before is None:
+        snap = get_snapshot(req.before_name or "before") if get_snapshot else None
+        if not snap:
+            raise HTTPException(status_code=404, detail="Нет снимка before")
+        before = snap.get("plan") or snap.get("metrics")
+    if after is None:
+        snap = get_snapshot(req.after_name or "after") if get_snapshot else None
+        if not snap:
+            raise HTTPException(status_code=404, detail="Нет снимка after")
+        after = snap.get("plan") or snap.get("metrics")
+    return compare_plans(before, after)
+
+
+@router.post("/plan/import-lifecycle")
+async def import_lifecycle_plan(file: UploadFile = File(...)):
+    """
+    Импорт плана ЖЦ из файла.
+    Excel/CSV — полноценно; PDF/Word — сообщение о разработке.
+    """
+    if tasks_from_document_stub is None:
+        raise HTTPException(status_code=503, detail="plan_compare не установлен")
+    content = await file.read()
+    result = tasks_from_document_stub(file.filename or "upload.xlsx", content)
+    if not result.get("success"):
+        return result
+    try:
+        from cpm.critical_path import CriticalPathCalculator
+        calc = CriticalPathCalculator()
+        cpm_tasks = []
+        for t in result.get("tasks") or []:
+            cpm_tasks.append({
+                "id": str(t["id"]),
+                "name": t.get("name"),
+                "duration": float(t.get("duration_days") or t.get("duration") or 1),
+                "dependencies": t.get("dependencies")
+                    or [str(x) for x in (t.get("prev_ops") or [])],
+                "brigade_id": t.get("brigade_id"),
+            })
+        cpm = calc.calculate(cpm_tasks)
+        if extract_plan_metrics:
+            result["metrics"] = extract_plan_metrics({
+                **cpm,
+                "tasks": cpm.get("tasks") or [],
+                "gaps": {"count": 0},
+            })
+        else:
+            result["cpm"] = {
+                "project_duration_days": cpm.get("project_duration_days"),
+                "critical_path_ids": cpm.get("critical_path_ids"),
+            }
+    except Exception as e:
+        result["cpm_error"] = str(e)
+    return result
+

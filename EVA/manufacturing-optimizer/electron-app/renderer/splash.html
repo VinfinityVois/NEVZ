@@ -52,17 +52,29 @@ body{height:100vh;overflow:hidden;background:#020617;color:#fff;font-family:syst
   <div class="pct" id="pct">0%</div>
 </div>
 <script>
-  const el = document.getElementById('pct');
-  let p = 0;
-  const t = setInterval(() => {
-    p = Math.min(100, p + 2 + Math.random() * 4);
-    el.textContent = Math.floor(p) + '%';
-    if (p >= 100) clearInterval(t);
-  }, 50);
-  setTimeout(() => {
-    if (window.electronAPI?.splashDone) window.electronAPI.splashDone();
-    else location.href = 'index.html';
-  }, 2800);
-</script>
+  (async () => {
+    const el = document.getElementById('pct');
+    let p = 0;
+    const tick = setInterval(() => {
+      p = Math.min(90, p + 3);
+      if (el) el.textContent = Math.floor(p) + '%';
+    }, 80);
+  
+    try {
+      if (window.electronAPI?.bootstrap?.wait) {
+        await window.electronAPI.bootstrap.wait();
+      } else {
+        await new Promise((r) => setTimeout(r, 2500));
+      }
+    } catch (_) {}
+  
+    clearInterval(tick);
+    if (el) el.textContent = '100%';
+    setTimeout(() => {
+      if (window.electronAPI?.splashDone) window.electronAPI.splashDone();
+      else location.href = 'index.html';
+    }, 200);
+  })();
+  </script>
 </body>
 </html>
