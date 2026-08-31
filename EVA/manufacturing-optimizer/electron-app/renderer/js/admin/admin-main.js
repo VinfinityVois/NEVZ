@@ -26,12 +26,15 @@ function applyBootstrapCache(cache) {
   if (!cache || !cache.ready) return false;
   window.__BOOTSTRAP__ = cache;
 
-  const ops = (cache.operations || []).slice().sort((a, b) => (a.id || 0) - (b.id || 0));
+  const ops = (cache.operations || [])
+    .slice()
+    .sort((a, b) => (a.id || 0) - (b.id || 0));
+
   allOperationsCache = ops;
   window.allOperationsCache = ops;
-  if (typeof filteredOperationsCache !== 'undefined') {
-    filteredOperationsCache = [...ops];
-  }
+  filteredOperationsCache = [...ops];
+  window.filteredOperationsCache = filteredOperationsCache;
+  totalOperations = ops.length;
 
   AdminState.operations = ops;
   AdminState.brigades = cache.brigades || [];
@@ -54,6 +57,74 @@ async function tryLoadFromBootstrap() {
   } catch (e) {
     console.warn('[bootstrap] wait failed', e);
     return false;
+  }
+}
+
+/**
+ * Отрисовка UI из кэша bootstrap (без повторного GET /operations).
+ */
+async function hydrateUiFromBootstrapCache() {
+  showLoading('Подготовка интерфейса...');
+  try {
+    if (typeof loadOperationsPageFromCache === 'function') {
+      loadOperationsPageFromCache(1);
+    }
+
+    let stats = null;
+    try {
+      stats = await api.getStatistics();
+    } catch (_) {
+      const ops = allOperationsCache || [];
+      stats = {
+        total_operations: ops.length,
+        completed: ops.filter((o) => o.status === 'completed').length,
+        in_progress: ops.filter((o) => o.status === 'in_progress').length,
+        pending: ops.filter((o) => o.status === 'pending').length,
+      };
+    }
+    if (typeof updateStats === 'function') updateStats(stats);
+
+    if (typeof updateDashboardCards === 'function') {
+      updateDashboardCards(allOperationsCache, AdminState.brigades || []);
+    }
+
+    try {
+      const cpm = await api.calculateCPM();
+      AdminState.criticalPath = cpm.critical_path || cpm.critical_path_ids || [];
+      restoreAIPaths();
+      const cpShow = AdminState.aiCriticalPath?.length
+        ? AdminState.aiCriticalPath
+        : AdminState.criticalPath;
+      if (typeof updateCriticalPathUI === 'function') {
+        updateCriticalPathUI({
+          critical_path: cpShow,
+          project_duration: cpm.project_duration || cpm.project_duration_days,
+          critical_path_length: Array.isArray(cpShow) ? cpShow.length : 0,
+        });
+      }
+    } catch (e) {
+      console.warn('CPM after bootstrap', e);
+      if (typeof updateCriticalPathUI === 'function') {
+        updateCriticalPathUI({
+          critical_path: AdminState.aiCriticalPath || [],
+          project_duration: 0,
+          critical_path_length: (AdminState.aiCriticalPath || []).length,
+        });
+      }
+    }
+
+    if (typeof populateWorkerBrigadeFilter === 'function') populateWorkerBrigadeFilter();
+    if (typeof updateWorkersCache === 'function') updateWorkersCache();
+    if (typeof populateFilters === 'function') populateFilters();
+    if (typeof renderAll === 'function') renderAll();
+    if (typeof renderCharts === 'function') renderCharts();
+    try {
+      if (typeof loadAIRecommendations === 'function') await loadAIRecommendations();
+    } catch (e) {
+      console.warn('AI recs after bootstrap', e);
+    }
+  } finally {
+    hideLoading();
   }
 }
 
@@ -308,22 +379,21 @@ async function initAdmin() {
   setupFileInput();
   initSidebarBehavior();
 
-  // 1) данные со старта приложения (main.js bootstrap)
   const fromBoot = await tryLoadFromBootstrap();
   if (fromBoot) {
-    try {
-      if (typeof updateDashboardCards === 'function') {
-        updateDashboardCards(allOperationsCache, AdminState.brigades || []);
-      }
-    } catch (e) {
-      console.warn('dashboard from bootstrap', e);
-    }
-    // фоновое обновление без блокировки UI
+    console.log('[Admin] UI from bootstrap cache');
+    await hydrateUiFromBootstrapCache();
     window.electronAPI?.bootstrap?.refresh?.(['operations', 'brigades', 'workers'])
-      .then((c) => applyBootstrapCache(c))
+      .then((c) => {
+        if (applyBootstrapCache(c)) {
+          if (typeof updateDashboardCards === 'function') {
+            updateDashboardCards(allOperationsCache, AdminState.brigades || []);
+          }
+        }
+      })
       .catch(() => {});
   } else {
-    // 2) как раньше — если кэш пуст
+    console.log('[Admin] bootstrap empty → loadAllData');
     await loadAllData();
   }
 

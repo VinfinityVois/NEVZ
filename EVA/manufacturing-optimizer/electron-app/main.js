@@ -30,6 +30,26 @@ let bootstrapCache = {
   aiStatus: null,
 };
 
+
+function broadcastBootstrapProgress(payload) {
+  const data = {
+    ...payload,
+    operations: (bootstrapCache.operations && bootstrapCache.operations.length) || 0,
+    brigades: (bootstrapCache.brigades && bootstrapCache.brigades.length) || 0,
+    workers: (bootstrapCache.workers && bootstrapCache.workers.length) || 0,
+    groups: (bootstrapCache.brigadeGroups && bootstrapCache.brigadeGroups.length) || 0,
+    ready: !!bootstrapCache.ready,
+    loading: !!bootstrapCache.loading,
+  };
+  for (const win of BrowserWindow.getAllWindows()) {
+    try {
+      if (!win.isDestroyed()) win.webContents.send('bootstrap:progress', data);
+    } catch (_) {}
+  }
+}
+
+const stepPause = (ms = 700) => new Promise((r) => setTimeout(r, ms));
+
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
@@ -95,33 +115,87 @@ async function fetchJson(url, timeoutMs = 15000) {
 
 async function bootstrapAppData() {
   if (bootstrapCache.loading) return bootstrapCache;
+
   bootstrapCache.loading = true;
+  bootstrapCache.ready = false;
   bootstrapCache.error = null;
-  log('INFO', 'Bootstrap: loading data...');
+  bootstrapCache.operations = [];
+  bootstrapCache.brigades = [];
+  bootstrapCache.workers = [];
+  bootstrapCache.brigadeGroups = [];
+  bootstrapCache.aiStatus = null;
+
+  const asArr = (x) => (Array.isArray(x) ? x : (x?.items || x?.data || []));
+
+  log('INFO', 'Bootstrap: step by step...');
+  broadcastBootstrapProgress({ stage: 'start', message: 'Подключение к API…', pct: 5 });
+  await stepPause(500);
+
   try {
-    const [health, operations, brigades, workers, groups, aiStatus] = await Promise.all([
-      fetchJson(`${PYTHON_API_URL}/health`).catch(() => ({ status: 'unknown' })),
-      fetchJson(`${PYTHON_API_URL}/operations`).catch(() => []),
-      fetchJson(`${PYTHON_API_URL}/brigades`).catch(() => []),
-      fetchJson(`${PYTHON_API_URL}/workers`).catch(() => []),
-      fetchJson(`${PYTHON_API_URL}/brigade-groups`).catch(() => []),
-      fetchJson(`${PYTHON_API_URL}/ai/status`).catch(() => null),
-    ]);
+    broadcastBootstrapProgress({ stage: 'health', message: 'Проверка сервера…', pct: 10 });
+    bootstrapCache.health = await fetchJson(`${PYTHON_API_URL}/health`).catch(() => ({ status: 'unknown' }));
+    await stepPause(400);
 
-    const asArr = (x) => (Array.isArray(x) ? x : (x?.items || x?.data || []));
+    broadcastBootstrapProgress({ stage: 'operations', message: 'Загрузка операций…', pct: 20 });
+    await stepPause(500);
+    bootstrapCache.operations = asArr(
+      await fetchJson(`${PYTHON_API_URL}/operations`).catch(() => [])
+    );
+    broadcastBootstrapProgress({
+      stage: 'operations_done',
+      message: `Операции: ${bootstrapCache.operations.length}`,
+      pct: 40,
+    });
+    await stepPause(800);
 
-    bootstrapCache = {
-      ready: true,
-      loading: false,
-      error: null,
-      loadedAt: new Date().toISOString(),
-      health,
-      operations: asArr(operations),
-      brigades: asArr(brigades),
-      workers: asArr(workers),
-      brigadeGroups: asArr(groups),
-      aiStatus,
-    };
+    broadcastBootstrapProgress({ stage: 'brigades', message: 'Загрузка бригад…', pct: 50 });
+    await stepPause(500);
+    bootstrapCache.brigades = asArr(
+      await fetchJson(`${PYTHON_API_URL}/brigades`).catch(() => [])
+    );
+    broadcastBootstrapProgress({
+      stage: 'brigades_done',
+      message: `Бригады: ${bootstrapCache.brigades.length}`,
+      pct: 65,
+    });
+    await stepPause(800);
+
+    broadcastBootstrapProgress({ stage: 'workers', message: 'Загрузка сотрудников…', pct: 72 });
+    await stepPause(500);
+    bootstrapCache.workers = asArr(
+      await fetchJson(`${PYTHON_API_URL}/workers`).catch(() => [])
+    );
+    broadcastBootstrapProgress({
+      stage: 'workers_done',
+      message: `Сотрудники: ${bootstrapCache.workers.length}`,
+      pct: 85,
+    });
+    await stepPause(700);
+
+    broadcastBootstrapProgress({ stage: 'groups', message: 'Загрузка групп бригад…', pct: 90 });
+    await stepPause(400);
+    bootstrapCache.brigadeGroups = asArr(
+      await fetchJson(`${PYTHON_API_URL}/brigade-groups`).catch(() => [])
+    );
+    broadcastBootstrapProgress({
+      stage: 'groups_done',
+      message: `Группы: ${bootstrapCache.brigadeGroups.length}`,
+      pct: 95,
+    });
+    await stepPause(400);
+
+    bootstrapCache.aiStatus = await fetchJson(`${PYTHON_API_URL}/ai/status`).catch(() => null);
+
+    bootstrapCache.ready = true;
+    bootstrapCache.loading = false;
+    bootstrapCache.loadedAt = new Date().toISOString();
+
+    broadcastBootstrapProgress({
+      stage: 'done',
+      message: `Загружено: ${bootstrapCache.operations.length} операций, ${bootstrapCache.brigades.length} бригад, ${bootstrapCache.workers.length} сотрудников`,
+      pct: 100,
+    });
+
     log(
       'INFO',
       `Bootstrap OK: ops=${bootstrapCache.operations.length} brigades=${bootstrapCache.brigades.length}`
@@ -130,6 +204,11 @@ async function bootstrapAppData() {
     bootstrapCache.loading = false;
     bootstrapCache.ready = false;
     bootstrapCache.error = e.message || String(e);
+    broadcastBootstrapProgress({
+      stage: 'error',
+      message: 'Ошибка: ' + bootstrapCache.error,
+      pct: 100,
+    });
     log('ERROR', 'Bootstrap failed:', bootstrapCache.error);
   }
   return bootstrapCache;
@@ -343,24 +422,29 @@ app.whenReady().then(async () => {
   
     registerIpcHandlers();
 
-    // Данные грузим СРАЗУ, ещё на splash/login — не ждать админку
-    if (apiOk) {
-      bootstrapAppData().catch((e) => log('ERROR', 'bootstrap', e));
-    }
-  
     ipcMain.once('splash-done', () => {
       if (splash && !splash.isDestroyed()) splash.close();
       createLoginWindow();
     });
-  
+
+    // СНАЧАЛА splash (чтобы ловил progress)
     const splash = createSplashWindow();
-  
+    await new Promise((r) => setTimeout(r, 500));
+
+    // ПОТОМ пошаговая загрузка
+    if (apiOk) {
+      log('INFO', 'Bootstrap after splash visible...');
+      await bootstrapAppData();
+      log('INFO', 'Bootstrap finished');
+    }
+
     setTimeout(() => {
       if (splash && !splash.isDestroyed() && !loginWindow) {
+        log('WARN', 'Splash fallback timeout');
         splash.close();
         createLoginWindow();
       }
-    }, 4000);
+    }, 30000);
   });
 
 app.on('window-all-closed', () => {

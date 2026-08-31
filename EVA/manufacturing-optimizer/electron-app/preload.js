@@ -48,6 +48,11 @@ try {
             get: () => ipcRenderer.invoke('bootstrap:get'),
             wait: () => ipcRenderer.invoke('bootstrap:wait'),
             refresh: (keys) => ipcRenderer.invoke('bootstrap:refresh', keys),
+            onProgress: (cb) => {
+                const handler = (_event, data) => cb(data);
+                ipcRenderer.on('bootstrap:progress', handler);
+                return () => ipcRenderer.removeListener('bootstrap:progress', handler);
+            },
         },
         
     });
