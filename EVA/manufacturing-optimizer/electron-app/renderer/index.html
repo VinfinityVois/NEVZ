@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' http://127.0.0.1:8000 http://localhost:8000;"> -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' http://127.0.0.1:8000 http://localhost:8000;">
     <title>Manufacturing Optimizer · Вход</title>
     
@@ -141,10 +143,20 @@
             </form>
 
             <div id="tab-qr" style="display:none;text-align:center;padding:16px 0 8px;">
-                <canvas id="qrCanvas" width="180" height="180" style="margin:0 auto 12px;display:block;border-radius:12px;background:#fff;"></canvas>
-                <p id="qrHint" style="font-size:13px;color:#64748b;margin:0 0 8px;">Наведите камеру или подтвердите вход на телефоне</p>
-                <button type="button" id="qrRefreshBtn" class="login-button" style="width:auto;padding:8px 16px;font-size:13px;">Обновить QR</button>
-            </div>
+                <div id="qrWrap" style="width:180px;height:180px;margin:0 auto 12px;border-radius:50%;
+                     background:#0f172a;border:2px dashed #475569;display:flex;align-items:center;justify-content:center;
+                     overflow:hidden;position:relative;">
+                  <canvas id="qrCanvas" width="180" height="180" style="display:none;border-radius:50%;"></canvas>
+                  <div id="qrPlaceholder" style="text-align:center;padding:12px;color:#94a3b8;font-size:12px;line-height:1.4;">
+                    <div style="font-size:28px;margin-bottom:6px;">📷</div>
+                    QR не загружен
+                  </div>
+                </div>
+                <p id="qrHint" style="font-size:13px;color:#94a3b8;margin:0 0 10px;">Нажмите «Обновить QR»</p>
+                <button type="button" id="qrRefreshBtn" class="login-button" style="width:auto;padding:8px 16px;font-size:13px;">
+                  Обновить QR
+                </button>
+              </div>
             
             <!-- Статус подключения -->
             <div class="connection-status" id="connectionStatus">
