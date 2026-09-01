@@ -663,10 +663,110 @@ function renderReports() {
 }
 
 function fillSettings() {
-  setVal('bgName', State.user?.name);
-  setVal('bgLogin', State.user?.login);
-  setVal('bgBrigade', State.brigade?.name || brigadeName(State.brigadeId));
+  const u = State.user || {};
+  setVal('bgName', u.name);
+  setVal('bgLogin', u.login);
+  setVal('bgPosition', u.position || u.job_title || '');
+  setVal('bgBrigade', State.brigade?.name || brigadeName(State.brigadeId) || '');
+  setVal('bgEmail', u.email || '');
+  setVal('bgPhone', u.phone || '');
+  loadPersonalQr(false);
 }
+
+async function loadPersonalQr(force) {
+  const canvas = document.getElementById('bgQrCanvas');
+  const wrap = document.getElementById('bgQrWrap');
+  const uid = State.user?.id;
+  if (!uid) return;
+
+  try {
+    let res = await fetch(
+      API + '/auth/qr/my?worker_id=' + encodeURIComponent(uid) + (force ? '&refresh=1' : '')
+    );
+    if (!res.ok) {
+      res = await fetch(API + '/auth/qr/create', { method: 'POST' });
+    }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const token = data.token || data.qr_token || data.payload || data.code;
+    if (!token) throw new Error('нет token');
+
+    if (typeof QRCode !== 'undefined' && QRCode.toCanvas && canvas) {
+      canvas.style.display = 'block';
+      await QRCode.toCanvas(canvas, String(token), {
+        width: 160,
+        margin: 1,
+        color: { dark: '#0f172a', light: '#ffffff' },
+      });
+    } else if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, 160, 160);
+      ctx.fillStyle = '#334155';
+      ctx.font = '11px sans-serif';
+      ctx.fillText(String(token).slice(0, 18), 8, 80);
+    }
+    if (wrap) wrap.title = 'token: ' + String(token).slice(0, 12) + '…';
+  } catch (e) {
+    console.warn('[brig QR]', e);
+    alert('QR: ' + (e.message || e));
+  }
+}
+
+async function changeBrigPassword() {
+  const oldP = document.getElementById('bgOldPass')?.value || '';
+  const newP = document.getElementById('bgNewPass')?.value || '';
+  if (newP.length < 4) {
+    alert('Новый пароль не короче 4 символов');
+    return;
+  }
+  const uid = State.user?.id;
+  if (!uid) return;
+  try {
+    // как в auth_api: POST /auth/password
+    const res = await fetch(API + '/auth/password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        worker_id: uid,
+        old_password: oldP,
+        new_password: newP,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || 'HTTP ' + res.status);
+    alert('Пароль изменён');
+    const a = document.getElementById('bgOldPass');
+    const b = document.getElementById('bgNewPass');
+    if (a) a.value = '';
+    if (b) b.value = '';
+  } catch (e) {
+    alert('Пароль: ' + (e.message || e));
+  }
+}
+
+function sendBrigReport() {
+  const text = (document.getElementById('bgReportText')?.value || '').trim();
+  if (!text) {
+    alert('Напишите причину');
+    return;
+  }
+  const key = 'brig_reports_' + (State.user?.id || 'x');
+  const list = JSON.parse(localStorage.getItem(key) || '[]');
+  list.unshift({
+    at: new Date().toISOString(),
+    user_id: State.user?.id,
+    name: State.user?.name,
+    text,
+  });
+  localStorage.setItem(key, JSON.stringify(list.slice(0, 50)));
+  document.getElementById('bgReportText').value = '';
+  alert('Репорт сохранён (локально). Админ увидит после эндпоинта /auth/report.');
+}
+
+document.getElementById('bgQrRefreshBtn')?.addEventListener('click', () => loadPersonalQr(true));
+document.getElementById('bgChangePassBtn')?.addEventListener('click', changeBrigPassword);
+document.getElementById('bgReportBtn')?.addEventListener('click', sendBrigReport);
 
 async function checkHealth() {
   const cs = document.getElementById('connectionStatus');

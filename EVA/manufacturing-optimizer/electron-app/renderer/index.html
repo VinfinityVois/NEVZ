@@ -57,13 +57,11 @@
                 </div>
                 <p class="login-subtitle">Интеллектуальная оптимизация производства</p>
             </div>
-            <div class="login-tabs" style="display:flex;gap:8px;margin-bottom:16px;">
-                <button type="button" class="login-tab active" data-tab="pass"
-                    style="flex:1;padding:8px;border:1px solid #e2e8f0;border-radius:8px;background:#0961f6;color:#fff;cursor:pointer;">
+            <div class="login-tabs">
+                <button type="button" class="login-tab active" data-tab="pass">
                     Логин
                 </button>
-                <button type="button" class="login-tab" data-tab="qr"
-                    style="flex:1;padding:8px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;color:#334155;cursor:pointer;">
+                <button type="button" class="login-tab" data-tab="qr">
                     QR-код
                 </button>
             </div>
@@ -142,18 +140,16 @@
                 <div class="error-message" id="errorMessage"></div>
             </form>
 
-            <div id="tab-qr" style="display:none;text-align:center;padding:16px 0 8px;">
-                <div id="qrWrap" style="width:180px;height:180px;margin:0 auto 12px;border-radius:50%;
-                     background:#0f172a;border:2px dashed #475569;display:flex;align-items:center;justify-content:center;
-                     overflow:hidden;position:relative;">
-                  <canvas id="qrCanvas" width="180" height="180" style="display:none;border-radius:50%;"></canvas>
-                  <div id="qrPlaceholder" style="text-align:center;padding:12px;color:#94a3b8;font-size:12px;line-height:1.4;">
-                    <div style="font-size:28px;margin-bottom:6px;">📷</div>
+            <div id="tab-qr" class="qr-tab-panel" style="display:none;">
+                <div id="qrWrap" class="qr-frame">
+                  <canvas id="qrCanvas" width="180" height="180"></canvas>
+                  <div id="qrPlaceholder" class="qr-placeholder">
+                    <div class="qr-placeholder-icon">📷</div>
                     QR не загружен
                   </div>
                 </div>
-                <p id="qrHint" style="font-size:13px;color:#94a3b8;margin:0 0 10px;">Нажмите «Обновить QR»</p>
-                <button type="button" id="qrRefreshBtn" class="login-button" style="width:auto;padding:8px 16px;font-size:13px;">
+                <p id="qrHint" class="qr-hint">Нажмите «Обновить QR»</p>
+                <button type="button" id="qrRefreshBtn" class="login-button qr-refresh-btn">
                   Обновить QR
                 </button>
               </div>
@@ -672,12 +668,8 @@ document.getElementById('forgotPassword').addEventListener('click', async (e) =>
         btn.addEventListener('click', () => {
             document.querySelectorAll('.login-tab').forEach((b) => {
                 b.classList.remove('active');
-                b.style.background = '#fff';
-                b.style.color = '#334155';
             });
             btn.classList.add('active');
-            btn.style.background = '#0961f6';
-            btn.style.color = '#fff';
             const isQr = btn.dataset.tab === 'qr';
             document.getElementById('loginForm').style.display = isQr ? 'none' : '';
             document.getElementById('tab-qr').style.display = isQr ? 'block' : 'none';
