@@ -35,13 +35,15 @@ HORIZON_DAYS = {
 def get_db_path() -> str:
     here = Path(__file__).resolve().parent
     for p in (
+        here.parent / "data" / "manufacturing.db",  # EVA/.../data/manufacturing.db
+        here / "data" / "manufacturing.db",
         here / "manufacturing.db",
         here.parent / "manufacturing.db",
-        here / "data" / "manufacturing.db",
     ):
         if p.is_file():
             return str(p)
-    return str(here / "manufacturing.db")
+    # как в api.py
+    return str(here.parent / "data" / "manufacturing.db")
 
 
 def get_conn() -> sqlite3.Connection:
