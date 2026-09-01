@@ -183,48 +183,23 @@
                 
                 <!-- Статистика рабочего -->
                 <div class="card stats-card">
-                    <div class="card-header">
+                    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
                         <h2>
-                            <svg viewBox="0 0 20 20" fill="currentColor" class="header-icon">
-                                <rect x="3" y="3" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/>
-                                <path d="M6 13V9M10 13V6M14 13V11" stroke="currentColor" stroke-width="1.5"/>
-                            </svg>
+                            <!-- svg как был -->
                             Моя статистика
                         </h2>
+                        <label style="font-size:13px;display:flex;align-items:center;gap:8px;">
+                            План:
+                            <select id="horizonSelect" style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;">
+                                <option value="day">День</option>
+                                <option value="week" selected>Неделя</option>
+                                <option value="month">Месяц</option>
+                                <option value="quarter">3 месяца</option>
+                                <option value="half_year">Полгода</option>
+                                <option value="year">Год</option>
+                            </select>
+                        </label>
                     </div>
-                    
-                    <div class="card-body">
-                        <div class="stats-grid-worker">
-                            <div class="stat-item">
-                                <span class="stat-value" id="tasksCompleted">0</span>
-                                <span class="stat-label">Выполнено задач</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-value" id="totalHours">0</span>
-                                <span class="stat-label">Отработано часов</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-value" id="efficiency">0%</span>
-                                <span class="stat-label">Эффективность</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-value" id="tasksInQueue">0</span>
-                                <span class="stat-label">В очереди</span>
-                            </div>
-                        </div>
-                        
-                        <!-- Прогресс за смену -->
-                        <div class="shift-progress">
-                            <div class="progress-label">
-                                <span>Прогресс смены</span>
-                                <span id="shiftProgressText">0%</span>
-                            </div>
-                            <div class="progress-bar large">
-                                <div class="progress-fill" id="shiftProgressBar" style="width: 0%"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
             
             <!-- Центральная колонка - Очередь задач -->

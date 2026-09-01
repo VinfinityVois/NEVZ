@@ -121,6 +121,9 @@ try:
 
     from ai_endpoints import router as ai_router
     app.include_router(ai_router)
+    from auth_api import router as auth_router
+    app.include_router(auth_router)
+    print("[OK] Auth endpoints loaded")
     print("[OK] AI endpoints loaded, routes:", len(list(ai_router.routes)))
     for r in ai_router.routes:
         methods = getattr(r, "methods", None)

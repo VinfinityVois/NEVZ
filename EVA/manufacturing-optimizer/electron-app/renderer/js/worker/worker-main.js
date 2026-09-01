@@ -159,6 +159,45 @@ function cacheDomElements() {
 // ЗАГРУЗКА ДАННЫХ
 // ================================================================
 
+async function loadTasksFromApi() {
+    const auth = window.electronAPI?.storage?.get('auth');
+    const user = auth?.user;
+    const params = new URLSearchParams(window.location.search || '');
+    const workerId = user?.id || params.get('userId');
+    if (!workerId) {
+        console.warn('[Worker] нет workerId');
+        return;
+    }
+    WorkerState.horizon = WorkerState.horizon || 'week';
+    const res = await fetch(
+        'http://127.0.0.1:8000/auth/worker/' + workerId + '/dashboard?horizon=' + WorkerState.horizon
+    );
+    if (!res.ok) throw new Error('dashboard ' + res.status);
+    const data = await res.json();
+
+    WorkerState.user = data.worker;
+    WorkerState.brigadeId = data.worker?.brigade_id;
+    WorkerState.tasks = data.operations || [];
+    WorkerState.stats.completed = data.progress?.completed || 0;
+    WorkerState.stats.percent = data.progress?.percent || 0;
+
+    if (DOM.userName) DOM.userName.textContent = data.worker?.name || '—';
+    if (DOM.userBrigade) {
+        DOM.userBrigade.textContent =
+            (data.brigade && data.brigade.name) ||
+            ('Бригада #' + (data.worker?.brigade_id || '—'));
+    }
+    if (DOM.tasksCompleted) DOM.tasksCompleted.textContent = String(WorkerState.stats.completed);
+    if (DOM.efficiency) DOM.efficiency.textContent = WorkerState.stats.percent + '%';
+    if (DOM.shiftProgressText) DOM.shiftProgressText.textContent = WorkerState.stats.percent + '%';
+    if (DOM.shiftProgressBar) DOM.shiftProgressBar.style.width = WorkerState.stats.percent + '%';
+
+    WorkerState.currentTask =
+        WorkerState.tasks.find((t) => String(t.status).toLowerCase() === 'in_progress') || null;
+
+    if (typeof updateQueueCount === 'function') updateQueueCount();
+}
+
 async function loadWorkerData() {
     showLoading('Загрузка данных...');
     
@@ -170,7 +209,7 @@ async function loadWorkerData() {
         await loadBrigadeInfo();
         
         // Загружаем задачи
-        await loadTasks();
+        await loadTasksFromApi();
         
         // Загружаем историю
         await loadHistory();
@@ -471,6 +510,16 @@ function setupEventListeners() {
     
     // Очистка истории
     document.getElementById('clearHistoryBtn')?.addEventListener('click', clearHistory);
+
+    document.getElementById('horizonSelect')?.addEventListener('change', async (e) => {
+        WorkerState.horizon = e.target.value;
+        try {
+            await loadTasksFromApi();
+            if (typeof renderTasks === 'function') renderTasks();
+        } catch (err) {
+            console.error(err);
+        }
+    });
 }
 
 function subscribeToElectronEvents() {

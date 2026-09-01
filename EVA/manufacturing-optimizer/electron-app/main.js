@@ -14,6 +14,7 @@ const PYTHON_API_URL = 'http://127.0.0.1:8000';
 
 let loginWindow = null;
 let adminWindow = null;
+let workerWindow = null;
 let pythonProcess = null;
 
 /** Кэш данных со старта (до открытия админки) */
@@ -303,9 +304,14 @@ function registerIpcHandlers() {
     ipcMain.handle('get-python-status', checkPythonApi);
     
     ipcMain.handle('open-admin', () => {
-        createAdminWindow();
-        if (loginWindow) loginWindow.close();
-    });
+      createAdminWindow();
+      if (loginWindow && !loginWindow.isDestroyed()) loginWindow.close();
+  });
+
+  ipcMain.handle('open-worker', (_e, userId, brigadeId) => {
+      createWorkerWindow(userId, brigadeId);
+      if (loginWindow && !loginWindow.isDestroyed()) loginWindow.close();
+  });
     
        
     // Legacy AI
@@ -523,11 +529,43 @@ function blockDevShortcuts(win) {
     adminWindow.on('closed', () => { adminWindow = null; });
   }
   
+
+  function createWorkerWindow(userId, brigadeId) {
+    if (workerWindow && !workerWindow.isDestroyed()) {
+      workerWindow.focus();
+      return;
+    }
+    workerWindow = new BrowserWindow({
+      fullscreen: true,
+      autoHideMenuBar: true,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload.js'),
+        devTools: false
+      }
+    });
+    const q = new URLSearchParams({
+      userId: String(userId ?? ''),
+      brigadeId: String(brigadeId ?? ''),
+    }).toString();
+    workerWindow.loadFile(
+      path.join(__dirname, 'renderer', 'worker.html'),
+      { search: q }
+    );
+    blockDevShortcuts(workerWindow);
+    workerWindow.on('closed', () => { workerWindow = null; });
+  }
+  
   // logout: закрыть админ → открыть логин (не закрывать приложение)
   ipcMain.handle('logout', () => {
     if (adminWindow && !adminWindow.isDestroyed()) {
       adminWindow.close();
       adminWindow = null;
+    }
+    if (workerWindow && !workerWindow.isDestroyed()) {
+      workerWindow.close();
+      workerWindow = null;
     }
     if (!loginWindow || loginWindow.isDestroyed()) {
       createLoginWindow();

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' http://127.0.0.1:8000 http://localhost:8000;">
     <title>Manufacturing Optimizer · Вход</title>
     
     <!-- Стили -->
@@ -141,11 +141,9 @@
             </form>
 
             <div id="tab-qr" style="display:none;text-align:center;padding:16px 0 8px;">
-                <div style="width:160px;height:160px;margin:0 auto 12px;border:2px dashed #94a3b8;border-radius:12px;
-                            display:flex;align-items:center;justify-content:center;color:#64748b;font-size:13px;">
-                    QR · в разработке
-                </div>
-                <p style="font-size:13px;color:#64748b;margin:0;">Вход по QR появится позже</p>
+                <canvas id="qrCanvas" width="180" height="180" style="margin:0 auto 12px;display:block;border-radius:12px;background:#fff;"></canvas>
+                <p id="qrHint" style="font-size:13px;color:#64748b;margin:0 0 8px;">Наведите камеру или подтвердите вход на телефоне</p>
+                <button type="button" id="qrRefreshBtn" class="login-button" style="width:auto;padding:8px 16px;font-size:13px;">Обновить QR</button>
             </div>
             
             <!-- Статус подключения -->
@@ -467,47 +465,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 errorMessage.style.display = 'none';
                 
                 try {
-                    // Имитация задержки для плавности
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    
-                    // Здесь должен быть реальный запрос к API
-                    // Пока используем тестовые учётные данные
-                    if (login === 'admin' && password === 'admin123') {
-                        // Сохраняем логин если нужно
-                        if (document.getElementById('rememberMe').checked) {
-                            window.electronAPI.storage.set('saved_login', login);
-                        } else {
-                            window.electronAPI.storage.remove('saved_login');
-                        }
-                        
-                        // Открываем окно администратора
-                        await window.electronAPI.navigation.openAdmin();
-                        
-                        // Анимация успешного входа
-                        if (typeof anime !== 'undefined') {
-                            anime({
-                                targets: '.login-container',
-                                opacity: 0,
-                                scale: 0.95,
-                                duration: 400,
-                                easing: 'easeInCubic'
-                            });
-                        }
-                    } else {
+                    const res = await fetch('http://127.0.0.1:8000/auth/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ login, password }),
+                    });
+                    let data = {};
+                    try { data = await res.json(); } catch (_) {}
+
+                    if (!res.ok || !data.success) {
                         loginAttempts++;
-                        showError('Неверный логин или пароль');
+                        showError((data && data.detail) || 'Неверный логин или пароль');
                         showLoading(false);
-                        
-                        // Анимация ошибки
-                        if (typeof anime !== 'undefined') {
-                            anime({
-                                targets: '.login-form',
-                                translateX: [0, -10, 10, -5, 5, 0],
-                                duration: 400,
-                                easing: 'easeInOutQuad'
-                            });
-                        }
+                        return;
                     }
+
+                    if (document.getElementById('rememberMe').checked) {
+                        window.electronAPI.storage.set('saved_login', login);
+                    } else {
+                        window.electronAPI.storage.remove('saved_login');
+                    }
+                    window.electronAPI.storage.set('auth', {
+                        user: data.user,
+                        token: data.token,
+                    });
+
+                    if (data.user.role === 'admin') {
+                        await window.electronAPI.navigation.openAdmin();
+                    } else {
+                        await window.electronAPI.navigation.openWorker(
+                            data.user.id,
+                            data.user.brigade_id
+                        );
+                    }
+                    showLoading(false);
                 } catch (error) {
                     console.error('[Login] Ошибка входа:', error);
                     showError('Ошибка подключения к серверу');
@@ -581,23 +572,69 @@ document.addEventListener('DOMContentLoaded', () => {
         })();
     </script>
 
-    <script>
-            document.querySelectorAll('.login-tab').forEach((btn) => {
-                btn.addEventListener('click', () => {
-                    document.querySelectorAll('.login-tab').forEach((b) => {
-                        b.classList.remove('active');
-                        b.style.background = '#fff';
-                        b.style.color = '#334155';
-                    });
-                    btn.classList.add('active');
-                    btn.style.background = '#0961f6';
-                    btn.style.color = '#fff';
-                    const isQr = btn.dataset.tab === 'qr';
-                    document.getElementById('loginForm').style.display = isQr ? 'none' : '';
-                    document.getElementById('tab-qr').style.display = isQr ? 'block' : 'none';
-                });
+<script>
+    let qrPollTimer = null;
+
+    async function startQrSession() {
+        const hint = document.getElementById('qrHint');
+        const canvas = document.getElementById('qrCanvas');
+        if (qrPollTimer) clearInterval(qrPollTimer);
+        try {
+            const r = await fetch('http://127.0.0.1:8000/auth/qr/create', { method: 'POST' });
+            const data = await r.json();
+            if (!data.token) throw new Error('no token');
+            if (typeof QRCode !== 'undefined' && canvas) {
+                await QRCode.toCanvas(canvas, data.payload || data.token, { width: 180, margin: 2 });
+            }
+            if (hint) hint.textContent = 'Ожидание подтверждения…';
+            const token = data.token;
+            const t0 = Date.now();
+            const exp = (data.expires_in || 180) * 1000;
+            qrPollTimer = setInterval(async () => {
+                if (Date.now() - t0 > exp) {
+                    clearInterval(qrPollTimer);
+                    if (hint) hint.textContent = 'QR истёк — нажмите «Обновить QR»';
+                    return;
+                }
+                try {
+                    const p = await fetch('http://127.0.0.1:8000/auth/qr/poll/' + token).then((x) => x.json());
+                    if (p.status === 'ok' && p.user) {
+                        clearInterval(qrPollTimer);
+                        window.electronAPI.storage.set('auth', { user: p.user, token: p.token });
+                        if (p.user.role === 'admin') {
+                            await window.electronAPI.navigation.openAdmin();
+                        } else {
+                            await window.electronAPI.navigation.openWorker(p.user.id, p.user.brigade_id);
+                        }
+                    }
+                } catch (_) {}
+            }, 1500);
+        } catch (e) {
+            console.error(e);
+            if (hint) hint.textContent = 'Не удалось создать QR';
+        }
+    }
+
+    document.querySelectorAll('.login-tab').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.login-tab').forEach((b) => {
+                b.classList.remove('active');
+                b.style.background = '#fff';
+                b.style.color = '#334155';
             });
-    </script>
+            btn.classList.add('active');
+            btn.style.background = '#0961f6';
+            btn.style.color = '#fff';
+            const isQr = btn.dataset.tab === 'qr';
+            document.getElementById('loginForm').style.display = isQr ? 'none' : '';
+            document.getElementById('tab-qr').style.display = isQr ? 'block' : 'none';
+            if (isQr) startQrSession();
+            else if (qrPollTimer) clearInterval(qrPollTimer);
+        });
+    });
+
+    document.getElementById('qrRefreshBtn')?.addEventListener('click', startQrSession);
+</script>
 
     <script>
         document.getElementById('btnQuitApp')?.addEventListener('click', () => {
@@ -606,5 +643,7 @@ document.addEventListener('DOMContentLoaded', () => {
     </script>
 
 <script src="js/libs/anime.min.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 </body>
 </html>
