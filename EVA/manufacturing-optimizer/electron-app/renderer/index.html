@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' http://127.0.0.1:8000 http://localhost:8000;"> -->
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="js/libs/qrcode.min.js"></script>
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' http://127.0.0.1:8000 http://localhost:8000;">
     <title>Manufacturing Optimizer · Вход</title>
     
@@ -502,8 +502,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         token: data.token,
                     });
 
-                    if (data.user.role === 'admin') {
+                    const role = data.user.role;
+                    if (role === 'admin') {
                         await window.electronAPI.navigation.openAdmin();
+                    } else if (role === 'brigadier') {
+                        await window.electronAPI.navigation.openBrigadier(
+                            data.user.id,
+                            data.user.brigade_id
+                        );
                     } else {
                         await window.electronAPI.navigation.openWorker(
                             data.user.id,
@@ -614,10 +620,23 @@ document.getElementById('forgotPassword').addEventListener('click', async (e) =>
             const r = await fetch('http://127.0.0.1:8000/auth/qr/create', { method: 'POST' });
             const data = await r.json();
             if (!data.token) throw new Error('no token');
+            const ph = document.getElementById('qrPlaceholder');
             if (typeof QRCode !== 'undefined' && canvas) {
-                await QRCode.toCanvas(canvas, data.payload || data.token, { width: 180, margin: 2 });
+                canvas.style.display = 'block';
+                if (ph) ph.style.display = 'none';
+                await QRCode.toCanvas(canvas, data.payload || data.token, {
+                    width: 180,
+                    margin: 2,
+                    color: { dark: '#0f172a', light: '#ffffff' },
+                });
+            } else {
+                if (ph) ph.innerHTML = 'Нет библиотеки QRCode<br>Проверьте CDN / js/libs';
+                if (hint) hint.textContent = 'QR-библиотека не загружена';
+                return;
             }
-            if (hint) hint.textContent = 'Ожидание подтверждения…';
+            if (hint) {
+                hint.textContent = 'Ожидание подтверждения… Токен: ' + String(data.token).slice(0, 8) + '…';
+            }
             const token = data.token;
             const t0 = Date.now();
             const exp = (data.expires_in || 180) * 1000;
@@ -632,8 +651,11 @@ document.getElementById('forgotPassword').addEventListener('click', async (e) =>
                     if (p.status === 'ok' && p.user) {
                         clearInterval(qrPollTimer);
                         window.electronAPI.storage.set('auth', { user: p.user, token: p.token });
-                        if (p.user.role === 'admin') {
+                        const role = p.user.role;
+                        if (role === 'admin') {
                             await window.electronAPI.navigation.openAdmin();
+                        } else if (role === 'brigadier') {
+                            await window.electronAPI.navigation.openBrigadier(p.user.id, p.user.brigade_id);
                         } else {
                             await window.electronAPI.navigation.openWorker(p.user.id, p.user.brigade_id);
                         }
@@ -675,6 +697,6 @@ document.getElementById('forgotPassword').addEventListener('click', async (e) =>
 
 <script src="js/libs/anime.min.js"></script>
 
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<!-- <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script> -->
 </body>
 </html>

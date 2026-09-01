@@ -1,3 +1,17 @@
+
+:root {
+    --bg: #f7f9fc;
+    --surface: #ffffff;
+    --primary: #005bbf;
+    --primary-bright: #1a73e8;
+    --sidebar: linear-gradient(180deg, #1e3a5f 0%, #152a45 100%);
+    --on-sidebar: #e8eef6;
+    --text: #191c1e;
+    --muted: #414754;
+    --ok: #006d2c;
+    --err: #ba1a1a;
+    --radius: 8px;
+  }
 /* Brigadier extras on top of worker.css */
 .kpi-row {
     display: grid;

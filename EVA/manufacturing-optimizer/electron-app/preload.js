@@ -15,6 +15,7 @@ try {
         navigation: {
             openAdmin: () => ipcRenderer.invoke('open-admin'),
             openWorker: (userId, brigadeId) => ipcRenderer.invoke('open-worker', userId, brigadeId),
+            openBrigadier: (userId, brigadeId) => ipcRenderer.invoke('open-brigadier', userId, brigadeId),
             logout: () => ipcRenderer.invoke('logout')
         },
         ai: {

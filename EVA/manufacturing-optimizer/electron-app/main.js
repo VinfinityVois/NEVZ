@@ -16,6 +16,7 @@ let loginWindow = null;
 let adminWindow = null;
 let workerWindow = null;
 let pythonProcess = null;
+let brigadierWindow = null;
 
 /** Кэш данных со старта (до открытия админки) */
 let bootstrapCache = {
@@ -312,6 +313,11 @@ function registerIpcHandlers() {
       createWorkerWindow(userId, brigadeId);
       if (loginWindow && !loginWindow.isDestroyed()) loginWindow.close();
   });
+
+  ipcMain.handle('open-brigadier', (_e, userId, brigadeId) => {
+    createBrigadierWindow(userId, brigadeId);
+    if (loginWindow && !loginWindow.isDestroyed()) loginWindow.close();
+  });
     
        
     // Legacy AI
@@ -555,6 +561,33 @@ function blockDevShortcuts(win) {
     );
     blockDevShortcuts(workerWindow);
     workerWindow.on('closed', () => { workerWindow = null; });
+  }
+
+  function createBrigadierWindow(userId, brigadeId) {
+    if (typeof brigadierWindow !== 'undefined' && brigadierWindow && !brigadierWindow.isDestroyed()) {
+      brigadierWindow.focus();
+      return;
+    }
+    brigadierWindow = new BrowserWindow({
+      fullscreen: true,
+      autoHideMenuBar: true,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload.js'),
+        devTools: false,
+      },
+    });
+    const q = new URLSearchParams({
+      userId: String(userId ?? ''),
+      brigadeId: String(brigadeId ?? ''),
+    }).toString();
+    brigadierWindow.loadFile(
+      path.join(__dirname, 'renderer', 'brigadier.html'),
+      { search: q }
+    );
+    blockDevShortcuts(brigadierWindow);
+    brigadierWindow.on('closed', () => { brigadierWindow = null; });
   }
   
   // logout: закрыть админ → открыть логин (не закрывать приложение)
