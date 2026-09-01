@@ -1,372 +1,417 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:8000;">
-    <title>Manufacturing Optimizer · Рабочий</title>
-    
-    <!-- Стили -->
-    <link rel="stylesheet" href="css/themes/light.css" id="theme-stylesheet">
-    <link rel="stylesheet" href="css/styles.css">
-    <link rel="stylesheet" href="css/worker.css">
-    <link rel="stylesheet" href="css/animations.css">
-    
-    <!-- Иконка -->
-    <link rel="icon" type="image/png" href="assets/icons/worker-icon.png">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' http://127.0.0.1:8000 http://localhost:8000;">
+<title>NEVZ · Кабинет сотрудника</title>
+<link rel="stylesheet" href="css/themes/light.css" id="theme-stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="css/worker.css">
+<link rel="stylesheet" href="css/animations.css">
+<link rel="icon" type="image/png" href="assets/icons/worker-icon.png">
 </head>
 <body>
-    <!-- 
-        ================================================================
-        ИНТЕРФЕЙС РАБОЧЕГО
-        ================================================================
-        Простой и понятный интерфейс для выполнения задач.
-        Цвета: #d6e0e5 (фон), #414B4E (тёмный акцент), #0961f6 (синий акцент)
-    -->
-    
-    <div class="worker-layout">
-        
-        <!-- ===== ШАПКА ===== -->
-        <header class="worker-header">
-            <div class="header-left">
-                <div class="logo-wrapper">
-                    <svg class="logo-icon" viewBox="0 0 40 40" fill="none">
-                        <rect width="40" height="40" rx="8" fill="#0961f6"/>
-                        <path d="M10 20L16 14L22 20L28 14V26H10V20Z" fill="white" opacity="0.9"/>
-                        <circle cx="20" cy="22" r="3" fill="#414B4E"/>
-                    </svg>
-                    <span class="logo-text">Manufacturing Optimizer</span>
-                </div>
-            </div>
-            
-            <div class="header-center">
-                <div class="datetime" id="datetime">
-                    <span id="currentDate"></span>
-                    <span id="currentTime"></span>
-                </div>
-            </div>
-            
-            <div class="header-right">
-                <div class="user-info">
-                    <div class="user-avatar" id="userAvatar">Р</div>
-                    <div class="user-details">
-                        <span class="user-name" id="userName">Рабочий</span>
-                        <span class="user-brigade" id="userBrigade">Бригада 1</span>
-                    </div>
-                </div>
-                
-                <button class="btn-icon" id="refreshBtn" title="Обновить">
-                    <svg viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M17 10C17 13.866 13.866 17 10 17C6.13401 17 3 13.866 3 10C3 6.13401 6.13401 3 10 3C12.4853 3 14.6153 4.28355 15.8995 6.22265L13 9H17V5L15.3846 6.61538"/>
-                    </svg>
-                </button>
-                
-                <button class="btn-icon" id="logoutBtn" title="Выйти">
-                    <svg viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M7 17H4C3.44772 17 3 16.5523 3 16V4C3 3.44772 3.44772 3 4 3H7"/>
-                        <path d="M13 14L18 10L13 6"/>
-                        <path d="M18 10H8"/>
-                    </svg>
-                </button>
-            </div>
-        </header>
-        
-        <!-- ===== ОСНОВНОЙ КОНТЕНТ ===== -->
-        <main class="worker-main">
-            
-            <!-- Левая колонка - Текущая задача и статистика -->
-            <div class="worker-left">
-                
-                <!-- Текущая активная задача -->
-                <div class="card current-task-card">
-                    <div class="card-header">
-                        <h2>
-                            <svg viewBox="0 0 20 20" fill="currentColor" class="header-icon">
-                                <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5" fill="none"/>
-                                <path d="M10 5V10L13 13" stroke="currentColor" stroke-width="1.5"/>
-                            </svg>
-                            Текущая задача
-                        </h2>
-                        <span class="badge" id="currentTaskStatus">Активна</span>
-                    </div>
-                    
-                    <div class="card-body" id="currentTaskContainer">
-                        <!-- Динамическое содержимое -->
-                        <div class="no-task" id="noTaskMessage">
-                            <svg viewBox="0 0 60 60" fill="none">
-                                <circle cx="30" cy="30" r="20" stroke="#414B4E" stroke-width="2" opacity="0.3"/>
-                                <path d="M22 30H38M30 22V38" stroke="#414B4E" stroke-width="2" opacity="0.3"/>
-                            </svg>
-                            <p>Нет активной задачи</p>
-                            <p class="hint">Выберите задачу из очереди</p>
-                        </div>
-                        
-                        <div class="task-details" id="taskDetails" style="display: none;">
-                            <div class="task-header">
-                                <span class="task-number" id="taskNumber">#000</span>
-                                <span class="task-priority" id="taskPriority">Высокий</span>
-                            </div>
-                            
-                            <h3 class="task-name" id="taskName">Название операции</h3>
-                            
-                            <div class="task-info-grid">
-                                <div class="info-item">
-                                    <span class="info-label">Пост</span>
-                                    <span class="info-value" id="taskPost">1</span>
-                                </div>
-                                <div class="info-item">
-                                    <span class="info-label">Чертёж</span>
-                                    <span class="info-value" id="taskDrawing">МБ-001</span>
-                                </div>
-                                <div class="info-item">
-                                    <span class="info-label">Трудоёмкость</span>
-                                    <span class="info-value" id="taskLabor">8 чел/ч</span>
-                                </div>
-                                <div class="info-item">
-                                    <span class="info-label">Людей</span>
-                                    <span class="info-value" id="taskPeople">2</span>
-                                </div>
-                                <div class="info-item">
-                                    <span class="info-label">План. время</span>
-                                    <span class="info-value" id="taskDuration">4 ч</span>
-                                </div>
-                                <div class="info-item">
-                                    <span class="info-label">Место</span>
-                                    <span class="info-value" id="taskLocation">Цех 1</span>
-                                </div>
-                            </div>
-                            
-                            <!-- Таймер -->
-                            <div class="task-timer" id="taskTimer">
-                                <div class="timer-display">
-                                    <span class="timer-icon">⏱</span>
-                                    <span class="timer-value" id="timerValue">00:00:00</span>
-                                </div>
-                                <div class="timer-progress">
-                                    <div class="progress-bar">
-                                        <div class="progress-fill" id="timerProgress" style="width: 0%"></div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Кнопки управления -->
-                            <div class="task-actions">
-                                <button class="btn btn-primary btn-lg" id="startTaskBtn">
-                                    <svg viewBox="0 0 20 20" fill="currentColor">
-                                        <path d="M5 4L16 10L5 16V4Z"/>
-                                    </svg>
-                                    Начать задачу
-                                </button>
-                                <button class="btn btn-success btn-lg" id="completeTaskBtn" style="display: none;">
-                                    <svg viewBox="0 0 20 20" fill="currentColor">
-                                        <path d="M8 13L5 10L4 11L8 15L17 6L16 5L8 13Z"/>
-                                    </svg>
-                                    Завершить задачу
-                                </button>
-                                <button class="btn btn-outline" id="pauseTaskBtn" style="display: none;" disabled>
-                                    <svg viewBox="0 0 20 20" fill="currentColor">
-                                        <rect x="5" y="4" width="3" height="12" rx="1"/>
-                                        <rect x="12" y="4" width="3" height="12" rx="1"/>
-                                    </svg>
-                                    Пауза
-                                </button>
-                            </div>
-                            
-                            <!-- Предыдущие операции -->
-                            <div class="task-dependencies">
-                                <h4>Зависит от:</h4>
-                                <div id="taskDependencies">Нет зависимостей</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Статистика рабочего -->
-                <div class="card stats-card">
-                    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-                        <h2>
-                            <!-- svg как был -->
-                            Моя статистика
-                        </h2>
-                        <label style="font-size:13px;display:flex;align-items:center;gap:8px;">
-                            План:
-                            <select id="horizonSelect" style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;">
-                                <option value="day">День</option>
-                                <option value="week" selected>Неделя</option>
-                                <option value="month">Месяц</option>
-                                <option value="quarter">3 месяца</option>
-                                <option value="half_year">Полгода</option>
-                                <option value="year">Год</option>
-                            </select>
-                        </label>
-                    </div>
-            </div>
-            
-            <!-- Центральная колонка - Очередь задач -->
-            <div class="worker-center">
-                <div class="card queue-card">
-                    <div class="card-header">
-                        <h2>
-                            <svg viewBox="0 0 20 20" fill="currentColor" class="header-icon">
-                                <path d="M3 5H17M3 10H17M3 15H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                            </svg>
-                            Очередь задач
-                        </h2>
-                        <div class="queue-stats">
-                            <span class="queue-count" id="queueCount">0 задач</span>
-                        </div>
-                    </div>
-                    
-                    <div class="card-body">
-                        <!-- Фильтры -->
-                        <div class="queue-filters">
-                            <button class="filter-btn active" data-filter="all">Все</button>
-                            <button class="filter-btn" data-filter="pending">Ожидают</button>
-                            <button class="filter-btn" data-filter="blocked">Заблокированы</button>
-                        </div>
-                        
-                        <!-- Список задач -->
-                        <div class="task-queue-list" id="taskQueueList">
-                            <!-- Динамическое содержимое -->
-                            <div class="empty-queue">
-                                <svg viewBox="0 0 60 60" fill="none">
-                                    <rect x="15" y="20" width="30" height="25" rx="3" stroke="#414B4E" stroke-width="2" opacity="0.3"/>
-                                    <path d="M22 28H38M22 33H38M22 38H30" stroke="#414B4E" stroke-width="2" opacity="0.3"/>
-                                </svg>
-                                <p>Очередь задач пуста</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Правая колонка - История и информация -->
-            <div class="worker-right">
-                
-                <!-- История выполненных задач -->
-                <div class="card history-card">
-                    <div class="card-header">
-                        <h2>
-                            <svg viewBox="0 0 20 20" fill="currentColor" class="header-icon">
-                                <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5" fill="none"/>
-                                <path d="M10 5V10L13 13" stroke="currentColor" stroke-width="1.5"/>
-                                <circle cx="10" cy="10" r="2" fill="currentColor"/>
-                            </svg>
-                            История
-                        </h2>
-                        <button class="btn-ghost btn-sm" id="clearHistoryBtn" title="Очистить историю">
-                            <svg viewBox="0 0 20 20" fill="currentColor" width="16">
-                                <path d="M4 5H16M7 5V3H13V5M5 5L6 17H14L15 5H5Z" stroke="currentColor" stroke-width="1.5"/>
-                            </svg>
-                        </button>
-                    </div>
-                    
-                    <div class="card-body">
-                        <div class="history-list" id="historyList">
-                            <!-- Динамическое содержимое -->
-                            <div class="empty-history">
-                                <p>Нет завершённых задач</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Информация о бригаде -->
-                <div class="card brigade-info-card">
-                    <div class="card-header">
-                        <h2>
-                            <svg viewBox="0 0 20 20" fill="currentColor" class="header-icon">
-                                <circle cx="10" cy="7" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/>
-                                <path d="M3 18V17C3 13.6863 5.68629 11 9 11H11C14.3137 11 17 13.6863 17 17V18" stroke="currentColor" stroke-width="1.5"/>
-                            </svg>
-                            Моя бригада
-                        </h2>
-                    </div>
-                    
-                    <div class="card-body">
-                        <div id="brigadeInfo">
-                            <!-- Динамическое содержимое -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </main>
-        
-        <!-- ===== ФУТЕР ===== -->
-        <footer class="worker-footer">
-            <div class="connection-status" id="connectionStatus">
-                <span class="status-dot"></span>
-                <span class="status-text">Подключено</span>
-            </div>
-            <div class="app-version" id="appVersion">v1.0.0</div>
-        </footer>
+<div class="hub-layout">
+  <aside class="hub-sidebar" id="hubSidebar">
+    <div class="hub-brand">
+      <div class="hub-logo" title="NEVZ">Н</div>
+      <div class="hub-brand-text-wrap">
+        <div class="hub-title">NEVZ · Кабинет</div>
+        <div class="hub-sub" id="hubBrigadeLabel">Бригада</div>
+      </div>
+      <button type="button" class="sidebar-toggle" id="sidebarToggle" title="Свернуть / развернуть">
+        <span class="toggle-icon">⟨</span>
+      </button>
     </div>
-    
-    <!-- Модальное окно завершения задачи -->
-    <div class="modal-overlay" id="modalOverlay" style="display: none;"></div>
-    
-    <div class="modal" id="completeTaskModal" style="display: none;">
-        <div class="modal-header">
-            <h3>Завершение задачи</h3>
-            <button class="modal-close">&times;</button>
+    <nav class="hub-nav">
+      <button type="button" class="hub-nav-item active" data-page="tasks" title="Мои задачи">
+        <span class="hub-nav-ico">📋</span><span class="hub-nav-label">Мои задачи</span>
+      </button>
+      <button type="button" class="hub-nav-item" data-page="operations" title="Операции">
+        <span class="hub-nav-ico">⚙️</span><span class="hub-nav-label">Операции</span>
+      </button>
+      <button type="button" class="hub-nav-item" data-page="schedule" title="Расписание">
+        <span class="hub-nav-ico">📅</span><span class="hub-nav-label">Расписание</span>
+      </button>
+      <button type="button" class="hub-nav-item" data-page="graph" title="Граф процесса">
+        <span class="hub-nav-ico">🔗</span><span class="hub-nav-label">Граф процесса</span>
+      </button>
+      <button type="button" class="hub-nav-item" data-page="ai" title="AI-поддержка">
+        <span class="hub-nav-ico">🤖</span><span class="hub-nav-label">AI-поддержка</span>
+      </button>
+      <button type="button" class="hub-nav-item" data-page="settings" title="Настройки">
+        <span class="hub-nav-ico">⚙️</span><span class="hub-nav-label">Настройки</span>
+      </button>
+    </nav>
+    <div class="hub-sidebar-foot">
+      <div class="hub-user-mini">
+        <div class="user-avatar sm" id="userAvatarSide">?</div>
+        <div class="hub-user-mini-text">
+          <div class="hub-user-mini-name" id="userNameSide">Сотрудник</div>
+          <div class="hub-user-mini-role" id="userRoleSide">worker</div>
         </div>
-        <div class="modal-body">
-            <form id="completeTaskForm">
-                <div class="form-group">
-                    <label for="actualDuration">Фактическое время выполнения (часы)</label>
-                    <input type="number" id="actualDuration" name="actualDuration" class="input" 
-                           step="0.5" min="0.5" required placeholder="Например: 4.5">
-                </div>
-                
-                <div class="form-group">
-                    <label for="actualPeople">Фактическое количество человек</label>
-                    <input type="number" id="actualPeople" name="actualPeople" class="input" 
-                           min="1" max="11" required placeholder="Например: 2">
-                </div>
-                
-                <div class="form-group">
-                    <label for="taskComment">Комментарий (опционально)</label>
-                    <textarea id="taskComment" name="taskComment" class="textarea" 
-                              rows="3" placeholder="Примечания, проблемы, наблюдения..."></textarea>
-                </div>
-                
-                <div class="form-group">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="reportIssue" name="reportIssue">
-                        <span class="checkbox-custom"></span>
-                        <span>Сообщить о проблеме</span>
-                    </label>
-                </div>
-            </form>
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-outline" id="cancelCompleteBtn">Отмена</button>
-            <button class="btn btn-success" id="confirmCompleteBtn">Подтвердить завершение</button>
-        </div>
+      </div>
+      <button type="button" class="hub-logout" id="hubLogoutBtn" title="Выйти">← <span class="hub-nav-label">Выйти</span></button>
     </div>
-    
-    <!-- Уведомления -->
-    <div class="notifications-container" id="notificationsContainer"></div>
-    
-    <!-- Загрузочный оверлей -->
-    <div class="loading-overlay" id="loadingOverlay" style="display: none;">
-        <div class="loading-spinner"></div>
-        <p id="loadingText">Загрузка...</p>
-    </div>
-    
-    <!-- Скрипты -->
-    <script src="js/libs/anime.min.js"></script>
-    <script src="js/worker/worker-main.js"></script>
-    
-    <script>
-        // Инициализация при загрузке
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log('[Worker] Интерфейс рабочего загружен');
-            
-            // Получаем параметры запуска
-            const params = window.electronAPI?.app?.getStartupParams() || {};
-            console.log('[Worker] Параметры:', params);
-        });
-    </script>
+  </aside>
+
+  <div class="hub-content">
+    <header class="hub-topbar">
+      <div class="hub-top-left">
+        <button type="button" class="btn-icon mobile-only" id="sidebarToggleMobile" title="Меню">☰</button>
+        <span class="hub-brand-text">Manufacturing Optimizer</span>
+        <span class="hub-top-sep">/</span>
+        <span class="hub-page-label" id="hubPageLabel">Мои задачи</span>
+      </div>
+      <div class="hub-top-center">
+        <span id="currentDate"></span>
+        <span id="currentTime" class="hub-time"></span>
+      </div>
+      <div class="hub-top-right">
+        <div class="user-info">
+          <div class="user-avatar" id="userAvatar">?</div>
+          <div class="user-details">
+            <span class="user-name" id="userName">Сотрудник</span>
+            <span class="user-brigade" id="userBrigade">—</span>
+          </div>
+        </div>
+        <button type="button" class="btn-icon" id="refreshBtn" title="Обновить">↻</button>
+        <button type="button" class="btn-icon" id="logoutBtn" title="Выйти">⎋</button>
+      </div>
+    </header>
+
+    <!-- TASKS -->
+    <section class="hub-page active" id="page-tasks">
+      <div class="page-head row-between">
+        <div>
+          <h1>Мои задачи</h1>
+          <p class="page-sub">Смена · мониторинг выполнения</p>
+        </div>
+        <div class="status-pill"><span class="dot ok"></span> Система в норме</div>
+      </div>
+      <div class="bento">
+        <article class="card bento-main" id="currentTaskContainer">
+          <div class="card-header">
+            <div class="hdr-left"><span class="hdr-ico">🔧</span><h2>Текущая задача</h2></div>
+            <span class="badge badge-progress" id="currentTaskStatus">—</span>
+          </div>
+          <div class="card-body">
+            <div class="no-task" id="noTaskMessage">
+              <div class="no-task-ico">＋</div>
+              <p>Нет активной задачи</p>
+              <p class="hint">Выберите задачу из очереди ниже</p>
+            </div>
+            <div class="task-details" id="taskDetails" style="display:none;">
+              <div class="task-meta-row">
+                <span class="muted" id="taskNumber">#000</span>
+                <span class="muted" id="timerValue">00:00:00</span>
+              </div>
+              <h3 class="task-name" id="taskName">—</h3>
+              <p class="task-desc muted" id="taskLocation">—</p>
+              <div class="progress-block">
+                <div class="progress-label"><span>Прогресс</span><span id="taskPriority">—</span></div>
+                <div class="progress-bar large"><div class="progress-fill" id="timerProgress" style="width:0%"></div></div>
+                <div class="progress-sub"><span id="taskDuration">—</span><span id="taskLabor">—</span></div>
+              </div>
+              <div class="task-info-grid compact">
+                <div class="info-item"><span class="info-label">Пост</span><span class="info-value" id="taskPost">—</span></div>
+                <div class="info-item"><span class="info-label">Чертёж</span><span class="info-value" id="taskDrawing">—</span></div>
+                <div class="info-item"><span class="info-label">Людей</span><span class="info-value" id="taskPeople">—</span></div>
+                <div class="info-item"><span class="info-label">Зависит</span><span class="info-value" id="taskDependencies">—</span></div>
+              </div>
+              <div class="task-actions">
+                <button type="button" class="btn btn-outline flex-1" id="pauseTaskBtn" style="display:none;" disabled>Пауза</button>
+                <button type="button" class="btn btn-primary flex-1" id="startTaskBtn">Начать</button>
+                <button type="button" class="btn btn-success flex-1" id="completeTaskBtn" style="display:none;">Завершить</button>
+              </div>
+            </div>
+          </div>
+        </article>
+        <div class="bento-side">
+          <article class="card kpi-card">
+            <div class="kpi-label">Цель горизонта</div>
+            <div class="kpi-big"><span id="tasksCompleted">0</span><span class="kpi-of"> / <span id="tasksInQueue">0</span></span></div>
+            <div class="progress-bar"><div class="progress-fill green" id="shiftProgressBar" style="width:0%"></div></div>
+            <div class="kpi-foot muted"><span id="shiftProgressText">0%</span> выполнено</div>
+          </article>
+          <article class="card kpi-card kpi-ring-card">
+            <div class="kpi-label">Эффективность</div>
+            <div class="ring-wrap">
+              <svg class="ring" viewBox="0 0 36 36"><path class="ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/><path class="ring-fg" id="efficiencyRing" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/></svg>
+              <div class="ring-center"><span id="efficiency">0%</span><small>план</small></div>
+            </div>
+          </article>
+          <article class="card kpi-card">
+            <div class="kpi-label">Часы (план)</div>
+            <div class="kpi-big"><span id="totalHours">0</span></div>
+            <label class="horizon-label">Горизонт
+              <select id="horizonSelect">
+                <option value="day">День</option>
+                <option value="week" selected>Неделя</option>
+                <option value="month">Месяц</option>
+                <option value="quarter">3 мес.</option>
+                <option value="half_year">Полгода</option>
+                <option value="year">Год</option>
+              </select>
+            </label>
+          </article>
+        </div>
+        <article class="card bento-full">
+          <div class="card-header">
+            <h2>Очередь задач</h2>
+            <div class="queue-filters">
+              <button type="button" class="filter-btn active" data-filter="all">Все</button>
+              <button type="button" class="filter-btn" data-filter="pending">Ожидают</button>
+              <button type="button" class="filter-btn" data-filter="blocked">Блок</button>
+            </div>
+            <span class="queue-count" id="queueCount">0 задач</span>
+          </div>
+          <div class="card-body tight">
+            <div class="task-queue-list" id="taskQueueList"><div class="empty-queue"><p>Очередь пуста</p></div></div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="hub-page" id="page-operations">
+      <div class="page-head"><h1>Мои операции</h1><p class="page-sub">Назначенные операции бригады</p></div>
+      <div id="operationsGrid" class="operations-grid"></div>
+    </section>
+
+    <section class="hub-page" id="page-schedule">
+      <div class="page-head"><h1>Расписание</h1><p class="page-sub">Операции по горизонту</p></div>
+      <div class="schedule-layout">
+        <div class="card"><div class="card-body"><div id="scheduleList" class="schedule-list"></div></div></div>
+        <div class="card">
+          <div class="card-header"><h2>Моя бригада</h2></div>
+          <div class="card-body"><div id="brigadeInfo"></div></div>
+          <div class="card-header"><h2>История смены</h2>
+            <button type="button" class="btn-ghost btn-sm" id="clearHistoryBtn" title="Очистить">🗑</button>
+          </div>
+          <div class="card-body"><div class="history-list" id="historyList"><div class="empty-history"><p>Пока пусто</p></div></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="hub-page" id="page-graph">
+      <div class="page-head"><h1>Граф процесса</h1><p class="page-sub">Цепочка prev → next</p></div>
+      <div class="card"><div class="card-body"><div id="workerGraphFlow" class="graph-flow"></div></div></div>
+    </section>
+
+    <section class="hub-page" id="page-ai">
+      <div class="page-head"><h1>AI-поддержка</h1><p class="page-sub">Подсказки по операциям (beta)</p></div>
+      <div class="ai-layout">
+        <div class="card ai-chat">
+          <div class="card-header"><div class="hdr-left"><span class="hdr-ico">🤖</span><h2>Системный помощник</h2></div></div>
+          <div class="card-body ai-body">
+            <div class="ai-messages" id="aiMessages"><div class="bubble bot">Задайте вопрос по операции или смене.</div></div>
+            <div class="ai-input-row">
+              <textarea id="aiQuestion" rows="2" placeholder="Опишите проблему…"></textarea>
+              <button type="button" class="btn btn-primary" id="aiAskBtn">➤</button>
+            </div>
+            <pre id="aiAnswer" class="ai-answer" style="display:none;"></pre>
+          </div>
+        </div>
+        <div class="ai-side">
+          <div class="card tip-card">
+            <div class="badge badge-progress">Подсказка</div>
+            <h3>Как пользоваться</h3>
+            <p class="muted">Опишите операцию или сбой. При доступном AI API ответ появится в чате.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="hub-page" id="page-settings">
+      <div class="page-head">
+        <h1>Настройки</h1>
+        <p class="page-sub">Профиль только для просмотра · пароль и фото · репорт администратору</p>
+      </div>
+      <div class="settings-grid">
+        <!-- Personal (readonly from admin) -->
+        <div class="card settings-span-8">
+          <div class="card-header"><h2>Данные сотрудника</h2><span class="badge badge-secure">только чтение</span></div>
+          <div class="card-body settings-personal">
+            <div class="avatar-block">
+              <div class="user-avatar xl" id="settingsAvatar">?</div>
+              <img id="settingsAvatarImg" class="avatar-preview" alt="" style="display:none;">
+              <input type="file" id="avatarFileInput" accept="image/*" hidden>
+              <div class="avatar-actions">
+                <button type="button" class="btn btn-outline" id="avatarChangeBtn">Сменить фото</button>
+                <button type="button" class="btn btn-outline" id="avatarDeleteBtn">Удалить фото</button>
+              </div>
+              <span class="muted" style="margin-top:6px;font-size:11px;">Хранится на этом ПК</span>
+            </div>
+            <div class="settings-fields full-readonly">
+              <div class="form-group"><label>ФИО</label><input type="text" class="input" id="settingsName" readonly></div>
+              <div class="form-group"><label>Логин</label><input type="text" class="input" id="settingsLogin" readonly></div>
+              <div class="form-group"><label>ID сотрудника</label><input type="text" class="input" id="settingsId" readonly></div>
+              <div class="form-group"><label>Роль</label><input type="text" class="input" id="settingsRole" readonly></div>
+              <div class="form-group"><label>Бригада</label><input type="text" class="input" id="settingsBrigade" readonly></div>
+              <div class="form-group"><label>Email</label><input type="text" class="input" id="settingsEmail" readonly></div>
+              <div class="form-group"><label>Телефон</label><input type="text" class="input" id="settingsPhone" readonly></div>
+              <div class="form-group"><label>Должность</label><input type="text" class="input" id="settingsPosition" readonly></div>
+              <div class="form-group"><label>Табельный №</label><input type="text" class="input" id="settingsTabNum" readonly></div>
+              <div class="form-group"><label>Учётная запись</label><input type="text" class="input" id="settingsAccountStatus" readonly></div>
+              <div class="form-group"><label>В сети</label><input type="text" class="input" id="settingsOnlineStatus" readonly></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- UI -->
+        <div class="card settings-span-4">
+          <div class="card-header"><h2>Интерфейс</h2></div>
+          <div class="card-body">
+            <div class="form-group">
+              <label>Язык</label>
+              <select class="input" id="settingsLang">
+                <option value="ru" selected>Русский</option>
+                <option value="en">English</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Тема</label>
+              <div class="theme-toggle">
+                <button type="button" class="theme-btn active" data-theme="light">☀ Светлая</button>
+                <button type="button" class="theme-btn" data-theme="dark">☾ Тёмная</button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Боковая панель</label>
+              <select class="input" id="settingsSidebarMode">
+                <option value="click">Клик по стрелке</option>
+                <option value="hover">При наведении</option>
+              </select>
+            </div>
+            <button type="button" class="btn btn-outline" id="toggleSidebarNowBtn" style="width:100%;margin-top:8px;">Свернуть / развернуть бар</button>
+          </div>
+        </div>
+
+        <!-- QR -->
+        <div class="card settings-span-6">
+          <div class="card-header">
+            <h2>Личный QR-вход</h2>
+            <span class="badge badge-progress">раз в сутки</span>
+          </div>
+          <div class="card-body qr-block">
+            <p class="muted qr-hint">Откройте экран входа → вкладка «QR» → наведите камеру/сканер на этот код. Вход без логина и пароля. Токен обновляется раз в 24 часа.</p>
+            <div class="qr-frame" id="personalQrFrame">
+              <canvas id="personalQrCanvas" width="180" height="180"></canvas>
+              <div class="qr-placeholder" id="personalQrPlaceholder">QR загружается…</div>
+            </div>
+            <div class="qr-meta">
+              <div><span class="info-label">Действует до</span><div id="qrExpires">—</div></div>
+              <div><span class="info-label">Статус</span><div id="qrStatus">—</div></div>
+            </div>
+            <div class="qr-meta" style="margin-top:-4px;">
+              <div><span class="info-label">Токен (фрагмент)</span><div id="qrTokenPreview" style="font-family:monospace;font-size:11px;">—</div></div>
+            </div>
+            <button type="button" class="btn btn-primary" id="refreshQrBtn">Обновить QR</button>
+          </div>
+        </div>
+
+        <!-- Security -->
+        <div class="card settings-span-6">
+          <div class="card-header">
+            <h2>Безопасность</h2>
+            <span class="badge badge-secure">можно менять</span>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <label>Новый пароль</label>
+              <input type="password" class="input" id="newPassword" placeholder="••••••••" autocomplete="new-password">
+            </div>
+            <div class="form-group">
+              <label>Подтвердите пароль</label>
+              <input type="password" class="input" id="newPassword2" placeholder="••••••••" autocomplete="new-password">
+            </div>
+            <p class="muted" id="passwordHint">Единственное поле профиля, которое сотрудник меняет сам.</p>
+            <button type="button" class="btn btn-outline" id="changePasswordBtn">Сохранить пароль</button>
+          </div>
+        </div>
+
+        <!-- Report to admin -->
+        <div class="card settings-span-12">
+          <div class="card-header"><h2>Запрос администратору</h2></div>
+          <div class="card-body">
+            <p class="muted" style="margin:0 0 12px;">ФИО, бригаду, email и остальные поля меняет только администратор. Опишите, что нужно исправить:</p>
+            <div class="form-group">
+              <label>Причина / что изменить</label>
+              <textarea class="textarea" id="reportText" rows="3" placeholder="Например: сменить бригаду на №5, обновить телефон…"></textarea>
+            </div>
+            <button type="button" class="btn btn-primary" id="sendReportBtn">Отправить репорт</button>
+            <div class="report-list" id="reportList"></div>
+          </div>
+        </div>
+
+        <!-- Notifications -->
+        <div class="card settings-span-12">
+          <div class="card-header"><h2>Уведомления</h2></div>
+          <div class="card-body notif-list">
+            <label class="toggle-row">
+              <div>
+                <div class="toggle-title">Уведомления в приложении</div>
+                <div class="muted">Статусы задач и смены</div>
+              </div>
+              <input type="checkbox" id="notifApp" checked>
+            </label>
+            <label class="toggle-row">
+              <div>
+                <div class="toggle-title">Критические предупреждения</div>
+                <div class="muted">Блокировки и простои</div>
+              </div>
+              <input type="checkbox" id="notifCritical" checked>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="settings-actions">
+        <button type="button" class="btn btn-outline" id="settingsCancelBtn">Отменить</button>
+        <button type="button" class="btn btn-primary" id="settingsSaveBtn">Сохранить настройки</button>
+      </div>
+      <p id="profileInfo" class="sr-only"></p>
+      <p id="profileInfoDup" class="sr-only"></p>
+    </section>
+
+    <footer class="hub-footer">
+      <div class="connection-status" id="connectionStatus">
+        <span class="status-dot"></span>
+        <span class="status-text">Подключено</span>
+      </div>
+      <div id="appVersion">v2.1.0</div>
+    </footer>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay" style="display:none;"></div>
+<div class="modal" id="completeTaskModal" style="display:none;">
+  <div class="modal-header"><h3>Завершение задачи</h3><button type="button" class="modal-close">&times;</button></div>
+  <div class="modal-body">
+    <form id="completeTaskForm">
+      <div class="form-group"><label for="actualDuration">Факт. время (ч)</label>
+        <input type="number" id="actualDuration" class="input" step="0.5" min="0.5" required></div>
+      <div class="form-group"><label for="actualPeople">Факт. человек</label>
+        <input type="number" id="actualPeople" class="input" min="1" max="20" required></div>
+      <div class="form-group"><label for="taskComment">Комментарий</label>
+        <textarea id="taskComment" class="textarea" rows="3"></textarea></div>
+      <label class="checkbox-label"><input type="checkbox" id="reportIssue"> Сообщить о проблеме</label>
+    </form>
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-outline" id="cancelCompleteBtn">Отмена</button>
+    <button type="button" class="btn btn-success" id="confirmCompleteBtn">Подтвердить</button>
+  </div>
+</div>
+
+<div class="notifications-container" id="notificationsContainer"></div>
+<div class="loading-overlay" id="loadingOverlay" style="display:none;">
+  <div class="loading-spinner"></div>
+  <p id="loadingText">Загрузка…</p>
+</div>
+
+<script src="js/libs/anime.min.js"></script>
+<script src="js/worker/worker-main.js"></script>
 </body>
 </html>

@@ -519,6 +519,233 @@ async def health():
     conn.close()
     return {"status": "healthy", "operations": ops, "brigades": brigs, "workers": works}
 
+
+
+# =============================================================================
+# ВСТАВИТЬ В api.py СРАЗУ ПОСЛЕ эндпоинта @app.get("/health") ... return {...}
+# (после функции health, до блока ОПЕРАЦИИ)
+# Эти маршруты НЕ зависят от auth_api.py — 404 уйдёт даже если import auth_api падает.
+# =============================================================================
+
+import secrets
+import time as _time
+
+_QR_SESSIONS = {}
+_RESET_CODES = {}
+
+
+class AuthLoginBody(BaseModel):
+    login: str
+    password: str
+
+
+class AuthForgotBody(BaseModel):
+    login: str
+    email: Optional[str] = None
+
+
+class AuthResetBody(BaseModel):
+    login: str
+    code: str
+    new_password: str
+
+
+def _auth_user_from_row(row):
+    if not row:
+        return None
+    d = dict(row)
+    d.pop("password", None)
+    if d.get("role") == "admin" or (d.get("login") or "").lower() == "admin":
+        d["role"] = "admin"
+    elif int(d.get("is_brigadier") or 0) == 1:
+        d["role"] = "brigadier"
+    else:
+        d["role"] = "worker"
+    return d
+
+
+@app.post("/auth/login")
+async def auth_login(body: AuthLoginBody):
+    login_s = (body.login or "").strip()
+    password = body.password or ""
+
+    if login_s.lower() == "admin" and password == "admin123":
+        return {
+            "success": True,
+            "user": {
+                "id": 0,
+                "name": "Администратор",
+                "role": "admin",
+                "brigade_id": None,
+                "login": "admin",
+                "is_brigadier": 0,
+            },
+            "token": secrets.token_hex(16),
+        }
+
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT * FROM workers WHERE lower(login) = lower(?) LIMIT 1",
+            (login_s,),
+        )
+        row = cur.fetchone()
+    finally:
+        conn.close()
+
+    if not row or (row["password"] if isinstance(row, dict) or hasattr(row, "keys") else row["password"]) != password:
+        # sqlite3.Row
+        stored = None
+        if row is not None:
+            try:
+                stored = row["password"]
+            except Exception:
+                stored = None
+        if not row or stored != password:
+            raise HTTPException(status_code=401, detail="Неверный логин или пароль")
+
+    user = _auth_user_from_row(row)
+    return {"success": True, "user": user, "token": secrets.token_hex(16)}
+
+
+@app.post("/auth/qr/create")
+async def auth_qr_create():
+    token = secrets.token_urlsafe(24)
+    _QR_SESSIONS[token] = {
+        "expires": _time.time() + 180,
+        "user": None,
+        "token_auth": None,
+    }
+    return {
+        "success": True,
+        "token": token,
+        "payload": json.dumps({"t": token, "v": 1}, ensure_ascii=False),
+        "expires_in": 180,
+    }
+
+
+@app.get("/auth/qr/poll/{token}")
+async def auth_qr_poll(token: str):
+    sess = _QR_SESSIONS.get(token)
+    if not sess or _time.time() > sess["expires"]:
+        return {"status": "expired"}
+    if sess.get("user"):
+        return {"status": "ok", "user": sess["user"], "token": sess.get("token_auth")}
+    return {"status": "pending"}
+
+
+@app.post("/auth/forgot-password")
+async def auth_forgot(body: AuthForgotBody):
+    """Beta: код в лог сервера и в debug_code. Позже — SMTP на вашу почту."""
+    login_s = (body.login or "").strip()
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, login, email FROM workers WHERE lower(login) = lower(?) LIMIT 1",
+            (login_s,),
+        )
+        row = cur.fetchone()
+    finally:
+        conn.close()
+
+    debug_code = None
+    if row:
+        code = f"{secrets.randbelow(10**6):06d}"
+        key = (row["login"] or login_s).lower()
+        _RESET_CODES[key] = {
+            "code": code,
+            "expires": _time.time() + 900,
+            "id": row["id"],
+        }
+        debug_code = code
+        print(f"[RESET] login={row['login']} code={code} email={row['email'] or body.email}")
+
+    return {
+        "success": True,
+        "message": "Если аккаунт есть — код отправлен (beta: смотрите лог API / debug_code)",
+        "debug_code": debug_code,
+    }
+
+
+@app.post("/auth/reset-password")
+async def auth_reset(body: AuthResetBody):
+    key = (body.login or "").strip().lower()
+    rec = _RESET_CODES.get(key)
+    if not rec or _time.time() > rec["expires"] or rec["code"] != (body.code or "").strip():
+        raise HTTPException(status_code=400, detail="Неверный или просроченный код")
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE workers SET password = ? WHERE id = ?",
+            (body.new_password, rec["id"]),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    del _RESET_CODES[key]
+    return {"success": True, "message": "Пароль обновлён"}
+
+
+@app.get("/auth/worker/{worker_id}/dashboard")
+async def auth_worker_dashboard(worker_id: int, horizon: str = "week"):
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM workers WHERE id = ?", (worker_id,))
+        w = cur.fetchone()
+        if not w:
+            raise HTTPException(status_code=404, detail="Сотрудник не найден")
+        brigade_id = w["brigade_id"]
+        brigade = None
+        if brigade_id:
+            cur.execute("SELECT * FROM brigades WHERE id = ?", (brigade_id,))
+            br = cur.fetchone()
+            brigade = dict(br) if br else None
+        if brigade_id:
+            cur.execute(
+                "SELECT * FROM operations WHERE brigade_id = ? ORDER BY id",
+                (brigade_id,),
+            )
+        else:
+            cur.execute("SELECT * FROM operations WHERE 0")
+        ops = [dict(r) for r in cur.fetchall()]
+        mates = []
+        if brigade_id:
+            cur.execute(
+                "SELECT id, name, position, is_brigadier, status FROM workers WHERE brigade_id = ?",
+                (brigade_id,),
+            )
+            mates = [dict(r) for r in cur.fetchall()]
+    finally:
+        conn.close()
+
+    total = len(ops)
+    done = sum(
+        1
+        for o in ops
+        if str(o.get("status") or "").lower() in ("completed", "done", "finished")
+    )
+    in_prog = sum(
+        1 for o in ops if str(o.get("status") or "").lower() in ("in_progress", "active")
+    )
+    return {
+        "worker": _auth_user_from_row(w),
+        "brigade": brigade,
+        "mates": mates,
+        "horizon": horizon,
+        "operations": ops,
+        "progress": {
+            "total": total,
+            "completed": done,
+            "in_progress": in_prog,
+            "pending": max(0, total - done - in_prog),
+            "percent": round(100.0 * done / total, 1) if total else 0.0,
+        },
+    }
+
 # ================================================================
 # ОПЕРАЦИИ - СПЕЦИФИЧНЫЕ ЭНДПОИНТЫ (ДО /operations/{op_id})
 # ================================================================

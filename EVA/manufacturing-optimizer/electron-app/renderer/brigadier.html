@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' http://127.0.0.1:8000 http://localhost:8000;">
+<title>NEVZ · Кабинет бригадира</title>
+<link rel="stylesheet" href="css/themes/light.css" id="theme-stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="css/worker.css">
+<link rel="stylesheet" href="css/brigadier.css">
+<link rel="stylesheet" href="css/animations.css">
+</head>
+<body>
+<div class="hub-layout">
+  <aside class="hub-sidebar" id="hubSidebar">
+    <div class="hub-brand">
+      <div class="hub-logo" title="NEVZ">Б</div>
+      <div class="hub-brand-text-wrap">
+        <div class="hub-title">NEVZ · Бригадир</div>
+        <div class="hub-sub" id="hubBrigadeLabel">Бригада</div>
+      </div>
+      <button type="button" class="sidebar-toggle" id="sidebarToggle" title="Свернуть"><span class="toggle-icon">⟨</span></button>
+    </div>
+    <nav class="hub-nav">
+      <button type="button" class="hub-nav-item active" data-page="dashboard" title="Сводка"><span class="hub-nav-ico">📊</span><span class="hub-nav-label">Сводка</span></button>
+      <button type="button" class="hub-nav-item" data-page="employees" title="Сотрудники"><span class="hub-nav-ico">👥</span><span class="hub-nav-label">Сотрудники</span></button>
+      <button type="button" class="hub-nav-item" data-page="operations" title="Работы"><span class="hub-nav-ico">⚙️</span><span class="hub-nav-label">Работы</span></button>
+      <button type="button" class="hub-nav-item" data-page="assign" title="Назначения"><span class="hub-nav-ico">🔗</span><span class="hub-nav-label">Назначения</span></button>
+      <button type="button" class="hub-nav-item" data-page="reports" title="Отчёты"><span class="hub-nav-ico">📈</span><span class="hub-nav-label">Отчёты</span></button>
+      <button type="button" class="hub-nav-item" data-page="settings" title="Настройки"><span class="hub-nav-ico">⚙</span><span class="hub-nav-label">Настройки</span></button>
+    </nav>
+    <div class="hub-sidebar-foot">
+      <div class="hub-user-mini">
+        <div class="user-avatar sm" id="userAvatarSide">Б</div>
+        <div class="hub-user-mini-text">
+          <div class="hub-user-mini-name" id="userNameSide">Бригадир</div>
+          <div class="hub-user-mini-role">brigadier</div>
+        </div>
+      </div>
+      <button type="button" class="hub-logout" id="hubLogoutBtn">← <span class="hub-nav-label">Выйти</span></button>
+    </div>
+  </aside>
+
+  <div class="hub-content">
+    <header class="hub-topbar">
+      <div class="hub-top-left">
+        <span class="hub-brand-text">Manufacturing Optimizer</span>
+        <span class="hub-top-sep">/</span>
+        <span class="hub-page-label" id="hubPageLabel">Сводка</span>
+      </div>
+      <div class="hub-top-center">
+        <span id="currentDate"></span>
+        <span id="currentTime" class="hub-time"></span>
+      </div>
+      <div class="hub-top-right">
+        <div class="user-info">
+          <div class="user-avatar" id="userAvatar">Б</div>
+          <div class="user-details">
+            <span class="user-name" id="userName">Бригадир</span>
+            <span class="user-brigade" id="userBrigade">—</span>
+          </div>
+        </div>
+        <button type="button" class="btn-icon" id="refreshBtn" title="Обновить">↻</button>
+        <button type="button" class="btn-icon" id="logoutBtn" title="Выйти">⎋</button>
+      </div>
+    </header>
+
+    <!-- DASHBOARD -->
+    <section class="hub-page active" id="page-dashboard">
+      <div class="page-head row-between">
+        <div>
+          <h1>Сводка бригады</h1>
+          <p class="page-sub">Сотрудники, загрузка и работы</p>
+        </div>
+        <div class="status-pill"><span class="dot ok"></span> <span id="dashOnline">—</span></div>
+      </div>
+      <div class="kpi-row">
+        <article class="card kpi-tile"><div class="kpi-label">Сотрудники</div><div class="kpi-big" id="kpiWorkers">0</div></article>
+        <article class="card kpi-tile"><div class="kpi-label">В работе</div><div class="kpi-big" id="kpiInProgress">0</div></article>
+        <article class="card kpi-tile"><div class="kpi-label">Ожидают</div><div class="kpi-big" id="kpiPending">0</div></article>
+        <article class="card kpi-tile"><div class="kpi-label">Завершено</div><div class="kpi-big" id="kpiDone">0</div></article>
+      </div>
+      <div class="bento" style="margin-top:16px;">
+        <article class="card bento-main">
+          <div class="card-header"><h2>Работы бригады</h2></div>
+          <div class="card-body tight"><div id="dashOpsList" class="table-wrap"></div></div>
+        </article>
+        <div class="bento-side">
+          <article class="card">
+            <div class="card-header"><h2>Состав</h2></div>
+            <div class="card-body tight"><div id="dashMembers"></div></div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- EMPLOYEES -->
+    <section class="hub-page" id="page-employees">
+      <div class="page-head row-between">
+        <div>
+          <h1>Сотрудники</h1>
+          <p class="page-sub">Добавление, правка, перевод между бригадами</p>
+        </div>
+        <button type="button" class="btn btn-primary" id="btnAddWorker">＋ Сотрудник</button>
+      </div>
+      <div class="card">
+        <div class="card-body tight">
+          <div class="toolbar">
+            <input type="search" class="input" id="empSearch" placeholder="Поиск по ФИО / логину…">
+          </div>
+          <div class="table-wrap">
+            <table class="data-table" id="employeesTable">
+              <thead>
+                <tr>
+                  <th>ID</th><th>ФИО</th><th>Логин</th><th>Роль</th><th>Бригада</th><th>Статус</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="employeesTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- OPERATIONS / WORKS -->
+    <section class="hub-page" id="page-operations">
+      <div class="page-head row-between">
+        <div>
+          <h1>Работы</h1>
+          <p class="page-sub">Операции бригады: статус, сроки, удаление</p>
+        </div>
+        <button type="button" class="btn btn-primary" id="btnAddOp">＋ Работа</button>
+      </div>
+      <div class="card">
+        <div class="card-body tight">
+          <div class="toolbar">
+            <select class="input" id="opStatusFilter" style="max-width:180px;">
+              <option value="all">Все статусы</option>
+              <option value="pending">Ожидают</option>
+              <option value="in_progress">В работе</option>
+              <option value="completed">Завершено</option>
+              <option value="blocked">Блок</option>
+            </select>
+            <input type="search" class="input" id="opSearch" placeholder="Поиск операции…">
+          </div>
+          <div class="table-wrap">
+            <table class="data-table" id="opsTable">
+              <thead>
+                <tr>
+                  <th>№</th><th>Название</th><th>Статус</th><th>Длит. ч</th><th>Пост</th><th>Бригада</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="opsTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ASSIGN / TRANSFER -->
+    <section class="hub-page" id="page-assign">
+      <div class="page-head">
+        <h1>Назначения и перенос</h1>
+        <p class="page-sub">Привязка сотрудника к бригаде и операции</p>
+      </div>
+      <div class="assign-grid">
+        <div class="card">
+          <div class="card-header"><h2>Перенос сотрудника</h2></div>
+          <div class="card-body">
+            <div class="form-group"><label>Сотрудник</label><select class="input" id="transferWorker"></select></div>
+            <div class="form-group"><label>В бригаду</label><select class="input" id="transferBrigade"></select></div>
+            <button type="button" class="btn btn-primary" id="btnTransfer">Перенести</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h2>Назначить работу бригаде</h2></div>
+          <div class="card-body">
+            <div class="form-group"><label>Операция</label><select class="input" id="assignOp"></select></div>
+            <div class="form-group"><label>Бригада</label><select class="input" id="assignBrigade"></select></div>
+            <button type="button" class="btn btn-primary" id="btnAssignOp">Назначить</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- REPORTS -->
+    <section class="hub-page" id="page-reports">
+      <div class="page-head row-between">
+        <div>
+          <h1>Отчёты бригады</h1>
+          <p class="page-sub">Сводка по горизонтам</p>
+        </div>
+        <select class="input" id="reportHorizon" style="max-width:160px;">
+          <option value="day">День</option>
+          <option value="week" selected>Неделя</option>
+          <option value="month">Месяц</option>
+        </select>
+      </div>
+      <div class="kpi-row">
+        <article class="card kpi-tile"><div class="kpi-label">Выполнено %</div><div class="kpi-big" id="repPercent">0%</div></article>
+        <article class="card kpi-tile"><div class="kpi-label">Завершено</div><div class="kpi-big" id="repDone">0</div></article>
+        <article class="card kpi-tile"><div class="kpi-label">Всего опер.</div><div class="kpi-big" id="repTotal">0</div></article>
+      </div>
+      <div class="card" style="margin-top:16px;">
+        <div class="card-header"><h2>Детализация</h2></div>
+        <div class="card-body"><div id="reportDetails" class="muted">Загрузка…</div></div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="hub-page" id="page-settings">
+      <div class="page-head"><h1>Настройки</h1><p class="page-sub">Профиль бригадира</p></div>
+      <div class="card settings-span-8" style="max-width:720px;">
+        <div class="card-body">
+          <div class="form-group"><label>ФИО</label><input class="input" id="bgName" readonly></div>
+          <div class="form-group"><label>Логин</label><input class="input" id="bgLogin" readonly></div>
+          <div class="form-group"><label>Бригада</label><input class="input" id="bgBrigade" readonly></div>
+          <p class="muted">Смена пароля и QR — как у сотрудника (через API auth).</p>
+        </div>
+      </div>
+    </section>
+
+    <footer class="hub-footer">
+      <div class="connection-status" id="connectionStatus"><span class="status-dot"></span><span class="status-text">Подключено</span></div>
+      <div>v2.1.0 · бригадир</div>
+    </footer>
+  </div>
+</div>
+
+<!-- Modal worker -->
+<div class="modal-overlay" id="modalOverlay" style="display:none;"></div>
+<div class="modal" id="workerModal" style="display:none;">
+  <div class="modal-header"><h3 id="workerModalTitle">Сотрудник</h3><button type="button" class="modal-close" data-close>×</button></div>
+  <div class="modal-body">
+    <input type="hidden" id="wId">
+    <div class="form-group"><label>ФИО *</label><input class="input" id="wName"></div>
+    <div class="form-group"><label>Логин *</label><input class="input" id="wLogin"></div>
+    <div class="form-group"><label>Пароль <span class="muted" id="wPassHint">(новый)</span></label><input class="input" id="wPass" type="password" autocomplete="new-password"></div>
+    <div class="form-group"><label>Роль</label>
+      <select class="input" id="wRole">
+        <option value="worker">worker</option>
+        <option value="brigadier">brigadier</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Бригада</label><select class="input" id="wBrigade"></select></div>
+    <div class="form-group"><label>Email</label><input class="input" id="wEmail"></div>
+    <div class="form-group"><label>Телефон</label><input class="input" id="wPhone"></div>
+    <div class="form-group"><label>Должность</label><input class="input" id="wPosition"></div>
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-outline" data-close>Отмена</button>
+    <button type="button" class="btn btn-primary" id="btnSaveWorker">Сохранить</button>
+  </div>
+</div>
+
+<!-- Modal operation -->
+<div class="modal" id="opModal" style="display:none;">
+  <div class="modal-header"><h3 id="opModalTitle">Работа</h3><button type="button" class="modal-close" data-close>×</button></div>
+  <div class="modal-body">
+    <input type="hidden" id="oId">
+    <div class="form-group"><label>Название *</label><input class="input" id="oName"></div>
+    <div class="form-group"><label>Длительность (ч)</label><input class="input" id="oDuration" type="number" step="0.5" min="0.5" value="1"></div>
+    <div class="form-group"><label>Пост</label><input class="input" id="oPost"></div>
+    <div class="form-group"><label>Статус</label>
+      <select class="input" id="oStatus">
+        <option value="pending">pending</option>
+        <option value="in_progress">in_progress</option>
+        <option value="completed">completed</option>
+        <option value="blocked">blocked</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Бригада</label><select class="input" id="oBrigade"></select></div>
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-outline" data-close>Отмена</button>
+    <button type="button" class="btn btn-primary" id="btnSaveOp">Сохранить</button>
+  </div>
+</div>
+
+<div class="notifications-container" id="notificationsContainer"></div>
+<div class="loading-overlay" id="loadingOverlay" style="display:none;">
+  <div class="loading-spinner"></div>
+  <p id="loadingText">Загрузка…</p>
+</div>
+
+<script src="js/brigadier/brigadier-main.js"></script>
+</body>
+</html>

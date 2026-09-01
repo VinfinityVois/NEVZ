@@ -548,24 +548,43 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             // ===== ЗАБЫЛИ ПАРОЛЬ =====
-            document.getElementById('forgotPassword').addEventListener('click', (e) => {
-                e.preventDefault();
-                
-                if (typeof anime !== 'undefined') {
-                    anime({
-                        targets: '.forgot-link',
-                        scale: [1, 1.1, 1],
-                        duration: 300
-                    });
-                }
-                
-                // Показываем сообщение
-                window.electronAPI.notifications.show({
-                    title: 'Восстановление пароля',
-                    body: 'Обратитесь к администратору системы для сброса пароля.',
-                    type: 'info'
-                });
-            });
+document.getElementById('forgotPassword').addEventListener('click', async (e) => {
+  e.preventDefault();
+  const login = (document.getElementById('login')?.value || '').trim();
+  if (!login) {
+    showError('Сначала введите логин');
+    return;
+  }
+  try {
+    const r = await fetch('http://127.0.0.1:8000/auth/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ login }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      showError(data.detail || 'Ошибка сброса');
+      return;
+    }
+    const code = prompt(
+      'Код из письма (в beta смотрите лог API или подсказку):',
+      data.debug_code || ''
+    );
+    if (!code) return;
+    const np = prompt('Новый пароль (минимум 4 символа):');
+    if (!np || np.length < 4) return;
+    const r2 = await fetch('http://127.0.0.1:8000/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ login, code, new_password: np }),
+    });
+    const d2 = await r2.json().catch(() => ({}));
+    if (!r2.ok) showError(d2.detail || 'Не удалось сменить пароль');
+    else alert('Пароль обновлён. Войдите с новым паролем.');
+  } catch (err) {
+    showError('Нет /auth/forgot-password — сделайте шаг A/B');
+  }
+});
             
             // ===== ГОРЯЧИЕ КЛАВИШИ =====
             document.addEventListener('keydown', (e) => {

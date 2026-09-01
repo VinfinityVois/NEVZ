@@ -1,842 +1,1032 @@
 /**
- * ================================================================
- * MANUFACTURING OPTIMIZER - ГЛАВНЫЙ СКРИПТ РАБОЧЕГО
- * ================================================================
+ * NEVZ Worker Hub — Industrial Precision + API
  */
-
 'use strict';
 
-// Состояние рабочего
+const API = 'http://127.0.0.1:8000';
+
 const WorkerState = {
-    userId: null,
-    brigadeId: null,
-    user: null,
-    brigade: null,
-    currentTask: null,
-    tasks: [],
-    history: [],
-    stats: {
-        completed: 0,
-        totalHours: 0,
-        efficiency: 0
-    },
-    timer: {
-        isRunning: false,
-        startTime: null,
-        elapsedSeconds: 0,
-        interval: null
-    },
-    filter: 'all'
+  userId: null,
+  brigadeId: null,
+  user: null,
+  brigade: null,
+  currentTask: null,
+  tasks: [],
+  history: [],
+  mates: [],
+  stats: { completed: 0, totalHours: 0, efficiency: 0, percent: 0 },
+  timer: { isRunning: false, startTime: null, elapsedSeconds: 0, interval: null },
+  filter: 'all',
+  horizon: 'week',
+  page: 'tasks',
+  qr: { token: null, expires: null }
 };
 
-// DOM элементы
-const DOM = {
-    userName: null,
-    userBrigade: null,
-    userAvatar: null,
-    currentDate: null,
-    currentTime: null,
-    currentTaskContainer: null,
-    noTaskMessage: null,
-    taskDetails: null,
-    taskNumber: null,
-    taskName: null,
-    taskPost: null,
-    taskDrawing: null,
-    taskLabor: null,
-    taskPeople: null,
-    taskDuration: null,
-    taskLocation: null,
-    taskPriority: null,
-    taskDependencies: null,
-    startTaskBtn: null,
-    completeTaskBtn: null,
-    pauseTaskBtn: null,
-    timerValue: null,
-    timerProgress: null,
-    taskQueueList: null,
-    queueCount: null,
-    historyList: null,
-    brigadeInfo: null,
-    tasksCompleted: null,
-    totalHours: null,
-    efficiency: null,
-    tasksInQueue: null,
-    shiftProgressText: null,
-    shiftProgressBar: null,
-    modalOverlay: null,
-    completeTaskModal: null,
-    actualDuration: null,
-    actualPeople: null,
-    taskComment: null,
-    connectionStatus: null,
-    appVersion: null,
-    loadingOverlay: null,
-    loadingText: null,
-    notificationsContainer: null
-};
+const DOM = {};
 
-// ================================================================
-// ИНИЦИАЛИЗАЦИЯ
-// ================================================================
+const PAGE_LABELS = {
+  tasks: 'Мои задачи',
+  operations: 'Операции',
+  schedule: 'Расписание',
+  graph: 'Граф процесса',
+  ai: 'AI-поддержка',
+  settings: 'Настройки'
+};
 
 async function initWorker() {
-    console.log('[Worker] 🚀 Инициализация...');
-    
-    cacheDomElements();
-    
-    // Получаем параметры запуска
-    const params = window.electronAPI?.app?.getStartupParams() || {};
-    WorkerState.userId = params.userId || 2;
-    WorkerState.brigadeId = params.brigadeId || 1;
-    
-    console.log(`[Worker] userId=${WorkerState.userId}, brigadeId=${WorkerState.brigadeId}`);
-    
-    // Загружаем данные
-    await loadWorkerData();
-    
-    // Настраиваем обработчики
-    setupEventListeners();
-    subscribeToElectronEvents();
-    
-    // Запускаем часы
-    startDateTimeUpdates();
-    
-    // Проверяем соединение
-    checkConnection();
-    setInterval(checkConnection, 30000);
-    
-    console.log('[Worker] ✅ Инициализация завершена');
+  cacheDomElements();
+  setupSidebar();
+  setupHubNav();
+  setupEventListeners();
+  setupSettings();
+
+  const auth = window.electronAPI?.storage?.get('auth');
+  const q = new URLSearchParams(window.location.search || '');
+  const params = window.electronAPI?.app?.getStartupParams?.() || {};
+  WorkerState.userId = auth?.user?.id || params.userId || q.get('userId') || null;
+  WorkerState.brigadeId = auth?.user?.brigade_id ?? params.brigadeId ?? q.get('brigadeId') ?? null;
+
+  // restore sidebar
+  if (localStorage.getItem('workerSidebarCollapsed') === '1') {
+    document.getElementById('hubSidebar')?.classList.add('collapsed');
+  }
+
+  showHubPage('tasks');
+  await loadWorkerData();
+  startDateTimeUpdates();
+  checkConnection();
+  setInterval(checkConnection, 30000);
 }
 
 function cacheDomElements() {
-    DOM.userName = document.getElementById('userName');
-    DOM.userBrigade = document.getElementById('userBrigade');
-    DOM.userAvatar = document.getElementById('userAvatar');
-    DOM.currentDate = document.getElementById('currentDate');
-    DOM.currentTime = document.getElementById('currentTime');
-    DOM.currentTaskContainer = document.getElementById('currentTaskContainer');
-    DOM.noTaskMessage = document.getElementById('noTaskMessage');
-    DOM.taskDetails = document.getElementById('taskDetails');
-    DOM.taskNumber = document.getElementById('taskNumber');
-    DOM.taskName = document.getElementById('taskName');
-    DOM.taskPost = document.getElementById('taskPost');
-    DOM.taskDrawing = document.getElementById('taskDrawing');
-    DOM.taskLabor = document.getElementById('taskLabor');
-    DOM.taskPeople = document.getElementById('taskPeople');
-    DOM.taskDuration = document.getElementById('taskDuration');
-    DOM.taskLocation = document.getElementById('taskLocation');
-    DOM.taskPriority = document.getElementById('taskPriority');
-    DOM.taskDependencies = document.getElementById('taskDependencies');
-    DOM.startTaskBtn = document.getElementById('startTaskBtn');
-    DOM.completeTaskBtn = document.getElementById('completeTaskBtn');
-    DOM.pauseTaskBtn = document.getElementById('pauseTaskBtn');
-    DOM.timerValue = document.getElementById('timerValue');
-    DOM.timerProgress = document.getElementById('timerProgress');
-    DOM.taskQueueList = document.getElementById('taskQueueList');
-    DOM.queueCount = document.getElementById('queueCount');
-    DOM.historyList = document.getElementById('historyList');
-    DOM.brigadeInfo = document.getElementById('brigadeInfo');
-    DOM.tasksCompleted = document.getElementById('tasksCompleted');
-    DOM.totalHours = document.getElementById('totalHours');
-    DOM.efficiency = document.getElementById('efficiency');
-    DOM.tasksInQueue = document.getElementById('tasksInQueue');
-    DOM.shiftProgressText = document.getElementById('shiftProgressText');
-    DOM.shiftProgressBar = document.getElementById('shiftProgressBar');
-    DOM.modalOverlay = document.getElementById('modalOverlay');
-    DOM.completeTaskModal = document.getElementById('completeTaskModal');
-    DOM.actualDuration = document.getElementById('actualDuration');
-    DOM.actualPeople = document.getElementById('actualPeople');
-    DOM.taskComment = document.getElementById('taskComment');
-    DOM.connectionStatus = document.getElementById('connectionStatus');
-    DOM.appVersion = document.getElementById('appVersion');
-    DOM.loadingOverlay = document.getElementById('loadingOverlay');
-    DOM.loadingText = document.getElementById('loadingText');
-    DOM.notificationsContainer = document.getElementById('notificationsContainer');
+  [
+    'userName','userBrigade','userAvatar','currentDate','currentTime',
+    'currentTaskContainer','noTaskMessage','taskDetails','taskNumber','taskName',
+    'taskPost','taskDrawing','taskLabor','taskPeople','taskDuration','taskLocation',
+    'taskPriority','taskDependencies','startTaskBtn','completeTaskBtn','pauseTaskBtn',
+    'timerValue','timerProgress','taskQueueList','queueCount','historyList','brigadeInfo',
+    'tasksCompleted','totalHours','efficiency','tasksInQueue','shiftProgressText','shiftProgressBar',
+    'modalOverlay','completeTaskModal','actualDuration','actualPeople','taskComment',
+    'connectionStatus','appVersion','loadingOverlay','loadingText','notificationsContainer',
+    'hubBrigadeLabel','hubPageLabel','profileInfo','operationsGrid','scheduleList',
+    'workerGraphFlow','aiQuestion','aiAnswer'
+  ].forEach((id) => { DOM[id] = document.getElementById(id); });
 }
 
-// ================================================================
-// ЗАГРУЗКА ДАННЫХ
-// ================================================================
+function setupSidebar() {
+  const side = document.getElementById('hubSidebar');
+  const toggle = document.getElementById('sidebarToggle');
+  const mobile = document.getElementById('sidebarToggleMobile');
+  const modeSel = () => localStorage.getItem('workerSidebarMode') || 'click';
 
-async function loadTasksFromApi() {
-    const auth = window.electronAPI?.storage?.get('auth');
-    const user = auth?.user;
-    const params = new URLSearchParams(window.location.search || '');
-    const workerId = user?.id || params.get('userId');
-    if (!workerId) {
-        console.warn('[Worker] нет workerId');
-        return;
+  function setCollapsed(on) {
+    if (!side) return;
+    side.classList.toggle('collapsed', !!on);
+    localStorage.setItem('workerSidebarCollapsed', on ? '1' : '0');
+  }
+
+  toggle?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setCollapsed(!side.classList.contains('collapsed'));
+  });
+  // Свернутый бар: клик по логотипу разворачивает (стрелки нет)
+  side?.querySelector('.hub-logo')?.addEventListener('click', () => {
+    if (side.classList.contains('collapsed')) setCollapsed(false);
+  });
+  mobile?.addEventListener('click', () => side?.classList.toggle('mobile-hidden'));
+  document.getElementById('toggleSidebarNowBtn')?.addEventListener('click', () => {
+    setCollapsed(!side?.classList.contains('collapsed'));
+  });
+
+  let hoverTimer = null;
+  side?.addEventListener('mouseenter', () => {
+    if (modeSel() !== 'hover') return;
+    clearTimeout(hoverTimer);
+    if (side.classList.contains('collapsed')) {
+      side.dataset.wasCollapsed = '1';
+      side.classList.remove('collapsed');
     }
-    WorkerState.horizon = WorkerState.horizon || 'week';
-    const res = await fetch(
-        'http://127.0.0.1:8000/auth/worker/' + workerId + '/dashboard?horizon=' + WorkerState.horizon
-    );
-    if (!res.ok) throw new Error('dashboard ' + res.status);
-    const data = await res.json();
+  });
+  side?.addEventListener('mouseleave', () => {
+    if (modeSel() !== 'hover') return;
+    clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(() => {
+      if (side.dataset.wasCollapsed === '1') {
+        side.classList.add('collapsed');
+        side.dataset.wasCollapsed = '';
+      }
+    }, 180);
+  });
+}
 
-    WorkerState.user = data.worker;
-    WorkerState.brigadeId = data.worker?.brigade_id;
-    WorkerState.tasks = data.operations || [];
-    WorkerState.stats.completed = data.progress?.completed || 0;
-    WorkerState.stats.percent = data.progress?.percent || 0;
+function setupHubNav() {
+  document.querySelectorAll('.hub-nav-item').forEach((btn) => {
+    btn.addEventListener('click', () => showHubPage(btn.dataset.page));
+  });
+  document.getElementById('hubLogoutBtn')?.addEventListener('click', logout);
+}
 
-    if (DOM.userName) DOM.userName.textContent = data.worker?.name || '—';
-    if (DOM.userBrigade) {
-        DOM.userBrigade.textContent =
-            (data.brigade && data.brigade.name) ||
-            ('Бригада #' + (data.worker?.brigade_id || '—'));
-    }
-    if (DOM.tasksCompleted) DOM.tasksCompleted.textContent = String(WorkerState.stats.completed);
-    if (DOM.efficiency) DOM.efficiency.textContent = WorkerState.stats.percent + '%';
-    if (DOM.shiftProgressText) DOM.shiftProgressText.textContent = WorkerState.stats.percent + '%';
-    if (DOM.shiftProgressBar) DOM.shiftProgressBar.style.width = WorkerState.stats.percent + '%';
-
-    WorkerState.currentTask =
-        WorkerState.tasks.find((t) => String(t.status).toLowerCase() === 'in_progress') || null;
-
-    if (typeof updateQueueCount === 'function') updateQueueCount();
+function showHubPage(page) {
+  WorkerState.page = page;
+  document.querySelectorAll('.hub-nav-item').forEach((b) => {
+    b.classList.toggle('active', b.dataset.page === page);
+  });
+  document.querySelectorAll('.hub-page').forEach((el) => {
+    el.classList.toggle('active', el.id === 'page-' + page);
+  });
+  if (DOM.hubPageLabel) DOM.hubPageLabel.textContent = PAGE_LABELS[page] || page;
+  if (page === 'operations') renderOperationsGrid();
+  if (page === 'schedule') { renderScheduleList(); renderBrigadeInfo(); renderHistory(); }
+  if (page === 'graph') renderWorkerGraph();
+  if (page === 'settings') {
+    fillSettingsForm();
+    loadPersonalQr();
+  }
 }
 
 async function loadWorkerData() {
-    showLoading('Загрузка данных...');
-    
-    try {
-        // Загружаем информацию о рабочем
-        await loadUserInfo();
-        
-        // Загружаем информацию о бригаде
-        await loadBrigadeInfo();
-        
-        // Загружаем задачи
-        await loadTasksFromApi();
-        
-        // Загружаем историю
-        await loadHistory();
-        
-        // Обновляем статистику
-        updateStats();
-        
-        // Обновляем UI
-        renderTasks();
-        renderHistory();
-        
-    } catch (error) {
-        console.error('[Worker] Ошибка загрузки данных:', error);
-        showNotification('Ошибка', 'Не удалось загрузить данные', 'error');
-    } finally {
-        hideLoading();
-    }
-}
-
-async function loadUserInfo() {
-    // Тестовые данные
-    WorkerState.user = {
-        id: WorkerState.userId,
-        name: 'Иван Петров',
-        role: 'worker',
-        brigade_id: WorkerState.brigadeId
-    };
-    
-    if (DOM.userName) {
-        DOM.userName.textContent = WorkerState.user.name;
-    }
-    if (DOM.userAvatar) {
-        DOM.userAvatar.textContent = WorkerState.user.name.charAt(0);
-    }
-}
-
-async function loadBrigadeInfo() {
-    // Тестовые данные
-    WorkerState.brigade = {
-        id: WorkerState.brigadeId,
-        name: `Бригада ${WorkerState.brigadeId}`,
-        members: [
-            { id: 1, name: 'Иван Петров', status: 'online' },
-            { id: 2, name: 'Пётр Сидоров', status: 'busy' },
-            { id: 3, name: 'Анна Смирнова', status: 'online' }
-        ],
-        currentLoad: 65,
-        efficiency: 92
-    };
-    
-    if (DOM.userBrigade) {
-        DOM.userBrigade.textContent = WorkerState.brigade.name;
-    }
-    
-    renderBrigadeInfo();
-}
-
-async function loadTasks() {
-    // Тестовые данные
-    WorkerState.tasks = [
-        { id: 1, op_number: 103, name: 'Раскрой подкладки', status: 'in_progress', priority: 'high', post: 2, drawing: 'МБ-001', labor_hours: 12, people_count: 2, duration: 6, location: 'Цех 2', time_reserve: 3, dependencies: [101] },
-        { id: 2, op_number: 105, name: 'Пошив подкладки', status: 'pending', priority: 'medium', post: 3, drawing: 'МБ-001', labor_hours: 18, people_count: 3, duration: 6, location: 'Цех 3', time_reserve: 2, dependencies: [103] },
-        { id: 3, op_number: 108, name: 'Проверка швов', status: 'pending', priority: 'low', post: 5, drawing: 'МБ-001', labor_hours: 4, people_count: 1, duration: 4, location: 'ОТК', time_reserve: 5, dependencies: [105, 106] },
-        { id: 4, op_number: 109, name: 'Упаковка', status: 'blocked', priority: 'low', post: 6, drawing: 'МБ-001', labor_hours: 2, people_count: 1, duration: 2, location: 'Склад', time_reserve: 8, dependencies: [108] }
-    ];
-    
-    // Находим текущую активную задачу
-    WorkerState.currentTask = WorkerState.tasks.find(t => t.status === 'in_progress');
-    
-    updateQueueCount();
-}
-
-async function loadHistory() {
-    // Тестовые данные
-    WorkerState.history = [
-        { id: 1, op_number: 101, name: 'Подготовка материалов', completed_at: '2024-01-15T10:30:00', planned_duration: 4, actual_duration: 3.5, people_planned: 2, people_actual: 2, efficiency: 1.14 },
-        { id: 2, op_number: 102, name: 'Раскрой ткани', completed_at: '2024-01-15T14:45:00', planned_duration: 5.3, actual_duration: 6, people_planned: 3, people_actual: 3, efficiency: 0.88 }
-    ];
-    
-    WorkerState.stats.completed = WorkerState.history.length;
-    WorkerState.stats.totalHours = WorkerState.history.reduce((sum, h) => sum + h.actual_duration, 0);
-    WorkerState.stats.efficiency = WorkerState.history.length > 0 
-        ? WorkerState.history.reduce((sum, h) => sum + h.efficiency, 0) / WorkerState.history.length * 100 
-        : 0;
-}
-
-// ================================================================
-// ОТРИСОВКА UI
-// ================================================================
-
-function renderCurrentTask() {
-    if (!WorkerState.currentTask) {
-        DOM.noTaskMessage.style.display = 'flex';
-        DOM.taskDetails.style.display = 'none';
-        DOM.startTaskBtn.style.display = 'none';
-        DOM.completeTaskBtn.style.display = 'none';
-        return;
-    }
-    
-    DOM.noTaskMessage.style.display = 'none';
-    DOM.taskDetails.style.display = 'block';
-    
-    const task = WorkerState.currentTask;
-    
-    DOM.taskNumber.textContent = `#${task.op_number}`;
-    DOM.taskName.textContent = task.name;
-    DOM.taskPost.textContent = task.post;
-    DOM.taskDrawing.textContent = task.drawing;
-    DOM.taskLabor.textContent = `${task.labor_hours} чел/ч`;
-    DOM.taskPeople.textContent = task.people_count;
-    DOM.taskDuration.textContent = `${task.duration} ч`;
-    DOM.taskLocation.textContent = task.location;
-    
-    // Приоритет
-    const priorityMap = { high: 'Высокий', medium: 'Средний', low: 'Низкий' };
-    DOM.taskPriority.textContent = priorityMap[task.priority] || 'Обычный';
-    DOM.taskPriority.style.background = task.priority === 'high' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(245, 158, 11, 0.1)';
-    DOM.taskPriority.style.color = task.priority === 'high' ? 'var(--error)' : 'var(--warning)';
-    
-    // Зависимости
-    if (task.dependencies && task.dependencies.length > 0) {
-        DOM.taskDependencies.textContent = task.dependencies.map(d => `#${d}`).join(', ');
-    } else {
-        DOM.taskDependencies.textContent = 'Нет зависимостей';
-    }
-    
-    // Кнопки
-    if (task.status === 'in_progress') {
-        DOM.startTaskBtn.style.display = 'none';
-        DOM.completeTaskBtn.style.display = 'flex';
-        startTimer();
-    } else {
-        DOM.startTaskBtn.style.display = 'flex';
-        DOM.completeTaskBtn.style.display = 'none';
-    }
-}
-
-function renderTasks() {
-    if (!DOM.taskQueueList) return;
-    
-    let tasks = WorkerState.tasks.filter(t => t.status !== 'in_progress');
-    
-    // Фильтрация
-    if (WorkerState.filter === 'pending') {
-        tasks = tasks.filter(t => t.status === 'pending');
-    } else if (WorkerState.filter === 'blocked') {
-        tasks = tasks.filter(t => t.status === 'blocked');
-    }
-    
-    if (tasks.length === 0) {
-        DOM.taskQueueList.innerHTML = `
-            <div class="empty-queue">
-                <svg viewBox="0 0 60 60" fill="none">
-                    <rect x="15" y="20" width="30" height="25" rx="3" stroke="#414B4E" stroke-width="2" opacity="0.3"/>
-                    <path d="M22 28H38M22 33H38M22 38H30" stroke="#414B4E" stroke-width="2" opacity="0.3"/>
-                </svg>
-                <p>Нет задач в очереди</p>
-            </div>
-        `;
-        return;
-    }
-    
-    DOM.taskQueueList.innerHTML = tasks.map(task => `
-        <div class="queue-item ${task.status} ${WorkerState.currentTask?.id === task.id ? 'selected' : ''}" 
-             data-task-id="${task.id}">
-            <div class="queue-item-icon">${task.op_number}</div>
-            <div class="queue-item-content">
-                <div class="queue-item-title">${task.name}</div>
-                <div class="queue-item-meta">
-                    <span>Пост ${task.post}</span>
-                    <span>${task.duration} ч</span>
-                    <span>👥 ${task.people_count}</span>
-                </div>
-            </div>
-            <div class="queue-item-status ${task.status}">
-                ${getStatusText(task.status)}
-            </div>
-        </div>
-    `).join('');
-    
-    // Добавляем обработчики клика
-    DOM.taskQueueList.querySelectorAll('.queue-item').forEach(item => {
-        item.addEventListener('click', () => selectTask(parseInt(item.dataset.taskId)));
-    });
-}
-
-function renderHistory() {
-    if (!DOM.historyList) return;
-    
-    if (WorkerState.history.length === 0) {
-        DOM.historyList.innerHTML = '<div class="empty-history"><p>Нет завершённых задач</p></div>';
-        return;
-    }
-    
-    DOM.historyList.innerHTML = WorkerState.history.slice(0, 10).map(item => `
-        <div class="history-item">
-            <div class="history-item-header">
-                <span class="history-item-number">#${item.op_number}</span>
-                <span class="history-item-time">${formatTime(item.completed_at)}</span>
-            </div>
-            <div class="history-item-name">${item.name}</div>
-            <div class="history-item-stats">
-                <span class="history-stat">
-                    ⏱ ${item.actual_duration} / ${item.planned_duration} ч
-                </span>
-                <span class="history-stat ${item.efficiency >= 1 ? 'positive' : 'warning'}">
-                    ⚡ ${Math.round(item.efficiency * 100)}%
-                </span>
-            </div>
-        </div>
-    `).join('');
-}
-
-function renderBrigadeInfo() {
-    if (!DOM.brigadeInfo || !WorkerState.brigade) return;
-    
-    DOM.brigadeInfo.innerHTML = `
-        <div class="brigade-details">
-            <div class="brigade-header-info">
-                <div class="brigade-icon">${WorkerState.brigade.name.charAt(0)}</div>
-                <div class="brigade-name-section">
-                    <h4>${WorkerState.brigade.name}</h4>
-                    <p>Загрузка: ${WorkerState.brigade.currentLoad}%</p>
-                </div>
-            </div>
-            <div class="brigade-members">
-                ${WorkerState.brigade.members.map(m => `
-                    <div class="member-badge">
-                        <span class="member-avatar">${m.name.charAt(0)}</span>
-                        <span>${m.name.split(' ')[0]}</span>
-                        <span class="member-status ${m.status}"></span>
-                    </div>
-                `).join('')}
-            </div>
-        </div>
-    `;
-}
-
-function updateStats() {
-    if (DOM.tasksCompleted) {
-        DOM.tasksCompleted.textContent = WorkerState.stats.completed;
-    }
-    if (DOM.totalHours) {
-        DOM.totalHours.textContent = WorkerState.stats.totalHours.toFixed(1);
-    }
-    if (DOM.efficiency) {
-        DOM.efficiency.textContent = `${Math.round(WorkerState.stats.efficiency)}%`;
-    }
-    if (DOM.tasksInQueue) {
-        const pendingCount = WorkerState.tasks.filter(t => t.status === 'pending').length;
-        DOM.tasksInQueue.textContent = pendingCount;
-    }
-    
-    // Прогресс смены (пример)
-    const shiftProgress = 65;
-    if (DOM.shiftProgressText) {
-        DOM.shiftProgressText.textContent = `${shiftProgress}%`;
-    }
-    if (DOM.shiftProgressBar) {
-        DOM.shiftProgressBar.style.width = `${shiftProgress}%`;
-    }
-}
-
-function updateQueueCount() {
-    if (DOM.queueCount) {
-        const count = WorkerState.tasks.filter(t => t.status !== 'in_progress').length;
-        DOM.queueCount.textContent = `${count} ${getTaskWord(count)}`;
-    }
-}
-
-// ================================================================
-// ОБРАБОТЧИКИ СОБЫТИЙ
-// ================================================================
-
-function setupEventListeners() {
-    // Кнопки
-    document.getElementById('refreshBtn')?.addEventListener('click', refreshData);
-    document.getElementById('logoutBtn')?.addEventListener('click', logout);
-    
-    DOM.startTaskBtn?.addEventListener('click', startCurrentTask);
-    DOM.completeTaskBtn?.addEventListener('click', openCompleteModal);
-    
-    // Фильтры
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            WorkerState.filter = btn.dataset.filter;
-            renderTasks();
-        });
-    });
-    
-    // Модальное окно
-    DOM.modalOverlay?.addEventListener('click', closeModal);
-    document.querySelector('.modal-close')?.addEventListener('click', closeModal);
-    document.getElementById('cancelCompleteBtn')?.addEventListener('click', closeModal);
-    document.getElementById('confirmCompleteBtn')?.addEventListener('click', confirmCompleteTask);
-    
-    // Очистка истории
-    document.getElementById('clearHistoryBtn')?.addEventListener('click', clearHistory);
-
-    document.getElementById('horizonSelect')?.addEventListener('change', async (e) => {
-        WorkerState.horizon = e.target.value;
-        try {
-            await loadTasksFromApi();
-            if (typeof renderTasks === 'function') renderTasks();
-        } catch (err) {
-            console.error(err);
-        }
-    });
-}
-
-function subscribeToElectronEvents() {
-    window.electronAPI?.on.dbUpdated.subscribe(() => {
-        console.log('[Worker] Данные обновлены');
-        refreshData();
-    });
-    
-    window.electronAPI?.on.taskStatusChanged.subscribe((data) => {
-        console.log('[Worker] Статус задачи изменён:', data);
-        if (data.brigadeId === WorkerState.brigadeId) {
-            refreshData();
-        }
-    });
-}
-
-// ================================================================
-// ДЕЙСТВИЯ С ЗАДАЧАМИ
-// ================================================================
-
-function selectTask(taskId) {
-    const task = WorkerState.tasks.find(t => t.id === taskId);
-    if (!task || task.status === 'blocked') return;
-    
-    // Если уже есть активная задача
-    if (WorkerState.currentTask) {
-        showNotification('Внимание', 'Сначала завершите текущую задачу', 'warning');
-        return;
-    }
-    
-    WorkerState.currentTask = task;
-    task.status = 'in_progress';
-    
-    renderCurrentTask();
-    renderTasks();
-    updateQueueCount();
-    
-    // Уведомляем систему
-    window.electronAPI?.emit.taskStarted({
-        operationId: task.op_number,
-        brigadeId: WorkerState.brigadeId,
-        userId: WorkerState.userId
-    });
-    
-    showNotification('Задача начата', `Операция #${task.op_number}`, 'success');
-}
-
-function startCurrentTask() {
-    if (!WorkerState.currentTask) return;
-    
-    WorkerState.currentTask.status = 'in_progress';
-    renderCurrentTask();
-    
-    window.electronAPI?.emit.taskStarted({
-        operationId: WorkerState.currentTask.op_number,
-        brigadeId: WorkerState.brigadeId
-    });
-}
-
-function openCompleteModal() {
-    if (!WorkerState.currentTask) return;
-    
-    // Предзаполняем форму
-    if (DOM.actualDuration) {
-        DOM.actualDuration.value = WorkerState.currentTask.duration;
-    }
-    if (DOM.actualPeople) {
-        DOM.actualPeople.value = WorkerState.currentTask.people_count;
-    }
-    
-    DOM.modalOverlay.style.display = 'block';
-    DOM.completeTaskModal.style.display = 'block';
-}
-
-function closeModal() {
-    DOM.modalOverlay.style.display = 'none';
-    DOM.completeTaskModal.style.display = 'none';
-}
-
-async function confirmCompleteTask() {
-    const actualDuration = parseFloat(DOM.actualDuration?.value);
-    const actualPeople = parseInt(DOM.actualPeople?.value);
-    
-    if (!actualDuration || actualDuration <= 0) {
-        showNotification('Ошибка', 'Укажите фактическое время', 'error');
-        return;
-    }
-    
-    closeModal();
-    showLoading('Завершение задачи...');
-    
-    try {
-        const task = WorkerState.currentTask;
-        const efficiency = task.duration / actualDuration;
-        
-        // Добавляем в историю
-        WorkerState.history.unshift({
-            id: Date.now(),
-            op_number: task.op_number,
-            name: task.name,
-            completed_at: new Date().toISOString(),
-            planned_duration: task.duration,
-            actual_duration: actualDuration,
-            people_planned: task.people_count,
-            people_actual: actualPeople,
-            efficiency: efficiency
-        });
-        
-        // Удаляем из текущих задач
-        WorkerState.tasks = WorkerState.tasks.filter(t => t.id !== task.id);
-        WorkerState.currentTask = null;
-        
-        // Останавливаем таймер
-        stopTimer();
-        
-        // Обновляем статистику
-        WorkerState.stats.completed++;
-        WorkerState.stats.totalHours += actualDuration;
-        
-        // Уведомляем систему
-        window.electronAPI?.emit.taskCompleted({
-            operationId: task.op_number,
-            actualDuration,
-            actualPeople,
-            efficiency
-        });
-        
-        // Обновляем UI
-        renderCurrentTask();
-        renderTasks();
-        renderHistory();
-        updateStats();
-        updateQueueCount();
-        
-        showNotification('Задача завершена', `Операция #${task.op_number}`, 'success');
-        
-        // Отправляем данные для обучения AI
-        await window.electronAPI?.ai.trainModel([{
-            labor_hours: task.labor_hours,
-            people_count: actualPeople,
-            brigade_load: WorkerState.brigade.currentLoad,
-            time_reserve: task.time_reserve,
-            actual_duration: actualDuration
-        }]);
-        
-    } catch (error) {
-        console.error('[Worker] Ошибка завершения задачи:', error);
-        showNotification('Ошибка', 'Не удалось завершить задачу', 'error');
-    } finally {
-        hideLoading();
-    }
-}
-
-// ================================================================
-// ТАЙМЕР
-// ================================================================
-
-function startTimer() {
-    if (WorkerState.timer.isRunning) return;
-    
-    WorkerState.timer.isRunning = true;
-    WorkerState.timer.startTime = Date.now() - WorkerState.timer.elapsedSeconds * 1000;
-    
-    WorkerState.timer.interval = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - WorkerState.timer.startTime) / 1000);
-        WorkerState.timer.elapsedSeconds = elapsed;
-        
-        if (DOM.timerValue) {
-            DOM.timerValue.textContent = formatDuration(elapsed);
-        }
-        
-        // Прогресс относительно планового времени
-        if (WorkerState.currentTask) {
-            const progress = Math.min((elapsed / 3600) / WorkerState.currentTask.duration * 100, 100);
-            if (DOM.timerProgress) {
-                DOM.timerProgress.style.width = `${progress}%`;
-            }
-        }
-    }, 1000);
-}
-
-function stopTimer() {
-    if (WorkerState.timer.interval) {
-        clearInterval(WorkerState.timer.interval);
-        WorkerState.timer.interval = null;
-    }
-    WorkerState.timer.isRunning = false;
-    WorkerState.timer.elapsedSeconds = 0;
-    
-    if (DOM.timerValue) {
-        DOM.timerValue.textContent = '00:00:00';
-    }
-    if (DOM.timerProgress) {
-        DOM.timerProgress.style.width = '0%';
-    }
-}
-
-// ================================================================
-// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-// ================================================================
-
-function startDateTimeUpdates() {
-    updateDateTime();
-    setInterval(updateDateTime, 1000);
-}
-
-function updateDateTime() {
-    const now = new Date();
-    
-    if (DOM.currentDate) {
-        DOM.currentDate.textContent = now.toLocaleDateString('ru-RU', {
-            day: '2-digit', month: '2-digit', year: 'numeric'
-        });
-    }
-    if (DOM.currentTime) {
-        DOM.currentTime.textContent = now.toLocaleTimeString('ru-RU', {
-            hour: '2-digit', minute: '2-digit', second: '2-digit'
-        });
-    }
-}
-
-async function checkConnection() {
-    try {
-        const isReady = await window.electronAPI?.python.isReady();
-        if (DOM.connectionStatus) {
-            DOM.connectionStatus.className = 'connection-status ' + (isReady ? '' : 'offline');
-            const statusText = DOM.connectionStatus.querySelector('.status-text');
-            if (statusText) {
-                statusText.textContent = isReady ? 'Подключено' : 'Нет связи';
-            }
-        }
-    } catch (error) {
-        console.error('[Worker] Ошибка проверки соединения:', error);
-    }
-}
-
-async function refreshData() {
-    await loadWorkerData();
+  showLoading('Загрузка…');
+  try {
+    await loadTasksFromApi();
     renderCurrentTask();
     renderTasks();
     renderHistory();
-    updateStats();
+    renderBrigadeInfo();
+    updateQueueCount();
+    renderOperationsGrid();
+    renderScheduleList();
+    renderWorkerGraph();
+    fillSettingsForm();
+  } catch (e) {
+    console.error(e);
+    showNotification('Ошибка', e.message || 'Не удалось загрузить данные', 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+async function loadTasksFromApi() {
+  const auth = window.electronAPI?.storage?.get('auth');
+  const workerId = auth?.user?.id || WorkerState.userId;
+  if (!workerId) throw new Error('Нет workerId — войдите снова');
+
+  const res = await fetch(
+    API + '/auth/worker/' + workerId + '/dashboard?horizon=' + encodeURIComponent(WorkerState.horizon || 'week')
+  );
+  if (!res.ok) throw new Error('dashboard HTTP ' + res.status);
+  const data = await res.json();
+
+  WorkerState.user = data.worker || null;
+  WorkerState.brigadeId = data.worker?.brigade_id ?? WorkerState.brigadeId;
+  WorkerState.brigade = data.brigade || null;
+  WorkerState.tasks = Array.isArray(data.operations) ? data.operations : [];
+  WorkerState.mates = Array.isArray(data.mates) ? data.mates : [];
+  WorkerState.stats.completed = data.progress?.completed || 0;
+  WorkerState.stats.percent = data.progress?.percent || 0;
+  WorkerState.stats.efficiency = data.progress?.percent || 0;
+  WorkerState.currentTask =
+    WorkerState.tasks.find((t) => String(t.status).toLowerCase() === 'in_progress') || null;
+
+  const name = data.worker?.name || 'Сотрудник';
+  const letter = (name.charAt(0) || '?').toUpperCase();
+  if (DOM.userName) DOM.userName.textContent = name;
+  if (DOM.userAvatar) DOM.userAvatar.textContent = letter;
+  const sideAv = document.getElementById('userAvatarSide');
+  if (sideAv) sideAv.textContent = letter;
+  const sideName = document.getElementById('userNameSide');
+  if (sideName) sideName.textContent = name;
+  const sideRole = document.getElementById('userRoleSide');
+  if (sideRole) sideRole.textContent = data.worker?.role || 'worker';
+
+  const brigName =
+    (data.brigade && data.brigade.name) ||
+    (data.worker?.brigade_id != null ? 'Бригада #' + data.worker.brigade_id : '—');
+  if (DOM.userBrigade) DOM.userBrigade.textContent = brigName;
+  if (DOM.hubBrigadeLabel) DOM.hubBrigadeLabel.textContent = brigName;
+  applyAvatarFromStorage();
+
+  applyStatsToDom();
+}
+
+function applyStatsToDom() {
+  const pct = Math.max(0, Math.min(100, Number(WorkerState.stats.percent) || 0));
+  if (DOM.tasksCompleted) DOM.tasksCompleted.textContent = String(WorkerState.stats.completed || 0);
+  if (DOM.efficiency) DOM.efficiency.textContent = pct + '%';
+  if (DOM.shiftProgressText) DOM.shiftProgressText.textContent = pct + '%';
+  if (DOM.shiftProgressBar) DOM.shiftProgressBar.style.width = pct + '%';
+  const ring = document.getElementById('efficiencyRing');
+  if (ring) ring.setAttribute('stroke-dasharray', pct + ', 100');
+  if (DOM.totalHours) {
+    const hours = WorkerState.tasks.reduce((s, t) => s + (Number(t.duration) || 0), 0);
+    DOM.totalHours.textContent = hours.toFixed(1);
+  }
+  const active = WorkerState.tasks.filter((t) => {
+    const st = String(t.status || '').toLowerCase();
+    return st === 'pending' || st === 'ready' || st === 'in_progress';
+  }).length;
+  const totalGoal = Math.max(active + (WorkerState.stats.completed || 0), 1);
+  if (DOM.tasksInQueue) DOM.tasksInQueue.textContent = String(totalGoal);
+}
+
+function setupEventListeners() {
+  document.getElementById('refreshBtn')?.addEventListener('click', () => loadWorkerData());
+  document.getElementById('logoutBtn')?.addEventListener('click', logout);
+  DOM.startTaskBtn?.addEventListener('click', startCurrentTask);
+  DOM.completeTaskBtn?.addEventListener('click', openCompleteModal);
+  document.querySelectorAll('.filter-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      WorkerState.filter = btn.dataset.filter;
+      renderTasks();
+    });
+  });
+  DOM.modalOverlay?.addEventListener('click', closeModal);
+  document.querySelector('.modal-close')?.addEventListener('click', closeModal);
+  document.getElementById('cancelCompleteBtn')?.addEventListener('click', closeModal);
+  document.getElementById('confirmCompleteBtn')?.addEventListener('click', confirmCompleteTask);
+  document.getElementById('clearHistoryBtn')?.addEventListener('click', clearHistory);
+  document.getElementById('horizonSelect')?.addEventListener('change', async (e) => {
+    WorkerState.horizon = e.target.value;
+    await loadWorkerData();
+  });
+  document.getElementById('aiAskBtn')?.addEventListener('click', onAiAsk);
+}
+
+function setupSettings() {
+  document.getElementById('refreshQrBtn')?.addEventListener('click', () => loadPersonalQr(true));
+  document.getElementById('settingsSaveBtn')?.addEventListener('click', saveSettingsLocal);
+  document.getElementById('settingsCancelBtn')?.addEventListener('click', fillSettingsForm);
+  document.getElementById('changePasswordBtn')?.addEventListener('click', changePassword);
+  document.getElementById('settingsSidebarMode')?.addEventListener('change', (e) => {
+    localStorage.setItem('workerSidebarMode', e.target.value);
+  });
+  document.querySelectorAll('.theme-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.theme-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      localStorage.setItem('workerTheme', btn.dataset.theme);
+      showNotification('Тема', btn.dataset.theme === 'dark' ? 'Тёмная (флаг сохранён)' : 'Светлая', 'info');
+    });
+  });
+  document.getElementById('avatarChangeBtn')?.addEventListener('click', () => {
+    document.getElementById('avatarFileInput')?.click();
+  });
+  document.getElementById('avatarFileInput')?.addEventListener('change', onAvatarSelected);
+  document.getElementById('avatarDeleteBtn')?.addEventListener('click', deleteAvatar);
+  document.getElementById('sendReportBtn')?.addEventListener('click', sendAdminReport);
+}
+
+function fillSettingsForm() {
+  const u = WorkerState.user || {};
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = (v != null && v !== '') ? String(v) : '—'; };
+  set('settingsName', u.name);
+  set('settingsLogin', u.login);
+  set('settingsId', u.id);
+  set('settingsRole', u.role || 'worker');
+  set('settingsBrigade', WorkerState.brigade?.name || (u.brigade_id != null ? '#' + u.brigade_id : ''));
+  set('settingsEmail', u.email || u.mail);
+  set('settingsPhone', u.phone || u.telephone);
+  set('settingsPosition', u.position || u.job_title || u.title);
+  set('settingsTabNum', u.tab_number || u.personnel_number || u.employee_number);
+  // Учётная запись (из БД) vs присутствие (сессия)
+  const accEl = document.getElementById('settingsAccountStatus');
+  if (accEl) {
+    let acc = '—';
+    if (u.is_active === 0 || u.is_active === false || String(u.status).toLowerCase() === 'inactive') acc = 'неактивна';
+    else if (u.is_active === 1 || u.is_active === true || String(u.status).toLowerCase() === 'active') acc = 'активна';
+    else if (u.status) acc = String(u.status);
+    else acc = 'активна'; // есть сессия в кабинете — запись рабочая
+    accEl.value = acc;
+  }
+  updateOnlineStatusField();
+  const letter = (u.name || '?').charAt(0).toUpperCase();
+  const av = document.getElementById('settingsAvatar');
+  if (av) av.textContent = letter;
+  applyAvatarFromStorage();
+  const mode = document.getElementById('settingsSidebarMode');
+  if (mode) mode.value = localStorage.getItem('workerSidebarMode') || 'click';
+  renderReportList();
+}
+
+async function loadPersonalQr(force) {
+  const frame = document.getElementById('personalQrFrame');
+  const canvas = document.getElementById('personalQrCanvas');
+  const ph = document.getElementById('personalQrPlaceholder');
+  const expEl = document.getElementById('qrExpires');
+  const stEl = document.getElementById('qrStatus');
+  if (ph) ph.textContent = 'Загрузка…';
+
+  const auth = window.electronAPI?.storage?.get('auth');
+  const workerId = auth?.user?.id || WorkerState.userId;
+  if (!workerId) {
+    if (ph) ph.textContent = 'Нет сессии';
+    if (stEl) stEl.textContent = 'ошибка';
+    return;
+  }
+
+  try {
+    // Prefer personal daily QR endpoint
+    let res = await fetch(API + '/auth/qr/my?worker_id=' + encodeURIComponent(workerId) + (force ? '&refresh=1' : ''));
+    if (!res.ok) {
+      // fallback: create session token for display
+      res = await fetch(API + '/auth/qr/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ worker_id: workerId, purpose: 'personal_daily' })
+      });
+    }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const token = data.token || data.qr_token || data.code || data.payload;
+    const expires = data.expires_at || data.expires || data.valid_until;
+    WorkerState.qr = { token, expires };
+
+    if (expEl) {
+      try {
+        expEl.textContent = expires
+          ? new Date(expires).toLocaleString('ru-RU')
+          : 'до полуночи (сервер)';
+      } catch (_) {
+        expEl.textContent = String(expires || '—');
+      }
+    }
+    if (stEl) stEl.textContent = data.status || 'активен';
+    const payload = typeof token === 'string' ? token : JSON.stringify(token || data);
+    const prev = document.getElementById('qrTokenPreview');
+    if (prev) {
+      const s = String(payload);
+      prev.textContent = s.length > 28 ? s.slice(0, 14) + '…' + s.slice(-8) : s;
+    }
+    await drawQrOnCanvas(canvas, payload);
+    frame?.classList.add('has-qr');
+    if (ph) ph.style.display = 'none';
+  } catch (e) {
+    console.warn('[QR]', e);
+    frame?.classList.remove('has-qr');
+    if (ph) {
+      ph.style.display = 'flex';
+      ph.textContent = 'QR недоступен: ' + (e.message || e) + '. Нужен /auth/qr/my на API.';
+    }
+    if (stEl) stEl.textContent = 'не загружен';
+    // local fallback pattern for UI demo
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, 180, 180);
+      ctx.fillStyle = '#1b2b48';
+      ctx.font = '12px sans-serif';
+      ctx.fillText('QR API offline', 40, 90);
+    }
+  }
+}
+
+/** Minimal QR-like placeholder if no library — tries CDN-free matrix from token hash */
+async function drawQrOnCanvas(canvas, text) {
+  if (!canvas) return;
+  const size = 180;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, size, size);
+
+  // Try global QRCode if present
+  if (typeof window.QRCode !== 'undefined') {
+    return new Promise((resolve) => {
+      try {
+        // qrcodejs style
+        const div = document.createElement('div');
+        // eslint-disable-next-line no-new
+        new window.QRCode(div, { text: String(text), width: size, height: size });
+        setTimeout(() => {
+          const img = div.querySelector('img') || div.querySelector('canvas');
+          if (img) ctx.drawImage(img, 0, 0, size, size);
+          resolve();
+        }, 50);
+      } catch (_) {
+        drawPseudoQr(ctx, text, size);
+        resolve();
+      }
+    });
+  }
+  drawPseudoQr(ctx, text, size);
+}
+
+function drawPseudoQr(ctx, text, size) {
+  // Deterministic pattern from string — visual stand-in until QR lib added
+  let h = 0;
+  const s = String(text);
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  const cells = 25;
+  const cell = Math.floor(size / cells);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, size, size);
+  ctx.fillStyle = '#1b2b48';
+  for (let y = 0; y < cells; y++) {
+    for (let x = 0; x < cells; x++) {
+      const bit = ((h >> ((x * 3 + y) % 16)) ^ (x * 7 + y * 13 + h)) & 1;
+      const finder =
+        (x < 7 && y < 7) || (x >= cells - 7 && y < 7) || (x < 7 && y >= cells - 7);
+      if (finder) {
+        const onEdge = x === 0 || y === 0 || x === 6 || y === 6 ||
+          x === cells - 1 || y === cells - 1 || x === cells - 7 || y === cells - 7;
+        const inCore = (x >= 2 && x <= 4 && y >= 2 && y <= 4) ||
+          (x >= cells - 5 && x <= cells - 3 && y >= 2 && y <= 4) ||
+          (x >= 2 && x <= 4 && y >= cells - 5 && y <= cells - 3);
+        if (onEdge || inCore) ctx.fillRect(x * cell, y * cell, cell, cell);
+      } else if (bit) {
+        ctx.fillRect(x * cell, y * cell, cell, cell);
+      }
+    }
+  }
+}
+
+function saveSettingsLocal() {
+  const lang = document.getElementById('settingsLang')?.value;
+  const mode = document.getElementById('settingsSidebarMode')?.value;
+  if (lang) localStorage.setItem('workerLang', lang);
+  if (mode) localStorage.setItem('workerSidebarMode', mode);
+  localStorage.setItem('workerNotifApp', document.getElementById('notifApp')?.checked ? '1' : '0');
+  localStorage.setItem('workerNotifCritical', document.getElementById('notifCritical')?.checked ? '1' : '0');
+  showNotification('Сохранено', 'Настройки интерфейса записаны локально', 'success');
+}
+
+async function changePassword() {
+  const p1 = document.getElementById('newPassword')?.value || '';
+  const p2 = document.getElementById('newPassword2')?.value || '';
+  if (p1.length < 6) {
+    showNotification('Ошибка', 'Пароль не короче 6 символов', 'error');
+    return;
+  }
+  if (p1 !== p2) {
+    showNotification('Ошибка', 'Пароли не совпадают', 'error');
+    return;
+  }
+  const auth = window.electronAPI?.storage?.get('auth');
+  const workerId = auth?.user?.id || WorkerState.userId;
+  try {
+    const res = await fetch(API + '/auth/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ worker_id: workerId, new_password: p1 })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status + ' — эндпоинт может быть ещё не подключён');
+    showNotification('Готово', 'Пароль изменён', 'success');
+    document.getElementById('newPassword').value = '';
+    document.getElementById('newPassword2').value = '';
+  } catch (e) {
+    showNotification('Пароль', String(e.message || e), 'warning');
+  }
+}
+
+function renderCurrentTask() {
+  if (!DOM.noTaskMessage || !DOM.taskDetails) return;
+  if (!WorkerState.currentTask) {
+    DOM.noTaskMessage.style.display = 'block';
+    DOM.taskDetails.style.display = 'none';
+    if (DOM.startTaskBtn) DOM.startTaskBtn.style.display = 'none';
+    if (DOM.completeTaskBtn) DOM.completeTaskBtn.style.display = 'none';
+    if (DOM.currentTaskStatus) DOM.currentTaskStatus.textContent = 'Нет';
+    stopTimer();
+    return;
+  }
+  DOM.noTaskMessage.style.display = 'none';
+  DOM.taskDetails.style.display = 'block';
+  const task = WorkerState.currentTask;
+  if (DOM.taskNumber) DOM.taskNumber.textContent = '#' + (task.op_number ?? task.id);
+  if (DOM.taskName) DOM.taskName.textContent = task.name || 'Операция';
+  if (DOM.taskPost) DOM.taskPost.textContent = task.post ?? '—';
+  if (DOM.taskDrawing) DOM.taskDrawing.textContent = task.drawing || '—';
+  if (DOM.taskLabor) DOM.taskLabor.textContent = (task.labor_hours ?? '—') + ' чел·ч';
+  if (DOM.taskPeople) DOM.taskPeople.textContent = task.people_count ?? '—';
+  if (DOM.taskDuration) DOM.taskDuration.textContent = (task.duration ?? '—') + ' ч';
+  if (DOM.taskLocation) DOM.taskLocation.textContent = task.location || '—';
+  const priorityMap = { high: 'Высокий', medium: 'Средний', low: 'Низкий', critical: 'Критический' };
+  if (DOM.taskPriority) DOM.taskPriority.textContent = priorityMap[task.priority] || task.priority || '—';
+  const deps = task.prev_ops || task.dependencies || [];
+  if (DOM.taskDependencies) {
+    DOM.taskDependencies.textContent = Array.isArray(deps) && deps.length
+      ? deps.map((d) => '#' + d).join(', ')
+      : 'Нет';
+  }
+  const st = String(task.status || '').toLowerCase();
+  if (DOM.currentTaskStatus) DOM.currentTaskStatus.textContent = getStatusText(st);
+  if (st === 'in_progress') {
+    if (DOM.startTaskBtn) DOM.startTaskBtn.style.display = 'none';
+    if (DOM.completeTaskBtn) DOM.completeTaskBtn.style.display = 'inline-flex';
+    startTimer();
+  } else {
+    if (DOM.startTaskBtn) DOM.startTaskBtn.style.display = 'inline-flex';
+    if (DOM.completeTaskBtn) DOM.completeTaskBtn.style.display = 'none';
+  }
+}
+
+function renderTasks() {
+  if (!DOM.taskQueueList) return;
+  let tasks = WorkerState.tasks.filter((t) => String(t.status).toLowerCase() !== 'in_progress');
+  if (WorkerState.filter === 'pending') {
+    tasks = tasks.filter((t) => ['pending', 'ready'].includes(String(t.status).toLowerCase()));
+  } else if (WorkerState.filter === 'blocked') {
+    tasks = tasks.filter((t) => String(t.status).toLowerCase() === 'blocked');
+  }
+  if (!tasks.length) {
+    DOM.taskQueueList.innerHTML = '<div class="empty-queue"><p>Нет задач в очереди</p></div>';
+    return;
+  }
+  DOM.taskQueueList.innerHTML = tasks.map((task) => {
+    const st = String(task.status || 'pending').toLowerCase();
+    return (
+      '<div class="queue-item ' + st + '" data-task-id="' + task.id + '">' +
+      '<div class="queue-item-icon">' + (task.op_number ?? task.id) + '</div>' +
+      '<div class="queue-item-content">' +
+      '<div class="queue-item-title">' + escapeHtml(task.name || 'Операция') + '</div>' +
+      '<div class="queue-item-meta"><span>Пост ' + (task.post ?? '—') + '</span>' +
+      '<span>' + (task.duration ?? '—') + ' ч</span></div></div>' +
+      '<div class="queue-item-status">' + getStatusText(st) + '</div></div>'
+    );
+  }).join('');
+  DOM.taskQueueList.querySelectorAll('.queue-item').forEach((item) => {
+    item.addEventListener('click', () => selectTask(Number(item.dataset.taskId)));
+  });
+}
+
+function renderHistory() {
+  if (!DOM.historyList) return;
+  if (!WorkerState.history.length) {
+    DOM.historyList.innerHTML = '<div class="empty-history"><p>Нет завершённых задач за сессию</p></div>';
+    return;
+  }
+  DOM.historyList.innerHTML = WorkerState.history.slice(0, 15).map((item) =>
+    '<div class="history-item"><div class="history-item-header">' +
+    '<span class="history-item-number">#' + item.op_number + '</span>' +
+    '<span>' + formatTime(item.completed_at) + '</span></div>' +
+    '<div>' + escapeHtml(item.name) + '</div></div>'
+  ).join('');
+}
+
+function renderBrigadeInfo() {
+  if (!DOM.brigadeInfo) return;
+  const name = WorkerState.brigade?.name || ('Бригада #' + (WorkerState.brigadeId || '—'));
+  const mates = WorkerState.mates || [];
+  DOM.brigadeInfo.innerHTML =
+    '<div><strong>' + escapeHtml(name) + '</strong>' +
+    (mates.length
+      ? '<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;">' +
+        mates.map((m) =>
+          '<span style="background:#f1f5f9;padding:4px 10px;border-radius:999px;font-size:12px;">' +
+          escapeHtml(m.name || '') + (m.is_brigadier ? ' ★' : '') + '</span>'
+        ).join('') + '</div>'
+      : '<p class="muted">Нет данных о составе</p>') +
+    '</div>';
+}
+
+function renderOperationsGrid() {
+  const box = DOM.operationsGrid || document.getElementById('operationsGrid');
+  if (!box) return;
+  const tasks = WorkerState.tasks || [];
+  if (!tasks.length) {
+    box.innerHTML = '<p class="muted">Нет операций у вашей бригады.</p>';
+    return;
+  }
+  box.innerHTML = tasks.map((t) => {
+    const st = String(t.status || 'pending').toLowerCase();
+    return (
+      '<div class="op-card ' + st + '">' +
+      '<span class="op-badge ' + st + '">' + getStatusText(st) + '</span>' +
+      '<div class="op-card-title">#' + (t.op_number ?? t.id) + ' · ' + escapeHtml(t.name || '') + '</div>' +
+      '<div class="op-card-meta">Пост ' + (t.post ?? '—') + ' · ' + (t.duration ?? '—') + ' ч<br>Чертёж: ' +
+      escapeHtml(t.drawing || '—') + '</div></div>'
+    );
+  }).join('');
+}
+
+function renderScheduleList() {
+  const box = DOM.scheduleList || document.getElementById('scheduleList');
+  if (!box) return;
+  const tasks = WorkerState.tasks || [];
+  if (!tasks.length) {
+    box.innerHTML = '<p class="muted">Нет данных на горизонт.</p>';
+    return;
+  }
+  box.innerHTML = '<ul style="list-style:none;margin:0;padding:0;">' +
+    tasks.map((t) =>
+      '<li class="op-card" style="margin-bottom:8px;">#' + (t.op_number ?? t.id) + ' — ' +
+      escapeHtml(t.name || '') + ' <span class="muted">(' + getStatusText(t.status) + ')</span></li>'
+    ).join('') + '</ul>';
+}
+
+function renderWorkerGraph() {
+  const box = DOM.workerGraphFlow || document.getElementById('workerGraphFlow');
+  if (!box) return;
+  const tasks = WorkerState.tasks || [];
+  if (!tasks.length) {
+    box.innerHTML = '<p class="muted">Нет операций для графа.</p>';
+    return;
+  }
+  box.innerHTML = tasks.map((t) => {
+    let next = t.next_ops;
+    if (typeof next === 'string') {
+      try { next = JSON.parse(next); } catch (_) { next = []; }
+    }
+    if (!Array.isArray(next)) next = [];
+    return (
+      '<div class="op-card">#' + (t.op_number ?? t.id) + ' ' + escapeHtml(t.name || '') +
+      ' → [' + (next.length ? next.join(', ') : '—') + ']</div>'
+    );
+  }).join('');
+}
+
+function updateQueueCount() {
+  if (!DOM.queueCount) return;
+  const count = WorkerState.tasks.filter((t) => String(t.status).toLowerCase() !== 'in_progress').length;
+  DOM.queueCount.textContent = count + ' ' + getTaskWord(count);
+}
+
+function selectTask(taskId) {
+  const task = WorkerState.tasks.find((t) => Number(t.id) === Number(taskId));
+  if (!task || String(task.status).toLowerCase() === 'blocked') return;
+  if (WorkerState.currentTask && Number(WorkerState.currentTask.id) !== Number(task.id)) {
+    showNotification('Внимание', 'Сначала завершите текущую задачу', 'warning');
+    return;
+  }
+  WorkerState.currentTask = task;
+  renderCurrentTask();
+  renderTasks();
+}
+
+async function startCurrentTask() {
+  if (!WorkerState.currentTask) return;
+  const id = WorkerState.currentTask.id;
+  try {
+    showLoading('Старт…');
+    const res = await fetch(API + '/operations/' + id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'in_progress' })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    WorkerState.currentTask.status = 'in_progress';
+    const t = WorkerState.tasks.find((x) => Number(x.id) === Number(id));
+    if (t) t.status = 'in_progress';
+    renderCurrentTask();
+    renderTasks();
+    showNotification('Задача начата', '#' + (WorkerState.currentTask.op_number ?? id), 'success');
+  } catch (e) {
+    showNotification('Ошибка', String(e.message || e), 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+function openCompleteModal() {
+  if (!WorkerState.currentTask) return;
+  if (DOM.actualDuration) DOM.actualDuration.value = WorkerState.currentTask.duration || 1;
+  if (DOM.actualPeople) DOM.actualPeople.value = WorkerState.currentTask.people_count || 1;
+  if (DOM.modalOverlay) DOM.modalOverlay.style.display = 'block';
+  if (DOM.completeTaskModal) DOM.completeTaskModal.style.display = 'block';
+}
+function closeModal() {
+  if (DOM.modalOverlay) DOM.modalOverlay.style.display = 'none';
+  if (DOM.completeTaskModal) DOM.completeTaskModal.style.display = 'none';
+}
+
+async function confirmCompleteTask() {
+  const actualDuration = parseFloat(DOM.actualDuration?.value);
+  const actualPeople = parseInt(DOM.actualPeople?.value, 10);
+  if (!actualDuration || actualDuration <= 0) {
+    showNotification('Ошибка', 'Укажите фактическое время', 'error');
+    return;
+  }
+  const task = WorkerState.currentTask;
+  if (!task) return;
+  closeModal();
+  showLoading('Завершение…');
+  try {
+    const res = await fetch(API + '/operations/' + task.id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'completed' })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    WorkerState.history.unshift({
+      id: Date.now(),
+      op_number: task.op_number,
+      name: task.name,
+      completed_at: new Date().toISOString(),
+      planned_duration: task.duration,
+      actual_duration: actualDuration,
+      people_actual: actualPeople
+    });
+    WorkerState.tasks = WorkerState.tasks.filter((t) => Number(t.id) !== Number(task.id));
+    WorkerState.currentTask = null;
+    stopTimer();
+    WorkerState.stats.completed = (WorkerState.stats.completed || 0) + 1;
+    renderCurrentTask();
+    renderTasks();
+    renderHistory();
+    applyStatsToDom();
+    updateQueueCount();
+    renderOperationsGrid();
+    showNotification('Готово', 'Операция #' + (task.op_number ?? task.id) + ' завершена', 'success');
+  } catch (e) {
+    showNotification('Ошибка', String(e.message || e), 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+function startTimer() {
+  if (WorkerState.timer.isRunning) return;
+  WorkerState.timer.isRunning = true;
+  WorkerState.timer.startTime = Date.now() - WorkerState.timer.elapsedSeconds * 1000;
+  WorkerState.timer.interval = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - WorkerState.timer.startTime) / 1000);
+    WorkerState.timer.elapsedSeconds = elapsed;
+    if (DOM.timerValue) DOM.timerValue.textContent = formatDuration(elapsed);
+    if (WorkerState.currentTask && DOM.timerProgress) {
+      const progress = Math.min((elapsed / 3600) / (WorkerState.currentTask.duration || 1) * 100, 100);
+      DOM.timerProgress.style.width = progress + '%';
+    }
+  }, 1000);
+}
+function stopTimer() {
+  if (WorkerState.timer.interval) clearInterval(WorkerState.timer.interval);
+  WorkerState.timer.interval = null;
+  WorkerState.timer.isRunning = false;
+  WorkerState.timer.elapsedSeconds = 0;
+  if (DOM.timerValue) DOM.timerValue.textContent = '00:00:00';
+  if (DOM.timerProgress) DOM.timerProgress.style.width = '0%';
+}
+
+function startDateTimeUpdates() {
+  const tick = () => {
+    const now = new Date();
+    if (DOM.currentDate) {
+      DOM.currentDate.textContent = now.toLocaleDateString('ru-RU', {
+        day: '2-digit', month: '2-digit', year: 'numeric'
+      });
+    }
+    if (DOM.currentTime) {
+      DOM.currentTime.textContent = now.toLocaleTimeString('ru-RU', {
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+      });
+    }
+  };
+  tick();
+  setInterval(tick, 1000);
+}
+
+async function checkConnection() {
+  try {
+    const r = await fetch(API + '/health');
+    const ok = r.ok;
+    if (DOM.connectionStatus) {
+      DOM.connectionStatus.classList.toggle('offline', !ok);
+      const t = DOM.connectionStatus.querySelector('.status-text');
+      if (t) t.textContent = ok ? 'Подключено' : 'Нет связи';
+    }
+  } catch (_) {
+    if (DOM.connectionStatus) {
+      DOM.connectionStatus.classList.add('offline');
+      const t = DOM.connectionStatus.querySelector('.status-text');
+      if (t) t.textContent = 'Нет связи';
+    }
+  }
+  updateOnlineStatusField();
 }
 
 function clearHistory() {
-    if (confirm('Очистить историю задач?')) {
-        WorkerState.history = [];
-        WorkerState.stats.completed = 0;
-        WorkerState.stats.totalHours = 0;
-        WorkerState.stats.efficiency = 0;
-        renderHistory();
-        updateStats();
-    }
+  if (!confirm('Очистить историю за сессию?')) return;
+  WorkerState.history = [];
+  renderHistory();
 }
 
 async function logout() {
-    await window.electronAPI?.navigation.logout();
+  try { await window.electronAPI?.navigation?.logout?.(); } catch (_) {}
 }
 
-function showNotification(title, message, type = 'info') {
-    if (!DOM.notificationsContainer) return;
-    
-    const notification = document.createElement('div');
-    notification.className = `notification ${type}`;
-    notification.innerHTML = `
-        <div class="notification-title">${title}</div>
-        <div class="notification-message">${message}</div>
-        <button class="notification-close" onclick="this.parentElement.remove()">&times;</button>
-    `;
-    
-    DOM.notificationsContainer.appendChild(notification);
-    setTimeout(() => notification.remove(), 5000);
-}
-
-function showLoading(text = 'Загрузка...') {
-    if (DOM.loadingOverlay) {
-        if (DOM.loadingText) DOM.loadingText.textContent = text;
-        DOM.loadingOverlay.style.display = 'flex';
+async function onAiAsk() {
+  const q = (DOM.aiQuestion?.value || '').trim();
+  if (!q) return;
+  const box = document.getElementById('aiMessages');
+  if (box) {
+    const u = document.createElement('div');
+    u.className = 'bubble user';
+    u.textContent = q;
+    box.appendChild(u);
+  }
+  if (DOM.aiQuestion) DOM.aiQuestion.value = '';
+  try {
+    const res = await fetch(API + '/ai/status').catch(() => null);
+    const text = res && res.ok
+      ? 'AI API доступен. Полный чат можно подключить позже.'
+      : 'AI в заготовке. Вопрос сохранён локально.';
+    if (box) {
+      const b = document.createElement('div');
+      b.className = 'bubble bot';
+      b.textContent = text;
+      box.appendChild(b);
+      box.scrollTop = box.scrollHeight;
     }
+  } catch (e) {
+    if (DOM.aiAnswer) {
+      DOM.aiAnswer.style.display = 'block';
+      DOM.aiAnswer.textContent = String(e);
+    }
+  }
 }
 
+function showNotification(title, message, type) {
+  if (!DOM.notificationsContainer) return;
+  if (localStorage.getItem('workerNotifApp') === '0' && type !== 'error') return;
+  const el = document.createElement('div');
+  el.className = 'notification ' + (type || 'info');
+  el.innerHTML =
+    '<div class="notification-title">' + escapeHtml(title) + '</div>' +
+    '<div class="notification-message">' + escapeHtml(message) + '</div>';
+  DOM.notificationsContainer.appendChild(el);
+  setTimeout(() => el.remove(), 4500);
+}
+function showLoading(text) {
+  if (DOM.loadingText) DOM.loadingText.textContent = text || 'Загрузка…';
+  if (DOM.loadingOverlay) DOM.loadingOverlay.style.display = 'flex';
+}
 function hideLoading() {
-    if (DOM.loadingOverlay) {
-        DOM.loadingOverlay.style.display = 'none';
-    }
+  if (DOM.loadingOverlay) DOM.loadingOverlay.style.display = 'none';
 }
-
 function getStatusText(status) {
-    const map = {
-        pending: 'Ожидает',
-        in_progress: 'В работе',
-        completed: 'Завершено',
-        blocked: 'Заблокировано'
-    };
-    return map[status] || status;
+  const map = {
+    pending: 'Ожидает', ready: 'Готово', in_progress: 'В работе',
+    completed: 'Завершено', done: 'Завершено', blocked: 'Блок'
+  };
+  return map[String(status || '').toLowerCase()] || status || '—';
 }
-
 function getTaskWord(count) {
-    if (count % 10 === 1 && count % 100 !== 11) return 'задача';
-    if ([2, 3, 4].includes(count % 10) && ![12, 13, 14].includes(count % 100)) return 'задачи';
-    return 'задач';
+  const n = Math.abs(count) % 100;
+  const n1 = n % 10;
+  if (n > 10 && n < 20) return 'задач';
+  if (n1 === 1) return 'задача';
+  if (n1 >= 2 && n1 <= 4) return 'задачи';
+  return 'задач';
 }
-
-function formatTime(isoString) {
-    const date = new Date(isoString);
-    return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+function formatTime(iso) {
+  try {
+    return new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  } catch (_) { return ''; }
 }
-
 function formatDuration(seconds) {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return [h, m, s].map((x) => String(x).padStart(2, '0')).join(':');
+}
+function escapeHtml(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-// ================================================================
-// ЗАПУСК
-// ================================================================
+
+function avatarStorageKey() {
+  const id = WorkerState.userId || WorkerState.user?.id || 'anon';
+  return 'workerAvatar:' + id;
+}
+
+function applyAvatarFromStorage() {
+  const dataUrl = localStorage.getItem(avatarStorageKey());
+  const letter = (WorkerState.user?.name || '?').charAt(0).toUpperCase();
+  const targets = [
+    document.getElementById('settingsAvatar'),
+    document.getElementById('userAvatar'),
+    document.getElementById('userAvatarSide')
+  ];
+  const img = document.getElementById('settingsAvatarImg');
+  if (dataUrl) {
+    targets.forEach((el) => {
+      if (!el) return;
+      el.classList.add('has-photo');
+      el.style.backgroundImage = 'url(' + dataUrl + ')';
+      el.textContent = '';
+    });
+    if (img) {
+      img.src = dataUrl;
+      img.style.display = 'block';
+      const av = document.getElementById('settingsAvatar');
+      if (av) av.style.display = 'none';
+    }
+  } else {
+    targets.forEach((el) => {
+      if (!el) return;
+      el.classList.remove('has-photo');
+      el.style.backgroundImage = '';
+      el.textContent = letter;
+    });
+    if (img) {
+      img.removeAttribute('src');
+      img.style.display = 'none';
+    }
+    const av = document.getElementById('settingsAvatar');
+    if (av) av.style.display = '';
+  }
+}
+
+function onAvatarSelected(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) {
+    showNotification('Фото', 'Максимум 2 МБ', 'error');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      localStorage.setItem(avatarStorageKey(), reader.result);
+      applyAvatarFromStorage();
+      showNotification('Фото', 'Аватар обновлён (локально на этом ПК)', 'success');
+    } catch (err) {
+      showNotification('Фото', 'Не удалось сохранить (лимит storage)', 'error');
+    }
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+function deleteAvatar() {
+  localStorage.removeItem(avatarStorageKey());
+  applyAvatarFromStorage();
+  showNotification('Фото', 'Аватар удалён', 'info');
+}
+
+function reportStorageKey() {
+  const id = WorkerState.userId || WorkerState.user?.id || 'anon';
+  return 'workerReports:' + id;
+}
+
+function renderReportList() {
+  const box = document.getElementById('reportList');
+  if (!box) return;
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem(reportStorageKey()) || '[]'); } catch (_) {}
+  if (!list.length) {
+    box.innerHTML = '<p class="muted" style="margin:8px 0 0;">Пока нет отправленных запросов</p>';
+    return;
+  }
+  box.innerHTML = list.slice(0, 8).map((r) =>
+    '<div class="report-item"><div>' + escapeHtml(r.text) + '</div>' +
+    '<div class="r-meta">' + escapeHtml(r.at) + ' · ' + escapeHtml(r.status || 'ожидает') + '</div></div>'
+  ).join('');
+}
+
+async function sendAdminReport() {
+  const ta = document.getElementById('reportText');
+  const text = (ta?.value || '').trim();
+  if (text.length < 5) {
+    showNotification('Репорт', 'Опишите причину подробнее', 'warning');
+    return;
+  }
+  const auth = window.electronAPI?.storage?.get('auth');
+  const workerId = auth?.user?.id || WorkerState.userId;
+  const payload = {
+    worker_id: workerId,
+    text,
+    fields_requested: 'profile_change',
+    at: new Date().toISOString()
+  };
+  let status = 'локально (API нет)';
+  try {
+    const res = await fetch(API + '/auth/worker/report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (res.ok) status = 'отправлено админу';
+    else status = 'локально (HTTP ' + res.status + ')';
+  } catch (_) {
+    status = 'локально (нет связи)';
+  }
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem(reportStorageKey()) || '[]'); } catch (_) {}
+  list.unshift({ text, at: new Date().toLocaleString('ru-RU'), status });
+  localStorage.setItem(reportStorageKey(), JSON.stringify(list.slice(0, 20)));
+  if (ta) ta.value = '';
+  renderReportList();
+  showNotification('Репорт', status, status.startsWith('отправлено') ? 'success' : 'warning');
+}
+
+
+
+function updateOnlineStatusField() {
+  const el = document.getElementById('settingsOnlineStatus');
+  if (!el) return;
+  const cs = document.getElementById('connectionStatus');
+  const apiOk = cs && !cs.classList.contains('offline');
+  const hasSession = !!(WorkerState.userId || WorkerState.user?.id);
+  if (hasSession && apiOk) {
+    el.value = 'в сети';
+  } else if (hasSession && !apiOk) {
+    el.value = 'в приложении · API недоступен';
+  } else {
+    el.value = 'не в сети';
+  }
+}
+
 
 document.addEventListener('DOMContentLoaded', initWorker);

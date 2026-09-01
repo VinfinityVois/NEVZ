@@ -1,0 +1,60 @@
+/* Brigadier extras on top of worker.css */
+.kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+  @media (max-width: 900px) {
+    .kpi-row { grid-template-columns: 1fr 1fr; }
+  }
+  .kpi-tile { padding: 16px 18px; }
+  .kpi-tile .kpi-big { font-size: 32px; }
+  
+  .toolbar {
+    display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; align-items: center;
+  }
+  .toolbar .input { flex: 1; min-width: 160px; }
+  
+  .table-wrap { overflow-x: auto; }
+  .data-table {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+  }
+  .data-table th {
+    text-align: left; padding: 10px 12px; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.04em; color: var(--on-muted, #64748b); font-weight: 700;
+    border-bottom: 1px solid var(--outline-soft, #e2e8f0); background: #fafbfc;
+  }
+  .data-table td {
+    padding: 10px 12px; border-bottom: 1px solid var(--outline-soft, #e2e8f0);
+    vertical-align: middle;
+  }
+  .data-table tr:hover td { background: #f8fafc; }
+  .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .row-actions .btn { padding: 6px 10px; font-size: 12px; }
+  
+  .badge-role {
+    font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 999px;
+    background: #e8f0fe; color: #1a73e8;
+  }
+  .badge-role.brigadier { background: #fef3c7; color: #b45309; }
+  
+  .assign-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  @media (max-width: 800px) {
+    .assign-grid { grid-template-columns: 1fr; }
+  }
+  
+  .member-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px; margin: 4px; border-radius: 999px;
+    background: #f1f5f9; font-size: 12px; font-weight: 600;
+  }
+  .member-chip.lead { background: #dbeafe; color: #1d4ed8; }
+  
+  .dash-op-row {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 10px 0; border-bottom: 1px solid #e2e8f0; font-size: 13px;
+  }
+  .dash-op-row:last-child { border-bottom: 0; }
+  
