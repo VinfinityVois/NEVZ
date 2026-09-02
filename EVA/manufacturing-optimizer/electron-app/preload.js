@@ -8,7 +8,19 @@ try {
         app: {
             getVersion: () => ipcRenderer.invoke('get-app-version'),
             getPlatform: () => process.platform,
-            getStartupParams: () => ({ userId: null, brigadeId: null }),
+            getStartupParams: () => {
+  try {
+    const q = new URLSearchParams(window.location.search || '');
+    const userId = q.get('userId');
+    const brigadeId = q.get('brigadeId');
+    return {
+      userId: userId && userId !== 'null' && userId !== 'undefined' ? userId : null,
+      brigadeId: brigadeId && brigadeId !== 'null' && brigadeId !== 'undefined' ? brigadeId : null,
+    };
+  } catch (_) {
+    return { userId: null, brigadeId: null };
+  }
+},
             quit: () => ipcRenderer.invoke('app-quit')
         },
         splashDone: () => ipcRenderer.send('splash-done'),

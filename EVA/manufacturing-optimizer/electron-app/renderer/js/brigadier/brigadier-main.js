@@ -40,9 +40,27 @@ async function init() {
 
   const auth = window.electronAPI?.storage?.get('auth');
   const params = window.electronAPI?.app?.getStartupParams?.() || {};
-  State.userId = auth?.user?.id || params.userId || null;
-  State.brigadeId = auth?.user?.brigade_id ?? params.brigadeId ?? null;
+  let q = {};
+  try {
+    const sp = new URLSearchParams(window.location.search || '');
+    q = {
+      userId: sp.get('userId'),
+      brigadeId: sp.get('brigadeId'),
+    };
+  } catch (_) {}
+
+  const rawUserId = auth?.user?.id ?? params.userId ?? q.userId;
+  const rawBrigadeId = auth?.user?.brigade_id ?? params.brigadeId ?? q.brigadeId;
+
+  State.userId = rawUserId != null && rawUserId !== '' && rawUserId !== 'null'
+    ? Number(rawUserId) || rawUserId
+    : null;
+  State.brigadeId = rawBrigadeId != null && rawBrigadeId !== '' && rawBrigadeId !== 'null'
+    ? Number(rawBrigadeId) || rawBrigadeId
+    : null;
   State.user = auth?.user || null;
+
+  console.log('[Brigadier init]', { userId: State.userId, brigadeId: State.brigadeId, hasAuth: !!auth?.user });
 
   if (State.userId) {
     try {
@@ -214,9 +232,10 @@ async function loadWorkers() {
   }
   if (State.brigadeId != null && State.brigadeId !== '') {
     const bid = Number(State.brigadeId);
-    list = list.filter((w) => Number(w.brigade_id) === bid);
+    const filtered = list.filter((w) => Number(w.brigade_id) === bid);
+    // если фильтр пустой, но API что-то вернул — не прячем всё молча
+    list = filtered.length ? filtered : list;
   }
-  // filter to my brigade + allow seeing all for transfer
   State.workers = list;
   if (!list.length && State.userId) {
     // fallback dashboard mates
@@ -226,9 +245,12 @@ async function loadWorkers() {
         const d = await r.json();
         State.workers = d.mates || [];
         if (d.worker) {
-          State.workers = [d.worker, ...State.workers.filter((w) => w.id !== d.worker.id)];
-        }
-        State.brigade = d.brigade || State.brigade;
+            State.workers = [d.worker, ...State.workers.filter((w) => w.id !== d.worker.id)];
+            State.user = { ...State.user, ...d.worker };
+            if (d.worker.brigade_id != null) State.brigadeId = d.worker.brigade_id;
+          }
+          State.brigade = d.brigade || State.brigade;
+          if (State.brigade?.id != null) State.brigadeId = State.brigade.id;
       }
     } catch (_) {}
   }
@@ -816,8 +838,8 @@ function sendBrigReport() {
   alert('Репорт сохранён (локально). Админ увидит после эндпоинта /auth/report.');
 }
 
-document.getElementById('bgQrRefreshBtn')?.addEventListener('click', () => loadPersonalQr(true));
-document.getElementById('bgChangePassBtn')?.addEventListener('click', changeBrigPassword);
+// document.getElementById('bgQrRefreshBtn')?.addEventListener('click', () => loadPersonalQr(true));
+// document.getElementById('bgChangePassBtn')?.addEventListener('click', changeBrigPassword);
 document.getElementById('bgReportBtn')?.addEventListener('click', sendBrigReport);
 
 async function checkHealth() {
