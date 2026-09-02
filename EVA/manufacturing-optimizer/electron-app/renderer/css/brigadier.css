@@ -112,3 +112,39 @@
   }
   .doc-item strong { display: block; margin-bottom: 4px; }
   .doc-item .meta { font-size: 11px; color: #727785; }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .person-card { padding: 14px; }
+  .person-card-top { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; }
+  .person-avatar {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: linear-gradient(135deg, #005bbf, #1a73e8);
+    color: #fff; display: flex; align-items: center; justify-content: center;
+    font-weight: 700; flex-shrink: 0;
+  }
+  .person-avatar.op { background: linear-gradient(135deg, #4f5e7e, #727785); }
+  .person-name { font-weight: 700; font-size: 14px; }
+  .person-meta { font-size: 12px; color: #727785; margin-bottom: 10px; }
+  .person-actions { display: flex; gap: 8px; }
+  .btn-sm { padding: 6px 10px; font-size: 12px; }
+  .settings-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 16px;
+  }
+  .settings-span-8 { grid-column: span 8; }
+  .settings-grid > .card { grid-column: span 4; }
+  .settings-personal { display: flex; gap: 20px; flex-wrap: wrap; }
+  .settings-fields { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .avatar-block { text-align: center; min-width: 140px; }
+  .avatar-actions { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .user-avatar.xl { width: 72px; height: 72px; font-size: 28px; margin: 0 auto; }
+  .avatar-preview { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; }
+  @media (max-width: 1100px) {
+    .settings-span-8, .settings-grid > .card { grid-column: span 12; }
+  }

@@ -220,18 +220,17 @@ async function loadWorkers() {
 }
 
 async function loadOperations() {
-  const r = await fetch(API + '/operations');
-  if (!r.ok) throw new Error('operations ' + r.status);
-  const d = await r.json();
-  let ops = Array.isArray(d) ? d : d.operations || d.items || [];
-  // focus brigade if set
-  if (State.brigadeId != null) {
-    const mine = ops.filter((o) => Number(o.brigade_id) === Number(State.brigadeId));
-    State.operations = mine.length ? mine : ops;
-  } else {
-    State.operations = ops;
+    const r = await fetch(API + '/operations');
+    if (!r.ok) throw new Error('operations HTTP ' + r.status);
+    const data = await r.json();
+    let ops = Array.isArray(data) ? data : (data.items || data.operations || []);
+    if (State.brigadeId != null && State.brigadeId !== '') {
+      const bid = Number(State.brigadeId);
+      const mine = ops.filter((o) => Number(o.brigade_id) === bid);
+      if (mine.length) ops = mine;
+    }
+    State.operations = ops || [];
   }
-}
 
 function brigadeName(id) {
   const b = State.brigades.find((x) => Number(x.id) === Number(id));
@@ -239,50 +238,27 @@ function brigadeName(id) {
 }
 
 function renderDashboard() {
-  const workers = State.workers.filter(
-    (w) => State.brigadeId == null || Number(w.brigade_id) === Number(State.brigadeId)
-  );
-  const ops = State.operations;
-  const inP = ops.filter((o) => st(o) === 'in_progress').length;
-  const pend = ops.filter((o) => ['pending', 'ready'].includes(st(o))).length;
-  const done = ops.filter((o) => ['completed', 'done'].includes(st(o))).length;
-  setText('kpiWorkers', workers.length);
-  setText('kpiInProgress', inP);
-  setText('kpiPending', pend);
-  setText('kpiDone', done);
-
-  const mem = document.getElementById('dashMembers');
-  if (mem) {
-    mem.innerHTML = workers.length
-      ? workers
-          .map(
-            (w) =>
-              '<span class="member-chip' +
-              (String(w.role) === 'brigadier' ? ' lead' : '') +
-              '">' +
-              esc(w.name || w.login) +
-              (String(w.role) === 'brigadier' ? ' ★' : '') +
-              '</span>'
-          )
-          .join('')
-      : '<p class="muted">Нет сотрудников</p>';
+    const ws = (State && State.workers) ? State.workers : [];
+    const ops = (State && State.operations) ? State.operations : [];
+    setText('kpiWorkers', ws.length);
+    setText('kpiInProgress', ops.filter((o) => st(o) === 'in_progress').length);
+    setText('kpiDone', ops.filter((o) => st(o) === 'completed' || st(o) === 'done').length);
+    setText('kpiBlocked', ops.filter((o) => st(o) === 'blocked' || st(o) === 'pending').length);
+    const crit = ops.filter((o) => st(o) === 'blocked' || st(o) === 'in_progress').slice(0, 8);
+    setText('critBadge', String(crit.length));
+    const cl = document.getElementById('dashCriticalList');
+    if (cl) {
+      cl.innerHTML = crit.length
+        ? crit.map((o) => '<div class="dash-op-row"><span>#' + o.id + ' ' + esc(o.name || '') + '</span><span class="badge-st ' + st(o) + '">' + statusRu(st(o)) + '</span></div>').join('')
+        : '<p class="muted">Нет критических работ</p>';
+    }
+    const tl = document.getElementById('dashTeamList');
+    if (tl) {
+      tl.innerHTML = ws.length
+        ? ws.slice(0, 12).map((w) => '<div class="team-row"><span>' + esc(w.name || '') + '</span><span class="muted">' + (w.is_brigadier ? 'бригадир' : 'сотрудник') + '</span></div>').join('')
+        : '<p class="muted">Нет сотрудников</p>';
+    }
   }
-  const list = document.getElementById('dashOpsList');
-  if (list) {
-    list.innerHTML = ops.slice(0, 12)
-      .map(
-        (o) =>
-          '<div class="dash-op-row"><span>#' +
-          (o.op_number ?? o.id) +
-          ' ' +
-          esc(o.name || '') +
-          '</span><span class="muted">' +
-          statusRu(st(o)) +
-          '</span></div>'
-      )
-      .join('') || '<p class="muted">Нет операций</p>';
-  }
-}
 
 function renderEmployees() {
   const q = (document.getElementById('empSearch')?.value || '').toLowerCase();
@@ -429,26 +405,60 @@ function fillBrigadeSelect(sel, selected) {
 }
 
 function fillAssignSelects() {
-  const tw = document.getElementById('transferWorker');
-  const tb = document.getElementById('transferBrigade');
-  const ao = document.getElementById('assignOp');
-  const ab = document.getElementById('assignBrigade');
-  if (tw) {
-    tw.innerHTML = State.workers
-      .map((w) => '<option value="' + w.id + '">' + esc(w.name || w.login) + ' (#' + w.id + ')</option>')
-      .join('');
+    const workers = State.workers || [];
+    const brigades = State.brigades || [];
+    const ops = State.operations || [];
+    const trW = document.getElementById('trWorker');
+    const trB = document.getElementById('trBrigade');
+    const asO = document.getElementById('asOp');
+    const asB = document.getElementById('asBrigade');
+    if (trW) trW.innerHTML = workers.map((w) => '<option value="' + w.id + '">' + esc(w.name || w.login || ('#' + w.id)) + '</option>').join('');
+    if (trB) trB.innerHTML = brigades.map((b) => '<option value="' + b.id + '"' + (Number(b.id) === Number(State.brigadeId) ? ' selected' : '') + '>' + esc(b.name || ('Бригада #' + b.id)) + '</option>').join('');
+    if (asO) asO.innerHTML = ops.map((o) => '<option value="' + o.id + '">#' + o.id + ' ' + esc(o.name || '') + '</option>').join('');
+    if (asB) asB.innerHTML = brigades.map((b) => '<option value="' + b.id + '"' + (Number(b.id) === Number(State.brigadeId) ? ' selected' : '') + '>' + esc(b.name || ('Бригада #' + b.id)) + '</option>').join('');
+    renderAssignCards();
   }
-  fillBrigadeSelect(tb, State.brigadeId);
-  fillBrigadeSelect(ab, State.brigadeId);
-  if (ao) {
-    ao.innerHTML = State.operations
-      .map(
-        (o) =>
-          '<option value="' + o.id + '">#' + (o.op_number ?? o.id) + ' ' + esc(o.name || '') + '</option>'
-      )
-      .join('');
+
+  function renderAssignCards() {
+    const wc = document.getElementById('assignWorkerCards');
+    const oc = document.getElementById('assignOpCards');
+    const workers = State.workers || [];
+    const ops = State.operations || [];
+    if (wc) {
+      wc.innerHTML = workers.length ? workers.map((w) => {
+        const role = w.is_brigadier ? 'Бригадир' : 'Сотрудник';
+        return '<article class="card person-card">' +
+          '<div class="person-card-top"><div class="person-avatar">' + esc((w.name || '?').charAt(0).toUpperCase()) + '</div>' +
+          '<div><div class="person-name">' + esc(w.name || '') + '</div><div class="muted">' + esc(role) + ' · ' + esc(w.login || '') + '</div></div></div>' +
+          '<div class="person-meta">Бригада: ' + esc(brigadeName(w.brigade_id)) + '</div>' +
+          '<div class="person-actions"><button type="button" class="btn btn-outline btn-sm" data-pick-transfer="' + w.id + '">Перенести</button></div></article>';
+      }).join('') : '<p class="muted">Нет сотрудников</p>';
+      wc.querySelectorAll('[data-pick-transfer]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const sel = document.getElementById('trWorker');
+          if (sel) sel.value = btn.getAttribute('data-pick-transfer');
+          notify('Перенос', 'Сотрудник выбран в форме', 'info');
+        });
+      });
+    }
+    if (oc) {
+      oc.innerHTML = ops.length ? ops.map((o) => {
+        const s = st(o);
+        return '<article class="card person-card">' +
+          '<div class="person-card-top"><div class="person-avatar op">#</div>' +
+          '<div><div class="person-name">' + esc(o.name || ('Оп. ' + o.id)) + '</div><div class="muted">#' + o.id + ' · ' + statusRu(s) + '</div></div></div>' +
+          '<div class="person-meta">Бригада: ' + esc(brigadeName(o.brigade_id)) + '</div>' +
+          '<div class="person-actions"><button type="button" class="btn btn-outline btn-sm" data-pick-op="' + o.id + '">Назначить</button></div></article>';
+      }).join('') : '<p class="muted">Нет работ</p>';
+      oc.querySelectorAll('[data-pick-op]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const sel = document.getElementById('asOp');
+          if (sel) sel.value = btn.getAttribute('data-pick-op');
+          notify('Назначение', 'Работа выбрана в форме', 'info');
+        });
+      });
+    }
   }
-}
 
 function openWorkerModal(w) {
   document.getElementById('workerModalTitle').textContent = w ? 'Изменить сотрудника' : 'Новый сотрудник';
@@ -668,27 +678,21 @@ async function doAssignOp() {
 }
 
 function renderReports() {
-  const ops = State.operations;
-  const done = ops.filter((o) => ['completed', 'done'].includes(st(o))).length;
-  const total = ops.length || 1;
-  const pct = Math.round((done / total) * 100);
-  setText('repPercent', pct + '%');
-  setText('repDone', done);
-  setText('repTotal', ops.length);
-  const box = document.getElementById('reportDetails');
-  if (box) {
+    const ops = (State && State.operations) ? State.operations : [];
+    setText('repTotal', ops.length);
+    setText('repProg', ops.filter((o) => st(o) === 'in_progress').length);
+    setText('repDone', ops.filter((o) => st(o) === 'completed' || st(o) === 'done').length);
+    const box = document.getElementById('reportDetails');
+    if (!box) return;
     const by = {};
     ops.forEach((o) => {
       const s = statusRu(st(o));
       by[s] = (by[s] || 0) + 1;
     });
-    box.innerHTML =
-      Object.keys(by)
-        .map((k) => '<div class="dash-op-row"><span>' + k + '</span><strong>' + by[k] + '</strong></div>')
-        .join('') || 'Нет данных';
+    box.innerHTML = Object.keys(by).length
+      ? Object.keys(by).map((k) => '<div class="dash-op-row"><span>' + esc(k) + '</span><strong>' + by[k] + '</strong></div>').join('')
+      : '<p class="muted">Нет данных</p>';
   }
-}
-
 function fillSettings() {
   const u = State.user || {};
   setVal('bgName', u.name);

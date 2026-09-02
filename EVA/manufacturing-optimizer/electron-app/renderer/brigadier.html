@@ -164,29 +164,33 @@
 
     <!-- ASSIGN / TRANSFER -->
     <section class="hub-page" id="page-assign">
-      <div class="page-head">
-        <h1>Назначения и перенос</h1>
-        <p class="page-sub">Привязка сотрудника к бригаде и операции</p>
-      </div>
-      <div class="assign-grid">
-        <div class="card">
-          <div class="card-header"><h2>Перенос сотрудника</h2></div>
-          <div class="card-body">
-            <div class="form-group"><label>Сотрудник</label><select class="input" id="transferWorker"></select></div>
-            <div class="form-group"><label>В бригаду</label><select class="input" id="transferBrigade"></select></div>
-            <button type="button" class="btn btn-primary" id="btnTransfer">Перенести</button>
+        <div class="page-head">
+          <h1>Назначения</h1>
+          <p class="page-sub">Перенос сотрудников и привязка работ — карточки бригады</p>
+        </div>
+        <div class="assign-grid">
+          <div class="card">
+            <div class="card-header"><h2>Перенос сотрудника</h2></div>
+            <div class="card-body form-stack">
+              <div class="form-group"><label>Сотрудник</label><select class="input" id="trWorker"></select></div>
+              <div class="form-group"><label>Новая бригада</label><select class="input" id="trBrigade"></select></div>
+              <button type="button" class="btn btn-primary" id="btnTransfer">Перенести</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h2>Назначить работу</h2></div>
+            <div class="card-body form-stack">
+              <div class="form-group"><label>Операция</label><select class="input" id="asOp"></select></div>
+              <div class="form-group"><label>Бригада</label><select class="input" id="asBrigade"></select></div>
+              <button type="button" class="btn btn-primary" id="btnAssignOp">Назначить</button>
+            </div>
           </div>
         </div>
-        <div class="card">
-          <div class="card-header"><h2>Назначить работу бригаде</h2></div>
-          <div class="card-body">
-            <div class="form-group"><label>Операция</label><select class="input" id="assignOp"></select></div>
-            <div class="form-group"><label>Бригада</label><select class="input" id="assignBrigade"></select></div>
-            <button type="button" class="btn btn-primary" id="btnAssignOp">Назначить</button>
-          </div>
-        </div>
-      </div>
-    </section>
+        <div class="page-head" style="margin-top:8px"><h2 style="font-size:18px;margin:0">Сотрудники</h2></div>
+        <div class="card-grid" id="assignWorkerCards"></div>
+        <div class="page-head" style="margin-top:16px"><h2 style="font-size:18px;margin:0">Работы</h2></div>
+        <div class="card-grid" id="assignOpCards"></div>
+      </section>
 
     <!-- REPORTS -->
     <section class="hub-page" id="page-reports">
@@ -290,9 +294,70 @@
             </div>
           </section>
       
-          <section class="hub-page" id="page-settings">
+          <!-- <section class="hub-page" id="page-settings"> -->
     <!-- SETTINGS -->
-
+    <section class="hub-page" id="page-settings">
+        <div class="page-head">
+          <h1>Настройки</h1>
+          <p class="page-sub">Профиль · пароль · QR · репорт администратору</p>
+        </div>
+        <div class="settings-grid">
+          <div class="card settings-span-8">
+            <div class="card-header"><h2>Данные бригадира</h2><span class="badge">только чтение</span></div>
+            <div class="card-body settings-personal">
+              <div class="avatar-block">
+                <div class="user-avatar xl" id="settingsAvatar">Б</div>
+                <img id="settingsAvatarImg" class="avatar-preview" alt="" style="display:none;">
+                <input type="file" id="avatarFileInput" accept="image/*" hidden>
+                <div class="avatar-actions">
+                  <button type="button" class="btn btn-outline" id="avatarChangeBtn">Сменить фото</button>
+                  <button type="button" class="btn btn-outline" id="avatarDeleteBtn">Удалить фото</button>
+                </div>
+              </div>
+              <div class="settings-fields">
+                <div class="form-group"><label>ФИО</label><input class="input" id="settingsName" readonly></div>
+                <div class="form-group"><label>Логин</label><input class="input" id="settingsLogin" readonly></div>
+                <div class="form-group"><label>ID</label><input class="input" id="settingsId" readonly></div>
+                <div class="form-group"><label>Роль</label><input class="input" id="settingsRole" readonly></div>
+                <div class="form-group"><label>Бригада</label><input class="input" id="settingsBrigade" readonly></div>
+                <div class="form-group"><label>Email</label><input class="input" id="settingsEmail" readonly></div>
+                <div class="form-group"><label>Телефон</label><input class="input" id="settingsPhone" readonly></div>
+                <div class="form-group"><label>Должность</label><input class="input" id="settingsPosition" readonly></div>
+              </div>
+            </div>
+          </div>
+      
+          <div class="card">
+            <div class="card-header"><h2>Смена пароля</h2></div>
+            <div class="card-body form-stack">
+              <div class="form-group"><label>Текущий пароль</label><input class="input" id="bgOldPass" type="password"></div>
+              <div class="form-group"><label>Новый пароль</label><input class="input" id="bgNewPass" type="password"></div>
+              <div class="form-group"><label>Повтор</label><input class="input" id="bgNewPass2" type="password"></div>
+              <button type="button" class="btn btn-primary" id="bgChangePassBtn">Сменить пароль</button>
+            </div>
+          </div>
+      
+          <div class="card">
+            <div class="card-header"><h2>Личный QR</h2></div>
+            <div class="card-body" style="text-align:center;">
+              <div id="bgQrWrap" style="width:180px;height:180px;margin:0 auto 10px;background:#fff;border:1px solid #c1c6d6;border-radius:12px;display:flex;align-items:center;justify-content:center;">
+                <canvas id="bgQrCanvas" width="180" height="180"></canvas>
+              </div>
+              <button type="button" class="btn btn-outline" id="bgQrRefreshBtn">Обновить QR</button>
+              <p class="muted" style="margin-top:8px;font-size:12px;">Обновляется раз в сутки · вход без пароля</p>
+            </div>
+          </div>
+      
+          <div class="card settings-span-8">
+            <div class="card-header"><h2>Запрос администратору</h2></div>
+            <div class="card-body form-stack">
+              <div class="form-group"><label>Тема</label><input class="input" id="bgSubject" placeholder="Изменить email / телефон…"></div>
+              <div class="form-group"><label>Причина</label><textarea class="input textarea" id="rptBody" rows="4" placeholder="Что нужно изменить и почему"></textarea></div>
+              <button type="button" class="btn btn-primary" id="bgSendReportBtn">Отправить</button>
+            </div>
+          </div>
+        </div>
+      </section>
 
     <footer class="hub-footer">
       <div class="connection-status" id="connectionStatus"><span class="status-dot"></span><span class="status-text">Подключено</span></div>
