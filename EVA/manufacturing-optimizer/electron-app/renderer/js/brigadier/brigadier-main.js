@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', init);
 async function init() {
       // DEBUG — видно сразу на странице
   const _dbg = document.createElement('div');
-  _dbg.style.cssText = 'position:fixed;bottom:8px;left:8px;z-index:99999;background:#111;color:#0f0;padding:6px 10px;font:12px monospace;';
+//   _dbg.style.cssText = 'position:fixed;bottom:8px;left:8px;z-index:99999;background:#111;color:#0f0;padding:6px 10px;font:12px monospace;';
   _dbg.textContent = 'URL: ' + location.search;
   document.body.appendChild(_dbg);
   setupSidebar();
@@ -142,16 +142,23 @@ function avatarKey() {
   
   function applyAvatarFromStorage() {
     const data = localStorage.getItem(avatarKey());
-    const img = document.getElementById('settingsAvatarImg');
-    const av = document.getElementById('settingsAvatar');
-    if (data && img) {
-      img.src = data;
-      img.style.display = 'block';
-      if (av) av.style.display = 'none';
-    } else {
-      if (img) img.style.display = 'none';
-      if (av) av.style.display = 'flex';
-    }
+    const map = [
+      ['settingsAvatarImg', 'settingsAvatar'],
+      ['userAvatarImg', 'userAvatar'],
+      ['userAvatarSideImg', 'userAvatarSide'],
+    ];
+    map.forEach(([imgId, avId]) => {
+      const img = document.getElementById(imgId);
+      const av = document.getElementById(avId);
+      if (data && img) {
+        img.src = data;
+        img.style.display = 'block';
+        if (av) av.style.display = 'none';
+      } else {
+        if (img) img.style.display = 'none';
+        if (av) av.style.display = '';
+      }
+    });
   }
   
   function onAvatarFile(e) {
@@ -173,6 +180,8 @@ function avatarKey() {
   }
 
 function setupEvents() {
+
+  document.getElementById('settingsSaveUiBtn')?.addEventListener('click', saveBrigUiSettings);
 
   document.getElementById('bgChangePassBtn')?.addEventListener('click', changeBrigPassword);
   document.getElementById('bgQrRefreshBtn')?.addEventListener('click', () => loadPersonalQr(true));
@@ -212,6 +221,42 @@ function setupEvents() {
   });
 }
 
+function saveBrigUiSettings() {
+    localStorage.setItem('brig_lang', document.getElementById('settingsLang')?.value || 'ru');
+    localStorage.setItem('brigSidebarMode', document.getElementById('settingsSidebarMode')?.value || 'click');
+    localStorage.setItem('brig_dash_density', document.getElementById('settingsDashDensity')?.value || 'comfortable');
+    localStorage.setItem('brig_notif_app', document.getElementById('notifApp')?.checked ? '1' : '0');
+    localStorage.setItem('brig_notif_crit', document.getElementById('notifCritical')?.checked ? '1' : '0');
+    localStorage.setItem('brig_dash_team', document.getElementById('dashShowTeam')?.checked ? '1' : '0');
+    localStorage.setItem('brig_dash_crit', document.getElementById('dashShowCrit')?.checked ? '1' : '0');
+    applyDashPrefs();
+    notify('Сохранено', 'Настройки интерфейса записаны', 'success');
+  }
+  
+  function loadBrigUiSettings() {
+    const setSel = (id, v) => { const el = document.getElementById(id); if (el && v != null) el.value = v; };
+    const setChk = (id, key, def) => {
+      const el = document.getElementById(id);
+      if (el) el.checked = (localStorage.getItem(key) ?? def) === '1';
+    };
+    setSel('settingsLang', localStorage.getItem('brig_lang') || 'ru');
+    setSel('settingsSidebarMode', localStorage.getItem('brigSidebarMode') || 'click');
+    setSel('settingsDashDensity', localStorage.getItem('brig_dash_density') || 'comfortable');
+    setChk('notifApp', 'brig_notif_app', '1');
+    setChk('notifCritical', 'brig_notif_crit', '1');
+    setChk('dashShowTeam', 'brig_dash_team', '1');
+    setChk('dashShowCrit', 'brig_dash_crit', '1');
+    applyDashPrefs();
+  }
+  
+  function applyDashPrefs() {
+    const dens = localStorage.getItem('brig_dash_density') || 'comfortable';
+    document.body.classList.toggle('dash-compact', dens === 'compact');
+    const team = document.getElementById('dashTeamList')?.closest('.card');
+    const crit = document.getElementById('dashCriticalList')?.closest('.card');
+    if (team) team.style.display = localStorage.getItem('brig_dash_team') === '0' ? 'none' : '';
+    if (crit) crit.style.display = localStorage.getItem('brig_dash_crit') === '0' ? 'none' : '';
+  }
 function paintUser() {
   const name = State.user?.name || 'Бригадир';
   const letter = name.charAt(0).toUpperCase();
@@ -228,6 +273,8 @@ function paintUser() {
   if (ub) ub.textContent = bn;
   const hb = document.getElementById('hubBrigadeLabel');
   if (hb) hb.textContent = bn;
+
+  applyAvatarFromStorage();
 }
 
 async function reloadAll() {
@@ -538,15 +585,94 @@ function fillAssignSelects() {
     const workers = State.workers || [];
     const brigades = State.brigades || [];
     const ops = State.operations || [];
-    const trW = document.getElementById('trWorker');
-    const trB = document.getElementById('trBrigade');
-    const asO = document.getElementById('asOp');
-    const asB = document.getElementById('asBrigade');
-    if (trW) trW.innerHTML = workers.map((w) => '<option value="' + w.id + '">' + esc(w.name || w.login || ('#' + w.id)) + '</option>').join('');
-    if (trB) trB.innerHTML = brigades.map((b) => '<option value="' + b.id + '"' + (Number(b.id) === Number(State.brigadeId) ? ' selected' : '') + '>' + esc(b.name || ('Бригада #' + b.id)) + '</option>').join('');
-    if (asO) asO.innerHTML = ops.map((o) => '<option value="' + o.id + '">#' + o.id + ' ' + esc(o.name || '') + '</option>').join('');
-    if (asB) asB.innerHTML = brigades.map((b) => '<option value="' + b.id + '"' + (Number(b.id) === Number(State.brigadeId) ? ' selected' : '') + '>' + esc(b.name || ('Бригада #' + b.id)) + '</option>').join('');
-    renderAssignCards();
+  
+    // мини-карточки выбора
+    renderMiniPick('trWorkerMini', workers.map((w) => ({
+      id: w.id,
+      title: w.name || w.login || ('#' + w.id),
+      sub: (w.is_brigadier ? 'Бригадир' : 'Сотрудник') + ' · ' + (w.login || ''),
+      letter: (w.name || '?').charAt(0).toUpperCase(),
+    })), 'trWorker', 'trPickBadge', 'сотрудник');
+  
+    renderMiniPick('trBrigadeMini', brigades.slice(0, 40).map((b) => ({
+      id: b.id,
+      title: b.name || ('Бригада #' + b.id),
+      sub: 'id ' + b.id,
+      letter: 'Б',
+    })), 'trBrigade', null, 'бригада');
+  
+    renderMiniPick('asOpMini', ops.slice(0, 48).map((o) => ({
+      id: o.id,
+      title: o.name || ('Оп. ' + o.id),
+      sub: '#' + o.id + ' · ' + statusRu(st(o)),
+      letter: '#',
+    })), 'asOp', 'asPickBadge', 'операция');
+  
+    renderMiniPick('asBrigadeMini', brigades.slice(0, 40).map((b) => ({
+      id: b.id,
+      title: b.name || ('Бригада #' + b.id),
+      sub: 'id ' + b.id,
+      letter: 'Б',
+    })), 'asBrigade', null, 'бригада');
+  
+    // предвыбор своей бригады
+    if (State.brigadeId != null) {
+      setHiddenPick('trBrigade', State.brigadeId);
+      setHiddenPick('asBrigade', State.brigadeId);
+      highlightMini('trBrigadeMini', State.brigadeId);
+      highlightMini('asBrigadeMini', State.brigadeId);
+    }
+    syncAssignButtons();
+    // renderAssignCards();
+  }
+  
+  function renderMiniPick(containerId, items, hiddenId, badgeId, kind) {
+    const box = document.getElementById(containerId);
+    if (!box) return;
+    box.innerHTML = items.length
+      ? items.map((it) =>
+          '<button type="button" class="mini-card" data-pick-id="' + it.id + '">' +
+          '<span class="mini-av">' + esc(it.letter) + '</span>' +
+          '<span class="mini-txt"><strong>' + esc(it.title) + '</strong><span class="muted">' + esc(it.sub) + '</span></span>' +
+          '</button>'
+        ).join('')
+      : '<p class="muted">Нет данных</p>';
+  
+    box.querySelectorAll('.mini-card').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-pick-id');
+        setHiddenPick(hiddenId, id);
+        box.querySelectorAll('.mini-card').forEach((b) => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        if (badgeId) {
+          const t = btn.querySelector('strong')?.textContent || id;
+          setText(badgeId, t);
+        }
+        syncAssignButtons();
+      });
+    });
+  }
+  
+  function setHiddenPick(hiddenId, val) {
+    const el = document.getElementById(hiddenId);
+    if (el) el.value = val == null ? '' : String(val);
+  }
+  
+  function highlightMini(containerId, id) {
+    const box = document.getElementById(containerId);
+    if (!box) return;
+    box.querySelectorAll('.mini-card').forEach((b) => {
+      b.classList.toggle('selected', String(b.getAttribute('data-pick-id')) === String(id));
+    });
+  }
+  
+  function syncAssignButtons() {
+    const trOk = !!(document.getElementById('trWorker')?.value && document.getElementById('trBrigade')?.value);
+    const asOk = !!(document.getElementById('asOp')?.value && document.getElementById('asBrigade')?.value);
+    const trBtn = document.getElementById('btnTransfer');
+    const asBtn = document.getElementById('btnAssignOp');
+    if (trBtn) trBtn.disabled = !trOk;
+    if (asBtn) asBtn.disabled = !asOk;
   }
 
   function renderAssignCards() {
@@ -554,37 +680,65 @@ function fillAssignSelects() {
     const oc = document.getElementById('assignOpCards');
     const workers = State.workers || [];
     const ops = State.operations || [];
+  
     if (wc) {
-      wc.innerHTML = workers.length ? workers.map((w) => {
-        const role = w.is_brigadier ? 'Бригадир' : 'Сотрудник';
-        return '<article class="card person-card">' +
-          '<div class="person-card-top"><div class="person-avatar">' + esc((w.name || '?').charAt(0).toUpperCase()) + '</div>' +
-          '<div><div class="person-name">' + esc(w.name || '') + '</div><div class="muted">' + esc(role) + ' · ' + esc(w.login || '') + '</div></div></div>' +
-          '<div class="person-meta">Бригада: ' + esc(brigadeName(w.brigade_id)) + '</div>' +
-          '<div class="person-actions"><button type="button" class="btn btn-outline btn-sm" data-pick-transfer="' + w.id + '">Перенести</button></div></article>';
-      }).join('') : '<p class="muted">Нет сотрудников</p>';
+      wc.innerHTML = workers.length
+        ? workers.map((w) => {
+            const role = w.is_brigadier ? 'Бригадир' : 'Сотрудник';
+            return (
+              '<article class="card person-card">' +
+              '<div class="person-card-top">' +
+              '<div class="person-avatar">' + esc((w.name || '?').charAt(0).toUpperCase()) + '</div>' +
+              '<div><div class="person-name">' + esc(w.name || '') + '</div>' +
+              '<div class="muted">' + esc(role) + ' · ' + esc(w.login || '') + '</div></div></div>' +
+              '<div class="person-meta">Бригада: ' + esc(brigadeName(w.brigade_id)) + '</div>' +
+              '<div class="person-actions">' +
+              '<button type="button" class="btn btn-outline btn-sm" data-pick-transfer="' + w.id + '">Перенести</button>' +
+              '</div></article>'
+            );
+          }).join('')
+        : '<p class="muted">Нет сотрудников</p>';
+  
       wc.querySelectorAll('[data-pick-transfer]').forEach((btn) => {
         btn.addEventListener('click', () => {
-          const sel = document.getElementById('trWorker');
-          if (sel) sel.value = btn.getAttribute('data-pick-transfer');
-          notify('Перенос', 'Сотрудник выбран в форме', 'info');
+          const id = btn.getAttribute('data-pick-transfer');
+          setHiddenPick('trWorker', id);
+          highlightMini('trWorkerMini', id);
+          const w = workers.find((x) => String(x.id) === String(id));
+          if (w) setText('trPickBadge', w.name || id);
+          syncAssignButtons();
+          notify('Перенос', 'Сотрудник выбран', 'info');
         });
       });
     }
+  
     if (oc) {
-      oc.innerHTML = ops.length ? ops.map((o) => {
-        const s = st(o);
-        return '<article class="card person-card">' +
-          '<div class="person-card-top"><div class="person-avatar op">#</div>' +
-          '<div><div class="person-name">' + esc(o.name || ('Оп. ' + o.id)) + '</div><div class="muted">#' + o.id + ' · ' + statusRu(s) + '</div></div></div>' +
-          '<div class="person-meta">Бригада: ' + esc(brigadeName(o.brigade_id)) + '</div>' +
-          '<div class="person-actions"><button type="button" class="btn btn-outline btn-sm" data-pick-op="' + o.id + '">Назначить</button></div></article>';
-      }).join('') : '<p class="muted">Нет работ</p>';
+      oc.innerHTML = ops.length
+        ? ops.map((o) => {
+            const s = st(o);
+            return (
+              '<article class="card person-card">' +
+              '<div class="person-card-top">' +
+              '<div class="person-avatar op">#</div>' +
+              '<div><div class="person-name">' + esc(o.name || ('Оп. ' + o.id)) + '</div>' +
+              '<div class="muted">#' + o.id + ' · ' + statusRu(s) + '</div></div></div>' +
+              '<div class="person-meta">Бригада: ' + esc(brigadeName(o.brigade_id)) + '</div>' +
+              '<div class="person-actions">' +
+              '<button type="button" class="btn btn-outline btn-sm" data-pick-op="' + o.id + '">Назначить</button>' +
+              '</div></article>'
+            );
+          }).join('')
+        : '<p class="muted">Нет работ</p>';
+  
       oc.querySelectorAll('[data-pick-op]').forEach((btn) => {
         btn.addEventListener('click', () => {
-          const sel = document.getElementById('asOp');
-          if (sel) sel.value = btn.getAttribute('data-pick-op');
-          notify('Назначение', 'Работа выбрана в форме', 'info');
+          const id = btn.getAttribute('data-pick-op');
+          setHiddenPick('asOp', id);
+          highlightMini('asOpMini', id);
+          const o = ops.find((x) => String(x.id) === String(id));
+          if (o) setText('asPickBadge', o.name || id);
+          syncAssignButtons();
+          notify('Назначение', 'Работа выбрана', 'info');
         });
       });
     }
@@ -748,8 +902,8 @@ async function deleteOp(id) {
 }
 
 async function doTransfer() {
-  const wid = document.getElementById('transferWorker')?.value;
-  const bid = document.getElementById('transferBrigade')?.value;
+  const wid = document.getElementById('trWorker')?.value;
+  const bid = document.getElementById('trBrigade')?.value;
   if (!wid || !bid) {
     notify('Проверка', 'Выберите сотрудника и бригаду', 'warning');
     return;
@@ -782,8 +936,8 @@ async function doTransfer() {
 }
 
 async function doAssignOp() {
-  const oid = document.getElementById('assignOp')?.value;
-  const bid = document.getElementById('assignBrigade')?.value;
+  const oid = document.getElementById('asOp')?.value;
+  const bid = document.getElementById('asBrigade')?.value;
   if (!oid || !bid) {
     notify('Проверка', 'Выберите операцию и бригаду', 'warning');
     return;
@@ -837,6 +991,8 @@ function renderReports() {
     if (av) av.textContent = (u.name || 'Б').charAt(0).toUpperCase();
     applyAvatarFromStorage?.();
     loadPersonalQr(false);
+
+    loadBrigUiSettings();   
   }
 
 async function loadPersonalQr(force) {
@@ -912,23 +1068,26 @@ async function changeBrigPassword() {
 }
 
 function sendBrigReport() {
-  const text = (document.getElementById('bgReportText')?.value || '').trim();
-  if (!text) {
-    alert('Напишите причину');
-    return;
+    const subject = (document.getElementById('bgSubject')?.value || '').trim();
+    const text = (document.getElementById('rptBody')?.value || '').trim();
+    if (!text) {
+      notify('Запрос', 'Напишите причину', 'warning');
+      return;
+    }
+    const key = 'brig_reports_' + (State.user?.id || 'x');
+    const list = JSON.parse(localStorage.getItem(key) || '[]');
+    list.unshift({
+      at: new Date().toISOString(),
+      user_id: State.user?.id,
+      name: State.user?.name,
+      subject,
+      text,
+    });
+    localStorage.setItem(key, JSON.stringify(list.slice(0, 50)));
+    const s = document.getElementById('bgSubject'); if (s) s.value = '';
+    const b = document.getElementById('rptBody'); if (b) b.value = '';
+    notify('Запрос', 'Сохранён локально', 'success');
   }
-  const key = 'brig_reports_' + (State.user?.id || 'x');
-  const list = JSON.parse(localStorage.getItem(key) || '[]');
-  list.unshift({
-    at: new Date().toISOString(),
-    user_id: State.user?.id,
-    name: State.user?.name,
-    text,
-  });
-  localStorage.setItem(key, JSON.stringify(list.slice(0, 50)));
-  document.getElementById('bgReportText').value = '';
-  alert('Репорт сохранён (локально). Админ увидит после эндпоинта /auth/report.');
-}
 
 // document.getElementById('bgQrRefreshBtn')?.addEventListener('click', () => loadPersonalQr(true));
 // document.getElementById('bgChangePassBtn')?.addEventListener('click', changeBrigPassword);

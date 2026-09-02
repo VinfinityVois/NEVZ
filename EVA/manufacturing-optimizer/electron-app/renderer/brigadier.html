@@ -36,7 +36,10 @@
     </nav>
     <div class="hub-sidebar-foot">
       <div class="hub-user-mini">
-        <div class="user-avatar sm" id="userAvatarSide">Б</div>
+        <div class="user-avatar-wrap sm">
+            <div class="user-avatar sm" id="userAvatarSide">К</div>
+            <img id="userAvatarSideImg" class="avatar-img-on-top" alt="" style="display:none;">
+          </div>
         <div class="hub-user-mini-text">
           <div class="hub-user-mini-name" id="userNameSide">Бригадир</div>
           <div class="hub-user-mini-role">brigadier</div>
@@ -59,7 +62,10 @@
       </div>
       <div class="hub-top-right">
         <div class="user-info">
-          <div class="user-avatar" id="userAvatar">Б</div>
+            <div class="user-avatar-wrap">
+                <div class="user-avatar" id="userAvatar">К</div>
+                <img id="userAvatarImg" class="avatar-img-on-top" alt="" style="display:none;">
+              </div>
           <div class="user-details">
             <span class="user-name" id="userName">Бригадир</span>
             <span class="user-brigade" id="userBrigade">—</span>
@@ -166,30 +172,51 @@
     <section class="hub-page" id="page-assign">
         <div class="page-head">
           <h1>Назначения</h1>
-          <p class="page-sub">Перенос сотрудников и привязка работ — карточки бригады</p>
+          <p class="page-sub">Выберите карточки сотрудника / работы и цель переноса</p>
         </div>
-        <div class="assign-grid">
-          <div class="card">
-            <div class="card-header"><h2>Перенос сотрудника</h2></div>
-            <div class="card-body form-stack">
-              <div class="form-group"><label>Сотрудник</label><select class="input" id="trWorker"></select></div>
-              <div class="form-group"><label>Новая бригада</label><select class="input" id="trBrigade"></select></div>
-              <button type="button" class="btn btn-primary" id="btnTransfer">Перенести</button>
+      
+        <div class="assign-panels">
+          <!-- Перенос -->
+          <div class="card assign-panel">
+            <div class="card-header">
+              <h2>Перенос сотрудника</h2>
+              <span class="badge" id="trPickBadge">не выбран</span>
+            </div>
+            <div class="card-body">
+              <p class="muted assign-hint">1. Сотрудник · 2. Новая бригада · 3. Перенести</p>
+              <div class="mini-card-grid" id="trWorkerMini"></div>
+              <div class="assign-divider">Новая бригада</div>
+              <div class="mini-card-grid brig-mini" id="trBrigadeMini"></div>
+              <div class="assign-actions">
+                <button type="button" class="btn btn-primary" id="btnTransfer" disabled>Перенести</button>
+              </div>
+              <!-- скрытые поля для совместимости с JS -->
+              <input type="hidden" id="trWorker" value="">
+              <input type="hidden" id="trBrigade" value="">
             </div>
           </div>
-          <div class="card">
-            <div class="card-header"><h2>Назначить работу</h2></div>
-            <div class="card-body form-stack">
-              <div class="form-group"><label>Операция</label><select class="input" id="asOp"></select></div>
-              <div class="form-group"><label>Бригада</label><select class="input" id="asBrigade"></select></div>
-              <button type="button" class="btn btn-primary" id="btnAssignOp">Назначить</button>
+      
+          <!-- Назначение работы -->
+          <div class="card assign-panel">
+            <div class="card-header">
+              <h2>Назначить работу</h2>
+              <span class="badge" id="asPickBadge">не выбрано</span>
+            </div>
+            <div class="card-body">
+              <p class="muted assign-hint">1. Операция · 2. Бригада · 3. Назначить</p>
+              <div class="mini-card-grid" id="asOpMini"></div>
+              <div class="assign-divider">Бригада</div>
+              <div class="mini-card-grid brig-mini" id="asBrigadeMini"></div>
+              <div class="assign-actions">
+                <button type="button" class="btn btn-primary" id="btnAssignOp" disabled>Назначить</button>
+              </div>
+              <input type="hidden" id="asOp" value="">
+              <input type="hidden" id="asBrigade" value="">
             </div>
           </div>
         </div>
-        <div class="page-head" style="margin-top:8px"><h2 style="font-size:18px;margin:0">Сотрудники</h2></div>
-        <div class="card-grid" id="assignWorkerCards"></div>
-        <div class="page-head" style="margin-top:16px"><h2 style="font-size:18px;margin:0">Работы</h2></div>
-        <div class="card-grid" id="assignOpCards"></div>
+      
+        
       </section>
 
     <!-- REPORTS -->
@@ -304,10 +331,12 @@
           <section class="hub-page" id="page-settings">
             <div class="page-head">
               <h1>Настройки</h1>
-              <p class="page-sub">Профиль только для просмотра · пароль и фото · QR · запрос администратору</p>
+              <p class="page-sub">Профиль · QR · пароль · интерфейс · запрос администратору</p>
             </div>
-            <div class="settings-grid">
-              <div class="card settings-span-8">
+          
+            <!-- Ряд 1: профиль + QR -->
+            <div class="settings-top">
+              <div class="card settings-profile">
                 <div class="card-header">
                   <h2>Данные бригадира</h2>
                   <span class="badge">только чтение</span>
@@ -324,20 +353,34 @@
                     <span class="muted" style="margin-top:6px;font-size:11px;">Хранится на этом ПК</span>
                   </div>
                   <div class="settings-fields full-readonly">
-                    <div class="form-group"><label>ФИО</label><input type="text" class="input" id="settingsName" readonly></div>
-                    <div class="form-group"><label>Логин</label><input type="text" class="input" id="settingsLogin" readonly></div>
-                    <div class="form-group"><label>ID</label><input type="text" class="input" id="settingsId" readonly></div>
-                    <div class="form-group"><label>Роль</label><input type="text" class="input" id="settingsRole" readonly></div>
-                    <div class="form-group"><label>Бригада</label><input type="text" class="input" id="settingsBrigade" readonly></div>
-                    <div class="form-group"><label>Email</label><input type="text" class="input" id="settingsEmail" readonly></div>
-                    <div class="form-group"><label>Телефон</label><input type="text" class="input" id="settingsPhone" readonly></div>
-                    <div class="form-group"><label>Должность</label><input type="text" class="input" id="settingsPosition" readonly></div>
-                    <div class="form-group"><label>В сети</label><input type="text" class="input" id="settingsOnlineStatus" readonly value="в сети"></div>
+                    <div class="form-group"><label>ФИО</label><input class="input" id="settingsName" readonly></div>
+                    <div class="form-group"><label>Логин</label><input class="input" id="settingsLogin" readonly></div>
+                    <div class="form-group"><label>ID</label><input class="input" id="settingsId" readonly></div>
+                    <div class="form-group"><label>Роль</label><input class="input" id="settingsRole" readonly></div>
+                    <div class="form-group"><label>Бригада</label><input class="input" id="settingsBrigade" readonly></div>
+                    <div class="form-group"><label>Email</label><input class="input" id="settingsEmail" readonly></div>
+                    <div class="form-group"><label>Телефон</label><input class="input" id="settingsPhone" readonly></div>
+                    <div class="form-group"><label>Должность</label><input class="input" id="settingsPosition" readonly></div>
+                    <div class="form-group"><label>В сети</label><input class="input" id="settingsOnlineStatus" readonly value="в сети"></div>
                   </div>
                 </div>
               </div>
           
-              <div class="card settings-span-4">
+              <div class="card settings-qr">
+                <div class="card-header"><h2>Личный QR</h2></div>
+                <div class="card-body qr-body">
+                  <div id="bgQrWrap" class="qr-frame">
+                    <canvas id="bgQrCanvas" width="200" height="200"></canvas>
+                  </div>
+                  <button type="button" class="btn btn-outline" id="bgQrRefreshBtn">Обновить QR</button>
+                  <p class="muted qr-note">Раз в сутки · вход без пароля</p>
+                </div>
+              </div>
+            </div>
+          
+            <!-- Ряд 2: пароль + запрос -->
+            <div class="settings-mid">
+              <div class="card">
                 <div class="card-header"><h2>Смена пароля</h2></div>
                 <div class="card-body form-stack">
                   <div class="form-group"><label>Текущий пароль</label><input class="input" id="bgOldPass" type="password"></div>
@@ -346,24 +389,49 @@
                   <button type="button" class="btn btn-primary" id="bgChangePassBtn">Сменить пароль</button>
                 </div>
               </div>
-          
-              <div class="card settings-span-4">
-                <div class="card-header"><h2>Личный QR</h2></div>
-                <div class="card-body" style="text-align:center;">
-                  <div id="bgQrWrap" style="width:180px;height:180px;margin:0 auto 10px;background:#fff;border:1px solid #c1c6d6;border-radius:12px;display:flex;align-items:center;justify-content:center;">
-                    <canvas id="bgQrCanvas" width="180" height="180"></canvas>
-                  </div>
-                  <button type="button" class="btn btn-outline" id="bgQrRefreshBtn">Обновить QR</button>
-                  <p class="muted" style="margin-top:8px;font-size:12px;">Раз в сутки · вход без пароля</p>
-                </div>
-              </div>
-          
-              <div class="card settings-span-8">
+              <div class="card">
                 <div class="card-header"><h2>Запрос администратору</h2></div>
                 <div class="card-body form-stack">
                   <div class="form-group"><label>Тема</label><input class="input" id="bgSubject" placeholder="Изменить email / данные…"></div>
                   <div class="form-group"><label>Причина</label><textarea class="input textarea" id="rptBody" rows="4"></textarea></div>
                   <button type="button" class="btn btn-primary" id="bgSendReportBtn">Отправить</button>
+                </div>
+              </div>
+            </div>
+          
+            <!-- Ряд 3: интерфейс / дашборд как у worker -->
+            <div class="card settings-ui">
+              <div class="card-header"><h2>Интерфейс и дашборд</h2></div>
+              <div class="card-body settings-ui-grid">
+                <div class="form-group">
+                  <label>Язык</label>
+                  <select class="input" id="settingsLang">
+                    <option value="ru" selected>Русский</option>
+                    <option value="en">English</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Боковое меню</label>
+                  <select class="input" id="settingsSidebarMode">
+                    <option value="click">По клику</option>
+                    <option value="hover">При наведении</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Плотность сводки</label>
+                  <select class="input" id="settingsDashDensity">
+                    <option value="comfortable">Обычная</option>
+                    <option value="compact">Компактная</option>
+                  </select>
+                </div>
+                <div class="form-group check-row">
+                  <label><input type="checkbox" id="notifApp" checked> Уведомления в приложении</label>
+                  <label><input type="checkbox" id="notifCritical" checked> Критические работы</label>
+                  <label><input type="checkbox" id="dashShowTeam" checked> Блок «Состав» на сводке</label>
+                  <label><input type="checkbox" id="dashShowCrit" checked> Блок «Работы бригады»</label>
+                </div>
+                <div class="form-group" style="grid-column:1/-1">
+                  <button type="button" class="btn btn-primary" id="settingsSaveUiBtn">Сохранить настройки интерфейса</button>
                 </div>
               </div>
             </div>
