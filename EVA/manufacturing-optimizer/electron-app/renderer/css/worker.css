@@ -865,4 +865,9 @@
   .hub-sidebar:not(.collapsed) .hub-nav-item.active {
     border-radius: 12px;
   }
+
+  .nav-svg { width: 20px; height: 20px; display: block; color: currentColor; }
+.hub-nav-ico { display:flex; align-items:center; justify-content:center; width:24px; height:24px; }
+.hub-nav-item .nav-svg { color: #adc7ff; }
+.hub-nav-item.active .nav-svg { color: #fff; }
   

@@ -429,25 +429,57 @@ function brigadeName(id) {
 }
 
 function renderDashboard() {
-    const ws = (State && State.workers) ? State.workers : [];
-    const ops = (State && State.operations) ? State.operations : [];
+    const ws = State.workers || [];
+    const ops = State.operations || [];
+  
     setText('kpiWorkers', ws.length);
     setText('kpiInProgress', ops.filter((o) => st(o) === 'in_progress').length);
+    setText('kpiPending', ops.filter((o) => st(o) === 'pending' || st(o) === 'ready').length);
     setText('kpiDone', ops.filter((o) => st(o) === 'completed' || st(o) === 'done').length);
-    setText('kpiBlocked', ops.filter((o) => st(o) === 'blocked' || st(o) === 'pending').length);
-    const crit = ops.filter((o) => st(o) === 'blocked' || st(o) === 'in_progress').slice(0, 8);
-    setText('critBadge', String(crit.length));
-    const cl = document.getElementById('dashCriticalList');
-    if (cl) {
-      cl.innerHTML = crit.length
-        ? crit.map((o) => '<div class="dash-op-row"><span>#' + o.id + ' ' + esc(o.name || '') + '</span><span class="badge-st ' + st(o) + '">' + statusRu(st(o)) + '</span></div>').join('')
-        : '<p class="muted">Нет критических работ</p>';
+  
+    // Работы бригады
+    const opsBox = document.getElementById('dashOpsList');
+    if (opsBox) {
+      const show = ops.slice(0, 12);
+      opsBox.innerHTML = show.length
+        ? show
+            .map(
+              (o) =>
+                '<div class="dash-op-row"><span>#' +
+                o.id +
+                ' ' +
+                esc(o.name || '') +
+                '</span><span class="badge-st ' +
+                st(o) +
+                '">' +
+                statusRu(st(o)) +
+                (o.end_date ? ' · ' + esc(o.end_date) : '') +
+                '</span></div>'
+            )
+            .join('')
+        : '<p class="muted">Нет работ</p>';
     }
-    const tl = document.getElementById('dashTeamList');
-    if (tl) {
-      tl.innerHTML = ws.length
-        ? ws.slice(0, 12).map((w) => '<div class="team-row"><span>' + esc(w.name || '') + '</span><span class="muted">' + (w.is_brigadier ? 'бригадир' : 'сотрудник') + '</span></div>').join('')
+  
+    // Состав
+    const teamBox = document.getElementById('dashMembers');
+    if (teamBox) {
+      teamBox.innerHTML = ws.length
+        ? ws
+            .slice(0, 12)
+            .map(
+              (w) =>
+                '<div class="team-row"><span>' +
+                esc(w.name || '') +
+                '</span><span class="muted">' +
+                (w.is_brigadier ? 'бригадир' : 'сотрудник') +
+                '</span></div>'
+            )
+            .join('')
         : '<p class="muted">Нет сотрудников</p>';
+    }
+  
+    if (typeof renderDeadlines === 'function') {
+      renderDeadlines(ops);
     }
   }
 
