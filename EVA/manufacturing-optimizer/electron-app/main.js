@@ -564,10 +564,17 @@ function blockDevShortcuts(win) {
   }
 
   function createBrigadierWindow(userId, brigadeId) {
-    if (typeof brigadierWindow !== 'undefined' && brigadierWindow && !brigadierWindow.isDestroyed()) {
-      brigadierWindow.focus();
-      return;
+    const q = new URLSearchParams({
+      userId: String(userId ?? ''),
+      brigadeId: String(brigadeId ?? ''),
+    }).toString();
+  
+    // Всегда пересоздаём окно с актуальными параметрами
+    if (brigadierWindow && !brigadierWindow.isDestroyed()) {
+      try { brigadierWindow.close(); } catch (_) {}
+      brigadierWindow = null;
     }
+  
     brigadierWindow = new BrowserWindow({
       fullscreen: true,
       autoHideMenuBar: true,
@@ -575,17 +582,20 @@ function blockDevShortcuts(win) {
         nodeIntegration: false,
         contextIsolation: true,
         preload: path.join(__dirname, 'preload.js'),
-        devTools: false,
+        devTools: true, // временно, чтобы видеть [Brigadier init]
       },
     });
-    const q = new URLSearchParams({
-      userId: String(userId ?? ''),
-      brigadeId: String(brigadeId ?? ''),
-    }).toString();
+  
+    // и search, и query — совместимость версий Electron
     brigadierWindow.loadFile(
       path.join(__dirname, 'renderer', 'brigadier.html'),
-      { search: q }
+      { search: q, query: { userId: String(userId ?? ''), brigadeId: String(brigadeId ?? '') } }
     );
+  
+    brigadierWindow.webContents.on('did-finish-load', () => {
+      console.log('[main] brigadier loaded', q);
+    });
+  
     blockDevShortcuts(brigadierWindow);
     brigadierWindow.on('closed', () => { brigadierWindow = null; });
   }
@@ -600,6 +610,11 @@ function blockDevShortcuts(win) {
       workerWindow.close();
       workerWindow = null;
     }
+    // ОБЯЗАТЕЛЬНО:
+    if (typeof brigadierWindow !== 'undefined' && brigadierWindow && !brigadierWindow.isDestroyed()) {
+      brigadierWindow.close();
+      brigadierWindow = null;
+    }
     if (!loginWindow || loginWindow.isDestroyed()) {
       createLoginWindow();
     } else {
@@ -610,3 +625,4 @@ function blockDevShortcuts(win) {
   ipcMain.handle('app-quit', () => {
     app.quit();
   });
+  

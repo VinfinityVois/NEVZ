@@ -185,25 +185,71 @@ function paintUser() {
 }
 
 async function reloadAll() {
-  showLoading('Загрузка…');
-  try {
-    await Promise.all([loadBrigades(), loadWorkers(), loadOperations()]);
-    // prefer brigade from user
-    if (State.brigadeId != null) {
-      State.brigade = State.brigades.find((b) => Number(b.id) === Number(State.brigadeId)) || State.brigade;
+    showLoading('Загрузка…');
+    try {
+      // 1) Профиль + mates + ops бригады с API dashboard
+      if (State.userId) {
+        try {
+          const r = await fetch(API + '/auth/worker/' + State.userId + '/dashboard');
+          if (r.ok) {
+            const d = await r.json();
+            if (d.worker) {
+              State.user = { ...(State.user || {}), ...d.worker };
+              if (d.worker.brigade_id != null && d.worker.brigade_id !== '') {
+                State.brigadeId = d.worker.brigade_id;
+              }
+            }
+            if (d.brigade) {
+              State.brigade = d.brigade;
+              if (d.brigade.id != null) State.brigadeId = d.brigade.id;
+            }
+            if (Array.isArray(d.mates) && d.mates.length) {
+              State.workers = d.mates;
+            }
+            if (Array.isArray(d.operations) && d.operations.length) {
+              State.operations = d.operations;
+            }
+          } else {
+            console.warn('[brigadier] dashboard HTTP', r.status);
+          }
+        } catch (e) {
+          console.warn('[brigadier] dashboard', e);
+        }
+      }
+  
+      // 2) Добиваем справочники
+      await Promise.all([loadBrigades(), loadWorkers(), loadOperations()]);
+  
+      if (State.brigadeId != null) {
+        State.brigade = State.brigades.find((b) => Number(b.id) === Number(State.brigadeId)) || State.brigade;
+      }
+  
+      // если workers пуст — хотя бы текущий пользователь
+      if ((!State.workers || !State.workers.length) && State.user) {
+        State.workers = [State.user];
+      }
+  
+      console.log('[brigadier reloadAll]', {
+        userId: State.userId,
+        brigadeId: State.brigadeId,
+        workers: (State.workers || []).length,
+        ops: (State.operations || []).length,
+        user: State.user?.name,
+      });
+  
+      paintUser();
+      renderDashboard();
+      renderEmployees();
+      renderOps();
+      fillAssignSelects();
+      fillSettings();
+    } catch (e) {
+      console.error(e);
+      notify('Ошибка', String(e.message || e), 'error');
+    } finally {
+      hideLoading();
     }
-    paintUser();
-    renderDashboard();
-    renderEmployees();
-    renderOps();
-    fillAssignSelects();
-    fillSettings();
-  } catch (e) {
-    notify('Ошибка', String(e.message || e), 'error');
-  } finally {
-    hideLoading();
   }
-}
 
 async function loadBrigades() {
   const r = await fetch(API + '/brigades');
