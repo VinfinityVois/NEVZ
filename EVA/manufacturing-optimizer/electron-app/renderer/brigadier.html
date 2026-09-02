@@ -27,9 +27,12 @@
       <button type="button" class="hub-nav-item active" data-page="dashboard" title="Сводка"><span class="hub-nav-ico">📊</span><span class="hub-nav-label">Сводка</span></button>
       <button type="button" class="hub-nav-item" data-page="employees" title="Сотрудники"><span class="hub-nav-ico">👥</span><span class="hub-nav-label">Сотрудники</span></button>
       <button type="button" class="hub-nav-item" data-page="operations" title="Работы"><span class="hub-nav-ico">⚙️</span><span class="hub-nav-label">Работы</span></button>
+      <button type="button" class="hub-nav-item" data-page="schedule" title="Расписание"><span class="hub-nav-ico">📅</span><span class="hub-nav-label">Расписание</span></button>
+      <button type="button" class="hub-nav-item" data-page="docs" title="Документы"><span class="hub-nav-ico">📁</span><span class="hub-nav-label">Документы</span></button>
       <button type="button" class="hub-nav-item" data-page="assign" title="Назначения"><span class="hub-nav-ico">🔗</span><span class="hub-nav-label">Назначения</span></button>
+      <button type="button" class="hub-nav-item" data-page="ai" title="AI"><span class="hub-nav-ico">🤖</span><span class="hub-nav-label">AI-оптимизация</span></button>
       <button type="button" class="hub-nav-item" data-page="reports" title="Отчёты"><span class="hub-nav-ico">📈</span><span class="hub-nav-label">Отчёты</span></button>
-      <button type="button" class="hub-nav-item" data-page="settings" title="Настройки"><span class="hub-nav-ico">⚙</span><span class="hub-nav-label">Настройки</span></button>
+      <button type="button" class="hub-nav-item" data-page="settings" title="Настройки"><span class="hub-nav-ico">⚙️</span><span class="hub-nav-label">Настройки</span></button>
     </nav>
     <div class="hub-sidebar-foot">
       <div class="hub-user-mini">
@@ -208,57 +211,88 @@
         <div class="card-body"><div id="reportDetails" class="muted">Загрузка…</div></div>
       </div>
     </section>
-
+        <!-- AI -->
+        <section class="hub-page" id="page-ai">
+            <div class="page-head row-between">
+              <div>
+                <h1>AI-оптимизация</h1>
+                <p class="page-sub">Рекомендации для бригады</p>
+              </div>
+              <button type="button" class="btn btn-primary" id="btnAiRefresh">Обновить AI</button>
+            </div>
+            <div class="kpi-row">
+              <article class="card kpi-tile"><div class="kpi-label">Статус AI</div><div class="kpi-big sm" id="aiStatus">—</div></article>
+              <article class="card kpi-tile"><div class="kpi-label">Рекомендаций</div><div class="kpi-big" id="aiRecCount">0</div></article>
+              <article class="card kpi-tile"><div class="kpi-label">Разрывов</div><div class="kpi-big" id="aiGapCount">0</div></article>
+            </div>
+            <div class="card">
+              <div class="card-header"><h2>Рекомендации</h2></div>
+              <div class="card-body" id="aiRecList"><p class="muted">Нажмите «Обновить AI»</p></div>
+            </div>
+          </section>
+      
+          <!-- SCHEDULE -->
+          <section class="hub-page" id="page-schedule">
+            <div class="page-head row-between">
+              <div>
+                <h1>Расписание смены</h1>
+                <p class="page-sub">Календарь и события только вашей бригады</p>
+              </div>
+              <div class="toolbar" style="margin:0">
+                <button type="button" class="btn btn-outline" id="calPrev">←</button>
+                <span id="calMonthLabel" style="min-width:140px;text-align:center;font-weight:700"></span>
+                <button type="button" class="btn btn-outline" id="calNext">→</button>
+                <button type="button" class="btn btn-primary" id="btnAddEvent">+ Событие</button>
+              </div>
+            </div>
+            <div class="dash-grid">
+              <div class="card">
+                <div class="card-header"><h2>Календарь</h2></div>
+                <div class="card-body"><div class="cal-grid" id="calGrid"></div></div>
+              </div>
+              <div class="card">
+                <div class="card-header"><h2>События дня</h2><span class="badge" id="dayEventsCount">0</span></div>
+                <div class="card-body" id="dayEventsList"><p class="muted">Выберите день</p></div>
+              </div>
+            </div>
+          </section>
+      
+          <!-- DOCS -->
+          <section class="hub-page" id="page-docs">
+            <div class="page-head row-between">
+              <div>
+                <h1>Документы и архив</h1>
+                <p class="page-sub">Сменные отчёты бригады</p>
+              </div>
+              <button type="button" class="btn btn-primary" id="btnNewDocReport">+ Отчёт смены</button>
+            </div>
+            <div class="assign-grid">
+              <div class="card">
+                <div class="card-header"><h2>Создать отчёт</h2></div>
+                <div class="card-body form-stack">
+                  <div class="form-group"><label>Заголовок</label><input class="input" id="docTitle" placeholder="Сменный отчёт …"></div>
+                  <div class="form-group"><label>Тип</label>
+                    <select class="input" id="docType">
+                      <option value="shift">Сменный</option>
+                      <option value="incident">Инцидент</option>
+                      <option value="quality">Качество</option>
+                      <option value="archive">В архив</option>
+                    </select>
+                  </div>
+                  <div class="form-group"><label>Текст</label><textarea class="input textarea" id="docBody" rows="5" placeholder="Что сделано, проблемы…"></textarea></div>
+                  <button type="button" class="btn btn-primary" id="btnSaveDoc">Сохранить отчёт</button>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-header"><h2>Архив бригады</h2></div>
+                <div class="card-body" id="docsArchiveList"><p class="muted">Пока пусто</p></div>
+              </div>
+            </div>
+          </section>
+      
+          <section class="hub-page" id="page-settings">
     <!-- SETTINGS -->
-    <section class="hub-page" id="page-settings">
-        <div class="page-head">
-          <h1>Настройки</h1>
-          <p class="page-sub">Профиль бригадира · как у сотрудника</p>
-        </div>
-  
-        <div class="settings-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:1100px;">
-          <!-- Профиль (только чтение) -->
-          <div class="card">
-            <div class="card-header"><h3>Данные сотрудника</h3></div>
-            <div class="card-body">
-              <div class="form-group"><label>ФИО</label><input class="input" id="bgName" readonly></div>
-              <div class="form-group"><label>Логин</label><input class="input" id="bgLogin" readonly></div>
-              <div class="form-group"><label>Должность</label><input class="input" id="bgPosition" readonly></div>
-              <div class="form-group"><label>Бригада</label><input class="input" id="bgBrigade" readonly></div>
-              <div class="form-group"><label>Email</label><input class="input" id="bgEmail" readonly></div>
-              <div class="form-group"><label>Телефон</label><input class="input" id="bgPhone" readonly></div>
-              <p class="muted" style="font-size:12px;">Изменить ФИО/бригаду нельзя — только репорт администратору.</p>
-            </div>
-          </div>
-  
-          <!-- Пароль + QR -->
-          <div class="card">
-            <div class="card-header"><h3>Безопасность и вход</h3></div>
-            <div class="card-body">
-              <div class="form-group"><label>Текущий пароль</label><input class="input" id="bgOldPass" type="password"></div>
-              <div class="form-group"><label>Новый пароль</label><input class="input" id="bgNewPass" type="password"></div>
-              <button type="button" class="btn btn-primary" id="bgChangePassBtn">Сменить пароль</button>
-              <hr style="margin:16px 0;border:none;border-top:1px solid #e0e3e6;">
-              <p class="muted" style="margin-bottom:8px;">Личный QR (обновляется раз в сутки)</p>
-              <div id="bgQrWrap" style="width:160px;height:160px;margin:0 auto 8px;background:#fff;border:1px solid #c1c6d6;border-radius:12px;display:flex;align-items:center;justify-content:center;">
-                <canvas id="bgQrCanvas" width="160" height="160"></canvas>
-              </div>
-              <button type="button" class="btn btn-outline" id="bgQrRefreshBtn">Обновить QR</button>
-            </div>
-          </div>
-  
-          <!-- Репорт -->
-          <div class="card" style="grid-column:1 / -1;">
-            <div class="card-header"><h3>Репорт администратору</h3></div>
-            <div class="card-body">
-              <div class="form-group"><label>Причина</label>
-                <textarea class="input" id="bgReportText" rows="3" placeholder="Опишите, что нужно исправить в профиле…"></textarea>
-              </div>
-              <button type="button" class="btn btn-primary" id="bgReportBtn">Отправить</button>
-            </div>
-          </div>
-        </div>
-      </section>
+
 
     <footer class="hub-footer">
       <div class="connection-status" id="connectionStatus"><span class="status-dot"></span><span class="status-text">Подключено</span></div>

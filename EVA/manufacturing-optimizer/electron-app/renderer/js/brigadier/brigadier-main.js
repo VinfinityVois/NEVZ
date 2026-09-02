@@ -13,14 +13,20 @@ const State = {
   workers: [],
   brigades: [],
   operations: [],
-  page: 'dashboard'
+  page: 'dashboard',
+  calYear: new Date().getFullYear(),
+  calMonth: new Date().getMonth(),
+  calSelected: null
 };
 
 const PAGE_LABELS = {
   dashboard: 'Сводка',
   employees: 'Сотрудники',
   operations: 'Работы',
+  schedule: 'Расписание',
+  docs: 'Документы',
   assign: 'Назначения',
+  ai: 'AI-оптимизация',
   reports: 'Отчёты',
   settings: 'Настройки'
 };
@@ -90,6 +96,9 @@ function showPage(page) {
   if (page === 'reports') renderReports();
   if (page === 'settings') fillSettings();
   if (page === 'dashboard') renderDashboard();
+  if (page === 'schedule') renderCalendar();
+  if (page === 'docs') renderDocsArchive();
+  if (page === 'ai') refreshAi();
 }
 
 function setupEvents() {
@@ -108,6 +117,15 @@ function setupEvents() {
     el.addEventListener('click', closeModals);
   });
   document.getElementById('modalOverlay')?.addEventListener('click', closeModals);
+
+  document.getElementById('btnAiRefresh')?.addEventListener('click', refreshAi);
+  document.getElementById('calPrev')?.addEventListener('click', () => { State.calMonth--; renderCalendar(); });
+  document.getElementById('calNext')?.addEventListener('click', () => { State.calMonth++; renderCalendar(); });
+  document.getElementById('btnAddEvent')?.addEventListener('click', addCalendarEvent);
+  document.getElementById('btnSaveDoc')?.addEventListener('click', saveDocReport);
+  document.getElementById('btnNewDocReport')?.addEventListener('click', () => {
+    document.getElementById('docTitle')?.focus();
+  });
 }
 
 function paintUser() {
@@ -174,6 +192,10 @@ async function loadWorkers() {
       }
     } catch (_) {}
   }
+  if (State.brigadeId != null && State.brigadeId !== '') {
+    const bid = Number(State.brigadeId);
+    list = list.filter((w) => Number(w.brigade_id) === bid);
+  }
   // filter to my brigade + allow seeing all for transfer
   State.workers = list;
   if (!list.length && State.userId) {
@@ -189,6 +211,11 @@ async function loadWorkers() {
         State.brigade = d.brigade || State.brigade;
       }
     } catch (_) {}
+  }
+  if (State.brigadeId != null && State.brigadeId !== '') {
+    const bid = Number(State.brigadeId);
+    const mine = ops.filter((o) => Number(o.brigade_id) === bid);
+    if (mine.length) ops = mine;
   }
 }
 
@@ -864,3 +891,147 @@ function hideLoading() {
   const o = document.getElementById('loadingOverlay');
   if (o) o.style.display = 'none';
 }
+
+/* ---- AI / calendar / docs ---- */
+async function refreshAi() {
+    setText('aiStatus', '…');
+    try {
+      const r = await fetch(API + '/ai/status');
+      const d = r.ok ? await r.json() : {};
+      setText('aiStatus', d.status || (r.ok ? 'ok' : 'нет'));
+      let recs = [], gaps = 0;
+      try {
+        const r2 = await fetch(API + '/ai/build-plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}',
+        });
+        if (r2.ok) {
+          const p = await r2.json();
+          recs = p.recommendations || p.plan?.recommendations || [];
+          gaps = p.gaps?.count || (p.gaps?.gaps || []).length || 0;
+        }
+      } catch (_) {}
+      setText('aiRecCount', recs.length);
+      setText('aiGapCount', gaps);
+      const list = document.getElementById('aiRecList');
+      if (list) {
+        list.innerHTML = recs.length
+          ? recs.slice(0, 20).map((x) => {
+              const t = typeof x === 'string' ? x : (x.title || x.message || JSON.stringify(x));
+              return '<div class="dash-op-row"><span>' + esc(t) + '</span></div>';
+            }).join('')
+          : '<p class="muted">Нет рекомендаций</p>';
+      }
+    } catch (e) {
+      setText('aiStatus', 'ошибка');
+    }
+  }
+  
+  function eventsKey() { return 'brig_events_' + (State.brigadeId || State.userId || 'x'); }
+  function docsKey() { return 'brig_docs_' + (State.brigadeId || State.userId || 'x'); }
+  function loadEvents() { try { return JSON.parse(localStorage.getItem(eventsKey()) || '[]'); } catch (_) { return []; } }
+  function saveEvents(list) { localStorage.setItem(eventsKey(), JSON.stringify(list)); }
+  function loadDocs() { try { return JSON.parse(localStorage.getItem(docsKey()) || '[]'); } catch (_) { return []; } }
+  function saveDocs(list) { localStorage.setItem(docsKey(), JSON.stringify(list)); }
+  
+  function renderCalendar() {
+    const grid = document.getElementById('calGrid');
+    const label = document.getElementById('calMonthLabel');
+    if (!grid) return;
+    while (State.calMonth < 0) { State.calMonth += 12; State.calYear--; }
+    while (State.calMonth > 11) { State.calMonth -= 12; State.calYear++; }
+    if (label) {
+      label.textContent = new Date(State.calYear, State.calMonth, 1)
+        .toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+    }
+    const first = new Date(State.calYear, State.calMonth, 1);
+    const startPad = (first.getDay() + 6) % 7;
+    const daysIn = new Date(State.calYear, State.calMonth + 1, 0).getDate();
+    const events = loadEvents();
+    const heads = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+    let html = heads.map((h) => '<div class="cal-cell head">' + h + '</div>').join('');
+    for (let i = 0; i < startPad; i++) html += '<div class="cal-cell muted"></div>';
+    const today = new Date();
+    for (let d = 1; d <= daysIn; d++) {
+      const key = State.calYear + '-' + String(State.calMonth + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+      const has = events.some((e) => e.date === key);
+      const isToday = today.getFullYear() === State.calYear && today.getMonth() === State.calMonth && today.getDate() === d;
+      const sel = State.calSelected === key ? ' selected' : '';
+      html += '<div class="cal-cell' + (isToday ? ' today' : '') + sel + '" data-day="' + key + '"><div>' + d + '</div>' +
+        (has ? '<span class="ev-dot"></span>' : '') + '</div>';
+    }
+    grid.innerHTML = html;
+    grid.querySelectorAll('[data-day]').forEach((el) => {
+      el.addEventListener('click', () => {
+        State.calSelected = el.dataset.day;
+        renderCalendar();
+        renderDayEvents();
+      });
+    });
+    if (!State.calSelected) {
+      State.calSelected = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+    }
+    renderDayEvents();
+  }
+  
+  function renderDayEvents() {
+    const list = document.getElementById('dayEventsList');
+    const cnt = document.getElementById('dayEventsCount');
+    if (!list) return;
+    const day = State.calSelected;
+    const events = loadEvents().filter((e) => e.date === day);
+    if (cnt) cnt.textContent = String(events.length);
+    list.innerHTML = events.length
+      ? events.map((e) => '<div class="dash-op-row"><span>' + esc(e.title) + '</span><span class="muted">' + esc(e.time || '') + '</span></div>').join('')
+      : '<p class="muted">Нет событий на ' + esc(day || '') + '</p>';
+  }
+  
+  function addCalendarEvent() {
+    const day = State.calSelected || new Date().toISOString().slice(0, 10);
+    const title = prompt('Событие на ' + day + ':', 'Планерка бригады');
+    if (!title) return;
+    const time = prompt('Время (напр. 08:00):', '08:00') || '';
+    const list = loadEvents();
+    list.push({ id: Date.now(), date: day, title: title.trim(), time, brigade_id: State.brigadeId });
+    saveEvents(list);
+    renderCalendar();
+    notify('Календарь', 'Событие добавлено', 'success');
+  }
+  
+  function saveDocReport() {
+    const title = (document.getElementById('docTitle')?.value || '').trim();
+    const body = (document.getElementById('docBody')?.value || '').trim();
+    const type = document.getElementById('docType')?.value || 'shift';
+    if (!title || !body) return notify('Отчёт', 'Заполните заголовок и текст', 'warning');
+    const list = loadDocs();
+    list.unshift({
+      id: Date.now(), title, body, type,
+      at: new Date().toISOString(),
+      author: State.user?.name,
+      brigade_id: State.brigadeId,
+    });
+    saveDocs(list.slice(0, 100));
+    const t = document.getElementById('docTitle'); if (t) t.value = '';
+    const b = document.getElementById('docBody'); if (b) b.value = '';
+    renderDocsArchive();
+    notify('Отчёт', 'Сохранён в архив бригады', 'success');
+  }
+  
+  function renderDocsArchive() {
+    const el = document.getElementById('docsArchiveList');
+    if (!el) return;
+    const list = loadDocs();
+    el.innerHTML = list.length
+      ? list.map((d) =>
+          '<div class="doc-item"><strong>' + esc(d.title) + '</strong>' +
+          '<div class="meta">' + esc(d.type) + ' · ' + new Date(d.at).toLocaleString('ru-RU') + ' · ' + esc(d.author || '') + '</div>' +
+          '<div style="margin-top:6px;font-size:13px;">' + esc(d.body).slice(0, 280) + '</div></div>'
+        ).join('')
+      : '<p class="muted">Пока нет отчётов</p>';
+  }
+
+  function setText(id, v) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = v == null ? '' : String(v);
+  }

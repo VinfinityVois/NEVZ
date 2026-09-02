@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 NEVZ Auth + Worker dashboard + QR session.
-Подключение в api.py:
+Подключение в api.py:"""
     from auth_api import router as auth_router
     app.include_router(auth_router)
-"""
+
 from __future__ import annotations
 
 import json
