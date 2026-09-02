@@ -180,6 +180,20 @@ function avatarKey() {
   }
 
 function setupEvents() {
+  document.getElementById('btnNotifPanel')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleNotifPanel();
+  });
+  document.getElementById('btnNotifClose')?.addEventListener('click', () => {
+    const p = document.getElementById('notifPanel');
+    if (p) p.style.display = 'none';
+  });
+  document.addEventListener('click', (e) => {
+    const wrap = document.querySelector('.notif-wrap');
+    const p = document.getElementById('notifPanel');
+    if (p && wrap && !wrap.contains(e.target)) p.style.display = 'none';
+  });
+  document.getElementById('reqTemplate')?.addEventListener('change', applyReqTemplate);
 
   document.getElementById('settingsSaveUiBtn')?.addEventListener('click', saveBrigUiSettings);
 
@@ -1067,26 +1081,31 @@ async function changeBrigPassword() {
   }
 }
 
-function sendBrigReport() {
+async function sendBrigReport() {
     const subject = (document.getElementById('bgSubject')?.value || '').trim();
     const text = (document.getElementById('rptBody')?.value || '').trim();
-    if (!text) {
-      notify('Запрос', 'Напишите причину', 'warning');
-      return;
+    const template_key = document.getElementById('reqTemplate')?.value || null;
+    if (!text) return notify('Запрос', 'Напишите текст', 'warning');
+    try {
+      const r = await fetch(API + '/admin-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          worker_id: State.userId,
+          worker_name: State.user?.name,
+          brigade_id: State.brigadeId,
+          template_key,
+          subject: subject || 'Запрос бригадира',
+          body: text,
+        }),
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      notify('Запрос', 'Отправлен администратору', 'success');
+      const s = document.getElementById('bgSubject'); if (s) s.value = '';
+      const b = document.getElementById('rptBody'); if (b) b.value = '';
+    } catch (e) {
+      notify('Ошибка', String(e.message || e), 'error');
     }
-    const key = 'brig_reports_' + (State.user?.id || 'x');
-    const list = JSON.parse(localStorage.getItem(key) || '[]');
-    list.unshift({
-      at: new Date().toISOString(),
-      user_id: State.user?.id,
-      name: State.user?.name,
-      subject,
-      text,
-    });
-    localStorage.setItem(key, JSON.stringify(list.slice(0, 50)));
-    const s = document.getElementById('bgSubject'); if (s) s.value = '';
-    const b = document.getElementById('rptBody'); if (b) b.value = '';
-    notify('Запрос', 'Сохранён локально', 'success');
   }
 
 // document.getElementById('bgQrRefreshBtn')?.addEventListener('click', () => loadPersonalQr(true));
@@ -1355,4 +1374,142 @@ async function refreshAi() {
   function setText(id, v) {
     const el = document.getElementById(id);
     if (el) el.textContent = v == null ? '' : String(v);
+  }
+
+  function toggleNotifPanel() {
+    const p = document.getElementById('notifPanel');
+    if (!p) return;
+    const open = p.style.display === 'none' || !p.style.display;
+    p.style.display = open ? 'flex' : 'none';
+    if (open) loadInbox(true);
+  }
+  
+  const REQ_TEMPLATES = {
+    profile: {
+      subject: 'Обновление данных профиля',
+      body: 'Прошу исправить ФИО / email / телефон / должность. Текущие данные устарели.',
+    },
+    password: {
+      subject: 'Проблема со входом / паролем',
+      body: 'Не удаётся сменить или использовать пароль. Прошу проверить учётную запись.',
+    },
+    brigade: {
+      subject: 'Ошибка состава бригады',
+      body: 'Неверный список сотрудников или привязка к бригаде. Прошу сверить с фактическим составом.',
+    },
+    ops: {
+      subject: 'Сроки / статусы операций',
+      body: 'В работах указаны неверные сроки или статусы. Нужна корректировка администратора.',
+    },
+    access: {
+      subject: 'Запрос доступа',
+      body: 'Нужны дополнительные права или доступ к разделу для сменных задач.',
+    },
+  };
+  
+  function applyReqTemplate() {
+    const t = REQ_TEMPLATES[document.getElementById('reqTemplate')?.value];
+    if (!t) return;
+    const s = document.getElementById('bgSubject');
+    const b = document.getElementById('rptBody');
+    if (s) s.value = t.subject;
+    if (b) b.value = t.body;
+  }
+  
+  function renderDeadlines(ops) {
+    const list = document.getElementById('dashDeadlinesList');
+    const badge = document.getElementById('deadlineBadge');
+    if (!list) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const soonLimit = new Date(Date.now() + 3 * 864e5).toISOString().slice(0, 10);
+    const rows = (ops || [])
+      .filter((o) => o.end_date)
+      .map((o) => {
+        const done = ['completed', 'done'].includes(String(o.status || '').toLowerCase());
+        const overdue = !done && o.end_date < today;
+        const soon = !done && !overdue && o.end_date <= soonLimit;
+        return { ...o, overdue, soon, done };
+      })
+      .sort((a, b) => String(a.end_date).localeCompare(String(b.end_date)))
+      .slice(0, 15);
+  
+    if (badge) badge.textContent = String(rows.filter((r) => r.overdue || r.soon).length);
+    list.innerHTML = rows.length
+      ? rows.map((o) => {
+          const mark = o.overdue ? 'просрочено' : o.soon ? 'скоро' : o.done ? 'готово' : 'план';
+          const cls = o.overdue ? 'bad' : o.soon ? 'warn' : 'ok';
+          return (
+            '<div class="dash-op-row">' +
+            '<span>#' + o.id + ' ' + esc(o.name || '') + '</span>' +
+            '<span class="badge-st ' + cls + '">' +
+            esc(o.end_date) + ' · ' + mark + ' · ' + statusRu(st(o)) +
+            '</span></div>'
+          );
+        }).join('')
+      : '<p class="muted">Нет операций с end_date</p>';
+  }
+  
+  async function loadInbox(intoPanel) {
+    if (!State.userId) return;
+    const url =
+      API +
+      '/notifications/inbox?worker_id=' +
+      encodeURIComponent(State.userId) +
+      (State.brigadeId != null ? '&brigade_id=' + encodeURIComponent(State.brigadeId) : '');
+    try {
+      const r = await fetch(url);
+      if (!r.ok) return;
+      const d = await r.json();
+      const items = d.items || [];
+      const unread = d.unread || 0;
+  
+      const dot = document.getElementById('notifDot');
+      if (dot) {
+        if (unread > 0) {
+          dot.style.display = 'block';
+          dot.textContent = unread > 99 ? '99+' : String(unread);
+        } else {
+          dot.style.display = 'none';
+        }
+      }
+  
+      const html = items.length
+        ? items
+            .slice(0, 30)
+            .map(
+              (n) =>
+                '<div class="inbox-item' +
+                (n.read_at ? '' : ' unread') +
+                '" data-nid="' +
+                n.id +
+                '">' +
+                '<strong>' +
+                esc(n.title) +
+                '</strong>' +
+                '<div class="muted">' +
+                esc(n.created_at || '') +
+                (n.kind ? ' · ' + esc(n.kind) : '') +
+                '</div>' +
+                '<div class="inbox-body">' +
+                esc(n.body) +
+                '</div></div>'
+            )
+            .join('')
+        : '<p class="muted">Нет уведомлений</p>';
+  
+      const panel = document.getElementById('notifPanelList');
+      if (panel && (intoPanel || panel)) {
+        panel.innerHTML = html;
+        panel.querySelectorAll('.inbox-item').forEach((el) => {
+          el.addEventListener('click', async () => {
+            const id = el.getAttribute('data-nid');
+            await fetch(API + '/notifications/' + id + '/read', { method: 'POST' });
+            el.classList.remove('unread');
+            loadInbox(true);
+          });
+        });
+      }
+    } catch (e) {
+      console.warn('inbox', e);
+    }
   }

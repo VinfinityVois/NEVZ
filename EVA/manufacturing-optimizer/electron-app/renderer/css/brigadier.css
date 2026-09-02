@@ -369,3 +369,85 @@
   @media (max-width: 1100px) {
     .assign-panels { grid-template-columns: 1fr; }
   }
+
+  .nav-svg {
+    width: 20px;
+    height: 20px;
+    display: block;
+    color: currentColor;
+  }
+  .nav-svg.inline {
+    display: inline-block;
+    vertical-align: -4px;
+    margin-right: 6px;
+  }
+  .hub-nav-ico {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+  }
+  .hub-nav-item.active .nav-svg { color: #fff; }
+  .hub-nav-item .nav-svg { color: #adc7ff; }
+  
+  .notif-wrap { position: relative; }
+  .notif-dot {
+    position: absolute;
+    top: 2px; right: 2px;
+    min-width: 16px; height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: #d93025;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+  }
+  .notif-panel {
+    position: absolute;
+    right: 0; top: calc(100% + 8px);
+    width: 360px;
+    max-height: 420px;
+    background: #fff;
+    border: 1px solid #e0e3e6;
+    border-radius: 14px;
+    box-shadow: 0 12px 32px rgba(0,0,0,.12);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .notif-panel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 14px;
+    border-bottom: 1px solid #e0e3e6;
+  }
+  .notif-panel-body {
+    overflow: auto;
+    padding: 10px;
+    max-height: 360px;
+  }
+  .inbox-item {
+    border: 1px solid #e0e3e6;
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    background: #fff;
+  }
+  .inbox-item.unread {
+    border-color: #1a73e8;
+    background: #f0f5ff;
+  }
+  .inbox-body { font-size: 13px; margin-top: 6px; }
+  .btn-text {
+    border: 0; background: transparent;
+    color: #1a73e8; cursor: pointer; font-size: 13px;
+  }
+  .badge-st.bad { color: #d93025; font-weight: 600; }
+  .badge-st.warn { color: #b26a00; font-weight: 600; }
+  .badge-st.ok { color: #006d2c; }

@@ -3139,7 +3139,186 @@ async def seed_test_data():
         conn.close()
         raise HTTPException(status_code=500, detail=f"Ошибка создания тестовых данных: {str(e)}")
 
+# ========== NOTIFICATIONS / ADMIN REQUESTS ==========
+from fastapi import Query
+from pydantic import BaseModel
+from typing import Optional
+import sqlite3
 
+def ensure_messaging_tables():
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            sender_role TEXT NOT NULL DEFAULT 'admin',
+            sender_id INTEGER,
+            sender_name TEXT,
+            target_type TEXT NOT NULL,
+            target_id INTEGER,
+            target_role TEXT,
+            title TEXT NOT NULL,
+            body TEXT NOT NULL,
+            kind TEXT DEFAULT 'info',
+            related_op_id INTEGER,
+            related_brigade_id INTEGER,
+            read_at TEXT,
+            payload TEXT
+        )
+        """)
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS admin_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            worker_id INTEGER NOT NULL,
+            worker_name TEXT,
+            brigade_id INTEGER,
+            template_key TEXT,
+            subject TEXT NOT NULL,
+            body TEXT NOT NULL,
+            status TEXT DEFAULT 'open',
+            admin_reply TEXT,
+            replied_at TEXT
+        )
+        """)
+        conn.commit()
+    finally:
+        conn.close()
+
+
+class NotifySendBody(BaseModel):
+    target_type: str
+    target_id: int
+    target_role: Optional[str] = None
+    title: str
+    body: str
+    kind: str = "info"
+    related_op_id: Optional[int] = None
+    related_brigade_id: Optional[int] = None
+    sender_name: str = "Администратор"
+    sender_id: Optional[int] = 0
+
+
+class AdminRequestBody(BaseModel):
+    worker_id: int
+    worker_name: Optional[str] = None
+    brigade_id: Optional[int] = None
+    template_key: Optional[str] = None
+    subject: str
+    body: str
+
+
+@app.on_event("startup")
+async def _startup_messaging():
+    try:
+        ensure_messaging_tables()
+    except Exception as e:
+        print("[WARN] messaging tables:", e)
+
+
+@app.post("/notifications/send")
+async def notifications_send(body: NotifySendBody):
+    ensure_messaging_tables()
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO notifications
+               (sender_role, sender_id, sender_name, target_type, target_id, target_role,
+                title, body, kind, related_op_id, related_brigade_id)
+               VALUES ('admin',?,?,?,?,?,?,?,?,?,?)""",
+            (
+                body.sender_id, body.sender_name, body.target_type, body.target_id,
+                body.target_role, body.title, body.body, body.kind,
+                body.related_op_id,
+                body.related_brigade_id or (body.target_id if body.target_type == "brigade" else None),
+            ),
+        )
+        conn.commit()
+        return {"success": True, "id": cur.lastrowid}
+    finally:
+        conn.close()
+
+
+@app.get("/notifications/inbox")
+async def notifications_inbox(
+    worker_id: int = Query(...),
+    brigade_id: Optional[int] = None,
+    unread_only: bool = False,
+    limit: int = 50,
+):
+    ensure_messaging_tables()
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        sql = """
+        SELECT * FROM notifications
+        WHERE (target_type = 'worker' AND target_id = ?)
+           OR (target_type = 'brigade' AND target_id = ?)
+        """
+        params = [worker_id, brigade_id if brigade_id is not None else -1]
+        if unread_only:
+            sql += " AND read_at IS NULL"
+        sql += " ORDER BY id DESC LIMIT ?"
+        params.append(limit)
+        cur.execute(sql, params)
+        rows = [dict(r) for r in cur.fetchall()]
+        return {"items": rows, "unread": sum(1 for r in rows if not r.get("read_at"))}
+    finally:
+        conn.close()
+
+
+@app.post("/notifications/{nid}/read")
+async def notifications_read(nid: int):
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE notifications SET read_at = datetime('now','localtime') WHERE id = ?",
+            (nid,),
+        )
+        conn.commit()
+        return {"success": True}
+    finally:
+        conn.close()
+
+
+@app.post("/admin-requests")
+async def admin_requests_create(body: AdminRequestBody):
+    ensure_messaging_tables()
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO admin_requests
+               (worker_id, worker_name, brigade_id, template_key, subject, body)
+               VALUES (?,?,?,?,?,?)""",
+            (body.worker_id, body.worker_name, body.brigade_id, body.template_key, body.subject, body.body),
+        )
+        conn.commit()
+        return {"success": True, "id": cur.lastrowid}
+    finally:
+        conn.close()
+
+
+@app.get("/admin-requests")
+async def admin_requests_list(status: str = "open", limit: int = 100):
+    ensure_messaging_tables()
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        if status == "all":
+            cur.execute("SELECT * FROM admin_requests ORDER BY id DESC LIMIT ?", (limit,))
+        else:
+            cur.execute(
+                "SELECT * FROM admin_requests WHERE status = ? ORDER BY id DESC LIMIT ?",
+                (status, limit),
+            )
+        return {"items": [dict(r) for r in cur.fetchall()]}
+    finally:
+        conn.close()
 # ================================================================
 # ЗАПУСК
 # ================================================================

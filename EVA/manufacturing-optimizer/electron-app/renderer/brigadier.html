@@ -13,6 +13,70 @@
 <script src="js/libs/qrcode.min.js"></script>
 </head>
 <body>
+    <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+        <symbol id="ico-dashboard" viewBox="0 0 24 24" fill="none">
+          <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/>
+          <path d="M3 9H21" stroke="currentColor" stroke-width="2"/>
+          <path d="M9 21V9" stroke="currentColor" stroke-width="2"/>
+        </symbol>
+        <symbol id="ico-users" viewBox="0 0 24 24" fill="none">
+          <path d="M17 21V19C17 17.9391 16.5786 16.9217 15.8284 16.1716C15.0783 15.4214 14.0609 15 13 15H5C3.93913 15 2.92172 15.4214 2.17157 16.1716C1.42143 16.9217 1 17.9391 1 19V21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2"/>
+          <path d="M23 21V19C22.9993 18.1137 22.7044 17.2522 22.1614 16.5523C21.6184 15.8524 20.8581 15.3516 20 15.13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M16 3.13C16.8604 3.35031 17.623 3.85071 18.1676 4.55232C18.7122 5.25393 19.0078 6.11683 19.0078 7.005C19.0078 7.89317 18.7122 8.75607 18.1676 9.45768C17.623 10.1593 16.8604 10.6597 16 10.88" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="ico-ops" viewBox="0 0 24 24" fill="none">
+          <path d="M21 16V8C21 6.89543 20.1046 6 19 6H5C3.89543 6 3 6.89543 3 8V16C3 17.1046 3.89543 18 5 18H19C20.1046 18 21 17.1046 21 16Z" stroke="currentColor" stroke-width="2"/>
+          <path d="M3 10H21" stroke="currentColor" stroke-width="2"/>
+          <path d="M7 14H7.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M11 14H11.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M15 14H15.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="ico-calendar" viewBox="0 0 24 24" fill="none">
+          <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/>
+          <path d="M16 2V6M8 2V6M3 10H21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="ico-docs" viewBox="0 0 24 24" fill="none">
+          <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" stroke="currentColor" stroke-width="2"/>
+          <path d="M14 2V8H20" stroke="currentColor" stroke-width="2"/>
+        </symbol>
+        <symbol id="ico-assign" viewBox="0 0 24 24" fill="none">
+          <path d="M5 10L2 13L5 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M19 14L22 11L19 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M2 13H22" stroke="currentColor" stroke-width="2"/>
+          <rect x="7" y="7" width="10" height="12" rx="1" stroke="currentColor" stroke-width="2"/>
+        </symbol>
+        <symbol id="ico-ai" viewBox="0 0 24 24" fill="none">
+          <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="ico-chart" viewBox="0 0 24 24" fill="none">
+          <path d="M3 3V21H21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M18 9L13 14L10 11L6 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="ico-gear" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.36.36.87.58 1.51.58H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke="currentColor" stroke-width="2"/>
+        </symbol>
+        <symbol id="ico-bell" viewBox="0 0 24 24" fill="none">
+          <path d="M18 8C18 6.4087 17.3679 4.88258 16.2426 3.75736C15.1174 2.63214 13.5913 2 12 2C10.4087 2 8.88258 2.63214 7.75736 3.75736C6.63214 4.88258 6 6.4087 6 8C6 15 3 17 3 17H21C21 17 18 15 18 8Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M13.73 21C13.5542 21.3031 13.3019 21.5547 12.9982 21.7295C12.6946 21.9044 12.3504 21.9965 12 21.9965C11.6496 21.9965 11.3054 21.9044 11.0018 21.7295C10.6981 21.5547 10.4458 21.3031 10.27 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="ico-logout" viewBox="0 0 24 24" fill="none">
+          <path d="M9 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M16 17L21 12L16 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M21 12H9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="ico-time" viewBox="0 0 24 24" fill="none">
+          <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="2"/>
+          <path d="M12 6V12L16 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="ico-alert" viewBox="0 0 24 24" fill="none">
+          <path d="M10.29 3.86L1.82 18C1.64 18.3 1.55 18.65 1.55 19C1.55 19.35 1.64 19.69 1.81 19.99C1.99 20.3 2.24 20.55 2.54 20.73C2.84 20.91 3.19 21 3.54 21H20.46C20.81 21 21.16 20.91 21.46 20.73C21.76 20.55 22.01 20.3 22.19 19.99C22.36 19.69 22.45 19.35 22.45 19C22.45 18.65 22.35 18.3 22.18 18L13.71 3.86C13.53 3.57 13.28 3.32 12.98 3.15C12.68 2.99 12.34 2.9 12 2.9C11.66 2.9 11.32 2.99 11.02 3.15C10.72 3.32 10.47 3.57 10.29 3.86Z" stroke="#d93025" stroke-width="2"/>
+          <path d="M12 9V13M12 17H12.01" stroke="#d93025" stroke-width="2" stroke-linecap="round"/>
+        </symbol>
+      </svg>
 <div class="hub-layout">
   <aside class="hub-sidebar" id="hubSidebar">
     <div class="hub-brand">
@@ -24,16 +88,43 @@
       <button type="button" class="sidebar-toggle" id="sidebarToggle" title="Свернуть"><span class="toggle-icon">⟨</span></button>
     </div>
     <nav class="hub-nav">
-      <button type="button" class="hub-nav-item active" data-page="dashboard" title="Сводка"><span class="hub-nav-ico">📊</span><span class="hub-nav-label">Сводка</span></button>
-      <button type="button" class="hub-nav-item" data-page="employees" title="Сотрудники"><span class="hub-nav-ico">👥</span><span class="hub-nav-label">Сотрудники</span></button>
-      <button type="button" class="hub-nav-item" data-page="operations" title="Работы"><span class="hub-nav-ico">⚙️</span><span class="hub-nav-label">Работы</span></button>
-      <button type="button" class="hub-nav-item" data-page="schedule" title="Расписание"><span class="hub-nav-ico">📅</span><span class="hub-nav-label">Расписание</span></button>
-      <button type="button" class="hub-nav-item" data-page="docs" title="Документы"><span class="hub-nav-ico">📁</span><span class="hub-nav-label">Документы</span></button>
-      <button type="button" class="hub-nav-item" data-page="assign" title="Назначения"><span class="hub-nav-ico">🔗</span><span class="hub-nav-label">Назначения</span></button>
-      <button type="button" class="hub-nav-item" data-page="ai" title="AI"><span class="hub-nav-ico">🤖</span><span class="hub-nav-label">AI-оптимизация</span></button>
-      <button type="button" class="hub-nav-item" data-page="reports" title="Отчёты"><span class="hub-nav-ico">📈</span><span class="hub-nav-label">Отчёты</span></button>
-      <button type="button" class="hub-nav-item" data-page="settings" title="Настройки"><span class="hub-nav-ico">⚙️</span><span class="hub-nav-label">Настройки</span></button>
-    </nav>
+        <button type="button" class="hub-nav-item active" data-page="dashboard" title="Сводка">
+          <span class="hub-nav-ico"><svg class="nav-svg"><use href="#ico-dashboard"/></svg></span>
+          <span class="hub-nav-label">Сводка</span>
+        </button>
+        <button type="button" class="hub-nav-item" data-page="employees" title="Сотрудники">
+          <span class="hub-nav-ico"><svg class="nav-svg"><use href="#ico-users"/></svg></span>
+          <span class="hub-nav-label">Сотрудники</span>
+        </button>
+        <button type="button" class="hub-nav-item" data-page="operations" title="Работы">
+          <span class="hub-nav-ico"><svg class="nav-svg"><use href="#ico-ops"/></svg></span>
+          <span class="hub-nav-label">Работы</span>
+        </button>
+        <button type="button" class="hub-nav-item" data-page="schedule" title="Расписание">
+          <span class="hub-nav-ico"><svg class="nav-svg"><use href="#ico-calendar"/></svg></span>
+          <span class="hub-nav-label">Расписание</span>
+        </button>
+        <button type="button" class="hub-nav-item" data-page="docs" title="Документы">
+          <span class="hub-nav-ico"><svg class="nav-svg"><use href="#ico-docs"/></svg></span>
+          <span class="hub-nav-label">Документы</span>
+        </button>
+        <button type="button" class="hub-nav-item" data-page="assign" title="Назначения">
+          <span class="hub-nav-ico"><svg class="nav-svg"><use href="#ico-assign"/></svg></span>
+          <span class="hub-nav-label">Назначения</span>
+        </button>
+        <button type="button" class="hub-nav-item" data-page="ai" title="AI">
+          <span class="hub-nav-ico"><svg class="nav-svg"><use href="#ico-ai"/></svg></span>
+          <span class="hub-nav-label">AI-оптимизация</span>
+        </button>
+        <button type="button" class="hub-nav-item" data-page="reports" title="Отчёты">
+          <span class="hub-nav-ico"><svg class="nav-svg"><use href="#ico-chart"/></svg></span>
+          <span class="hub-nav-label">Отчёты</span>
+        </button>
+        <button type="button" class="hub-nav-item" data-page="settings" title="Настройки">
+          <span class="hub-nav-ico"><svg class="nav-svg"><use href="#ico-gear"/></svg></span>
+          <span class="hub-nav-label">Настройки</span>
+        </button>
+      </nav>
     <div class="hub-sidebar-foot">
       <div class="hub-user-mini">
         <div class="user-avatar-wrap sm">
@@ -45,7 +136,10 @@
           <div class="hub-user-mini-role">brigadier</div>
         </div>
       </div>
-      <button type="button" class="hub-logout" id="hubLogoutBtn">← <span class="hub-nav-label">Выйти</span></button>
+      <button type="button" class="hub-logout" id="hubLogoutBtn">
+        <svg class="nav-svg"><use href="#ico-logout"/></svg>
+        <span class="hub-nav-label">Выйти</span>
+      </button>
     </div>
   </aside>
 
@@ -71,6 +165,32 @@
             <span class="user-brigade" id="userBrigade">—</span>
           </div>
         </div>
+        <div class="notif-wrap">
+            <button type="button" class="btn-icon" id="btnNotifPanel" title="Уведомления">
+              <svg class="nav-svg"><use href="#ico-bell"/></svg>
+              <span class="notif-dot" id="notifDot" style="display:none">0</span>
+            </button>
+            <div class="notif-panel" id="notifPanel" style="display:none">
+              <div class="notif-panel-head">
+                <strong>Уведомления</strong>
+                <button type="button" class="btn-text" id="btnNotifClose">Закрыть</button>
+              </div>
+              <div class="notif-panel-body" id="notifPanelList">
+                <p class="muted">Нет уведомлений</p>
+              </div>
+            </div>
+          </div>KPI
+          <div class="bento" style="margin-top:16px;">
+            <article class="card">
+              <div class="card-header">
+                <h2><svg class="nav-svg inline"><use href="#ico-time"/></svg> Сроки работ</h2>
+                <span class="badge" id="deadlineBadge">0</span>
+              </div>
+              <div class="card-body tight" id="dashDeadlinesList">
+                <p class="muted">Нет данных по срокам</p>
+              </div>
+            </article>
+          </div>
         <button type="button" class="btn-icon" id="refreshBtn" title="Обновить">↻</button>
         <button type="button" class="btn-icon" id="logoutBtn" title="Выйти">⎋</button>
       </div>
@@ -392,6 +512,17 @@
               <div class="card">
                 <div class="card-header"><h2>Запрос администратору</h2></div>
                 <div class="card-body form-stack">
+                    <div class="form-group">
+                        <label>Шаблон</label>
+                        <select class="input" id="reqTemplate">
+                          <option value="">— свой текст —</option>
+                          <option value="profile">Обновить данные профиля</option>
+                          <option value="password">Проблема со входом / паролем</option>
+                          <option value="brigade">Ошибка состава бригады</option>
+                          <option value="ops">Сроки / статусы операций</option>
+                          <option value="access">Нужны права / доступ</option>
+                        </select>
+                      </div>
                   <div class="form-group"><label>Тема</label><input class="input" id="bgSubject" placeholder="Изменить email / данные…"></div>
                   <div class="form-group"><label>Причина</label><textarea class="input textarea" id="rptBody" rows="4"></textarea></div>
                   <button type="button" class="btn btn-primary" id="bgSendReportBtn">Отправить</button>
