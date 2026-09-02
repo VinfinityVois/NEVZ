@@ -587,16 +587,22 @@ function blockDevShortcuts(win) {
     });
   
     // и search, и query — совместимость версий Electron
-    brigadierWindow.loadFile(
-      path.join(__dirname, 'renderer', 'brigadier.html'),
-      { search: q, query: { userId: String(userId ?? ''), brigadeId: String(brigadeId ?? '') } }
-    );
+    const filePath = path.join(__dirname, 'renderer', 'brigadier.html');
+    const fileUrl =
+      'file:///' +
+      filePath.replace(/\\/g, '/') +
+      '?userId=' + encodeURIComponent(String(userId ?? '')) +
+      '&brigadeId=' + encodeURIComponent(String(brigadeId ?? ''));
+  
+    brigadierWindow.loadURL(fileUrl);
+  
+    brigadierWindow.webContents.openDevTools({ mode: 'detach' }); // временно
   
     brigadierWindow.webContents.on('did-finish-load', () => {
       console.log('[main] brigadier loaded', q);
     });
   
-    blockDevShortcuts(brigadierWindow);
+    // blockDevShortcuts(brigadierWindow);
     brigadierWindow.on('closed', () => { brigadierWindow = null; });
   }
   

@@ -34,6 +34,11 @@ const PAGE_LABELS = {
 document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
+      // DEBUG — видно сразу на странице
+  const _dbg = document.createElement('div');
+  _dbg.style.cssText = 'position:fixed;bottom:8px;left:8px;z-index:99999;background:#111;color:#0f0;padding:6px 10px;font:12px monospace;';
+  _dbg.textContent = 'URL: ' + location.search;
+  document.body.appendChild(_dbg);
   setupSidebar();
   setupNav();
   setupEvents();
@@ -130,14 +135,55 @@ function showPage(page) {
   if (page === 'ai') refreshAi();
 }
 
+
+function avatarKey() {
+    return 'brig_avatar_' + (State.userId || 'x');
+  }
+  
+  function applyAvatarFromStorage() {
+    const data = localStorage.getItem(avatarKey());
+    const img = document.getElementById('settingsAvatarImg');
+    const av = document.getElementById('settingsAvatar');
+    if (data && img) {
+      img.src = data;
+      img.style.display = 'block';
+      if (av) av.style.display = 'none';
+    } else {
+      if (img) img.style.display = 'none';
+      if (av) av.style.display = 'flex';
+    }
+  }
+  
+  function onAvatarFile(e) {
+    const f = e?.target?.files?.[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      localStorage.setItem(avatarKey(), reader.result);
+      applyAvatarFromStorage();
+      notify('Фото', 'Аватар сохранён', 'success');
+    };
+    reader.readAsDataURL(f);
+  }
+  
+  function deleteAvatar() {
+    localStorage.removeItem(avatarKey());
+    applyAvatarFromStorage();
+    notify('Фото', 'Удалено', 'success');
+  }
+
 function setupEvents() {
 
   document.getElementById('bgChangePassBtn')?.addEventListener('click', changeBrigPassword);
   document.getElementById('bgQrRefreshBtn')?.addEventListener('click', () => loadPersonalQr(true));
   document.getElementById('bgSendReportBtn')?.addEventListener('click', sendBrigReport);
   document.getElementById('avatarChangeBtn')?.addEventListener('click', () => document.getElementById('avatarFileInput')?.click());
-  document.getElementById('avatarFileInput')?.addEventListener('change', onAvatarFile);
-  document.getElementById('avatarDeleteBtn')?.addEventListener('click', deleteAvatar);
+  document.getElementById('avatarFileInput')?.addEventListener('change', (e) => {
+    if (typeof onAvatarFile === 'function') onAvatarFile(e);
+  });
+  document.getElementById('avatarDeleteBtn')?.addEventListener('click', () => {
+    if (typeof deleteAvatar === 'function') deleteAvatar();
+  });
 
   document.getElementById('btnSaveEvent')?.addEventListener('click', saveCalendarEvent);
   document.getElementById('refreshBtn')?.addEventListener('click', reloadAll);
