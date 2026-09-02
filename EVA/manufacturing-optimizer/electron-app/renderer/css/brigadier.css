@@ -148,3 +148,12 @@
   @media (max-width: 1100px) {
     .settings-span-8, .settings-grid > .card { grid-column: span 12; }
   }
+
+  .settings-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
+.settings-span-8 { grid-column: span 8; }
+.settings-span-4 { grid-column: span 4; }
+.settings-personal { display: flex; gap: 20px; flex-wrap: wrap; }
+.settings-fields { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 1100px) {
+  .settings-span-8, .settings-span-4 { grid-column: span 12; }
+}

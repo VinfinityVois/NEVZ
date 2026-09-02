@@ -44,6 +44,17 @@ async function init() {
   State.brigadeId = auth?.user?.brigade_id ?? params.brigadeId ?? null;
   State.user = auth?.user || null;
 
+  if (State.userId) {
+    try {
+      const r = await fetch(API + '/auth/worker/' + State.userId + '/dashboard');
+      if (r.ok) {
+        const d = await r.json();
+        if (d.worker) State.user = { ...State.user, ...d.worker };
+        if (d.brigade) State.brigade = d.brigade;
+      }
+    } catch (_) {}
+  }
+
   if (localStorage.getItem('brigSidebarCollapsed') === '1') {
     document.getElementById('hubSidebar')?.classList.add('collapsed');
   }
@@ -102,6 +113,15 @@ function showPage(page) {
 }
 
 function setupEvents() {
+
+  document.getElementById('bgChangePassBtn')?.addEventListener('click', changeBrigPassword);
+  document.getElementById('bgQrRefreshBtn')?.addEventListener('click', () => loadPersonalQr(true));
+  document.getElementById('bgSendReportBtn')?.addEventListener('click', sendBrigReport);
+  document.getElementById('avatarChangeBtn')?.addEventListener('click', () => document.getElementById('avatarFileInput')?.click());
+  document.getElementById('avatarFileInput')?.addEventListener('change', onAvatarFile);
+  document.getElementById('avatarDeleteBtn')?.addEventListener('click', deleteAvatar);
+
+  document.getElementById('btnSaveEvent')?.addEventListener('click', saveCalendarEvent);
   document.getElementById('refreshBtn')?.addEventListener('click', reloadAll);
   document.getElementById('btnAddWorker')?.addEventListener('click', () => openWorkerModal(null));
   document.getElementById('btnSaveWorker')?.addEventListener('click', saveWorker);
@@ -212,11 +232,7 @@ async function loadWorkers() {
       }
     } catch (_) {}
   }
-  if (State.brigadeId != null && State.brigadeId !== '') {
-    const bid = Number(State.brigadeId);
-    const mine = ops.filter((o) => Number(o.brigade_id) === bid);
-    if (mine.length) ops = mine;
-  }
+
 }
 
 async function loadOperations() {
@@ -693,16 +709,21 @@ function renderReports() {
       ? Object.keys(by).map((k) => '<div class="dash-op-row"><span>' + esc(k) + '</span><strong>' + by[k] + '</strong></div>').join('')
       : '<p class="muted">Нет данных</p>';
   }
-function fillSettings() {
-  const u = State.user || {};
-  setVal('bgName', u.name);
-  setVal('bgLogin', u.login);
-  setVal('bgPosition', u.position || u.job_title || '');
-  setVal('bgBrigade', State.brigade?.name || brigadeName(State.brigadeId) || '');
-  setVal('bgEmail', u.email || '');
-  setVal('bgPhone', u.phone || '');
-  loadPersonalQr(false);
-}
+  function fillSettings() {
+    const u = State.user || {};
+    setVal('settingsName', u.name || '');
+    setVal('settingsLogin', u.login || '');
+    setVal('settingsId', u.id != null ? String(u.id) : '');
+    setVal('settingsRole', u.role || (u.is_brigadier ? 'brigadier' : 'worker') || 'brigadier');
+    setVal('settingsBrigade', State.brigade?.name || brigadeName(State.brigadeId) || '');
+    setVal('settingsEmail', u.email || '');
+    setVal('settingsPhone', u.phone || '');
+    setVal('settingsPosition', u.position || u.job_title || '');
+    const av = document.getElementById('settingsAvatar');
+    if (av) av.textContent = (u.name || 'Б').charAt(0).toUpperCase();
+    applyAvatarFromStorage?.();
+    loadPersonalQr(false);
+  }
 
 async function loadPersonalQr(force) {
   const canvas = document.getElementById('bgQrCanvas');
@@ -861,9 +882,9 @@ function setText(id, v) {
   if (el) el.textContent = v;
 }
 function setVal(id, v) {
-  const el = document.getElementById(id);
-  if (el) el.value = v ?? '';
-}
+    const el = document.getElementById(id);
+    if (el) el.value = v == null ? '' : String(v);
+  }
 function esc(s) {
   return String(s ?? '')
     .replace(/&/g, '&amp;')
@@ -993,12 +1014,35 @@ async function refreshAi() {
   
   function addCalendarEvent() {
     const day = State.calSelected || new Date().toISOString().slice(0, 10);
-    const title = prompt('Событие на ' + day + ':', 'Планерка бригады');
-    if (!title) return;
-    const time = prompt('Время (напр. 08:00):', '08:00') || '';
+    const dateEl = document.getElementById('evDate');
+    const timeEl = document.getElementById('evTime');
+    const titleEl = document.getElementById('evTitle');
+    if (dateEl) dateEl.value = day;
+    if (titleEl) titleEl.focus();
+  }
+  
+  function saveCalendarEvent() {
+    const dateEl = document.getElementById('evDate');
+    const timeEl = document.getElementById('evTime');
+    const titleEl = document.getElementById('evTitle');
+    const day = (dateEl?.value || State.calSelected || new Date().toISOString().slice(0, 10));
+    const title = (titleEl?.value || '').trim();
+    const time = (timeEl?.value || '').trim();
+    if (!title) {
+      notify('Календарь', 'Введите название события', 'warning');
+      return;
+    }
     const list = loadEvents();
-    list.push({ id: Date.now(), date: day, title: title.trim(), time, brigade_id: State.brigadeId });
+    list.push({
+      id: Date.now(),
+      date: day,
+      title,
+      time,
+      brigade_id: State.brigadeId,
+    });
     saveEvents(list);
+    State.calSelected = day;
+    if (titleEl) titleEl.value = '';
     renderCalendar();
     notify('Календарь', 'Событие добавлено', 'success');
   }
