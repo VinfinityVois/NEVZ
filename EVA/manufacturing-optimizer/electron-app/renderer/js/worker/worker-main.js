@@ -1273,13 +1273,6 @@ function renderChatThreadList() {
   box.querySelectorAll('.chat-thread-item').forEach((el) => {
     el.addEventListener('click', () => openChatThread(el.getAttribute('data-tid')));
   });
-  <button type="button" class="btn-text chat-del" data-del-id="THREAD_ID" title="Удалить">🗑</button>
-  box.querySelectorAll('[data-del-id]').forEach((btn) => {
-    btn.onclick = (e) => {
-      e.stopPropagation();
-      deleteChatThread(btn.getAttribute('data-del-id'));
-    };
-  });
 }
 
 async function openChatThread(tid) {
@@ -1481,8 +1474,4 @@ async function deleteChatThread(threadId) {
   if (box) box.innerHTML = '';
   const nameEl = document.getElementById('chatPeerName');
   if (nameEl) nameEl.textContent = 'Выберите диалог';
-
-  document.getElementById('btnChatDelete')?.addEventListener('click', () => {
-    if (ChatState.activeId) deleteChatThread(ChatState.activeId);
-  });
 }
