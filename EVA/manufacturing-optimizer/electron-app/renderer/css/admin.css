@@ -2958,3 +2958,26 @@ input:checked + .slider:before {
 .peer-item .p-name { display: block; font-size: 13px; font-weight: 600; }
 .peer-item .p-meta { font-size: 11px; color: #727785; }
 #chatNewModal { display: none; }
+
+.chat-new-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    transform: none !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    display: none;
+    z-index: 10050 !important;
+    background: rgba(15, 23, 42, 0.45);
+    align-items: center;
+    justify-content: center;
+  }
+  .chat-new-overlay.is-open,
+  .chat-new-overlay[style*="flex"] {
+    display: flex !important;
+  }
