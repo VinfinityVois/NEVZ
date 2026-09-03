@@ -1,27 +1,36 @@
 <div align="center">
 
-<img src="EVA/manufacturing-optimizer/electron-app/renderer/assets/icons/app-icon.png" width="96" height="96" alt="Manufacturing Optimizer" onerror="this.style.display='none'">
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:0961f6,100:66CEF6&height=220&section=header&text=Manufacturing%20Optimizer&fontSize=46&fontColor=ffffff&fontAlignY=36&desc=%D0%98%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82%D1%83%D0%B0%D0%BB%D1%8C%D0%BD%D0%B0%D1%8F%20%D0%BE%D0%BF%D1%82%D0%B8%D0%BC%D0%B8%D0%B7%D0%B0%D1%86%D0%B8%D1%8F%20%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B0&descAlignY=58&descSize=18&animation=fadeIn" width="100%" alt="Manufacturing Optimizer banner"/>
 
-# 🏭 Manufacturing Optimizer
+<a href="https://github.com/VinfinityVois/NEVZ">
+  <img src="https://readme-typing-svg.demolab.com/?font=Fira+Code&weight=600&size=18&duration=3200&pause=900&color=66CEF6&center=true&vCenter=true&width=720&lines=CPM%2FPERT%20%D1%81%D0%B5%D1%82%D0%B5%D0%B2%D0%BE%D0%B5%20%D0%BF%D0%BB%D0%B0%D0%BD%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D0%B5;AI-%D0%BF%D1%80%D0%BE%D0%B3%D0%BD%D0%BE%D0%B7%20%D1%81%D1%80%D1%8B%D0%B2%D0%BE%D0%B2%20%D1%81%D1%80%D0%BE%D0%BA%D0%BE%D0%B2;%D0%9E%D0%BF%D1%82%D0%B8%D0%BC%D0%B8%D0%B7%D0%B0%D1%86%D0%B8%D1%8F%20%D0%B1%D1%80%D0%B8%D0%B3%D0%B0%D0%B4%20%D0%B2%20%D1%80%D0%B5%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE%D0%BC%20%D0%B2%D1%80%D0%B5%D0%BC%D0%B5%D0%BD%D0%B8;Explainable%20AI%20%E2%80%94%20SHAP%20%D0%B8%20LIME" alt="Typing SVG"/>
+</a>
 
-### Интеллектуальная система оптимизации производства
+<br>
 
-**CPM/PERT-планирование · AI-прогнозирование срывов · Оптимизация бригад · Explainable AI**
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-2A5294?style=for-the-badge)](#-установка)
+[![Electron](https://img.shields.io/badge/Electron-27.x-47848F?style=for-the-badge&logo=electron&logoColor=white)](#-технологический-стек)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688?style=for-the-badge&logo=fastapi&logoColor=white)](#-технологический-стек)
+[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](#-технологический-стек)
+[![Version](https://img.shields.io/badge/version-2.1.0-0961f6?style=for-the-badge)](docs/changelog/CHANGELOG.md)
 
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-2A5294?style=flat-square)](#-установка)
-[![Electron](https://img.shields.io/badge/Electron-27.x-47848F?style=flat-square&logo=electron&logoColor=white)](#-технологический-стек)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688?style=flat-square&logo=fastapi&logoColor=white)](#-технологический-стек)
-[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)](#-технологический-стек)
-[![License](https://img.shields.io/badge/license-Proprietary-lightgrey?style=flat-square)](#-лицензия)
-[![Version](https://img.shields.io/badge/version-2.0.0-0961f6?style=flat-square)](docs/changelog/CHANGELOG.md)
+![Last commit](https://img.shields.io/github/last-commit/VinfinityVois/NEVZ?style=flat-square&color=66CEF6&label=последний%20коммит)
+![Repo size](https://img.shields.io/github/repo-size/VinfinityVois/NEVZ?style=flat-square&color=0961f6&label=размер%20репозитория)
+![Top language](https://img.shields.io/github/languages/top/VinfinityVois/NEVZ?style=flat-square&color=2A5294&label=основной%20язык)
 
-[Возможности](#-ключевые-возможности) ·
-[Архитектура](#-архитектура) ·
-[Быстрый старт](#-быстрый-старт) ·
-[Роли доступа](#-роли-и-права-доступа) ·
-[AI-модули](#-ai--машинное-обучение) ·
-[API](#-api) ·
-[Документация](#-документация)
+<br>
+
+<img src="https://skillicons.dev/icons?i=electron,html,css,javascript,nodejs,python,fastapi,sqlite&theme=dark" alt="tech stack icons"/>
+
+<br><br>
+
+**[✨ Возможности](#-ключевые-возможности)** &nbsp;•&nbsp;
+**[🏗 Архитектура](#-архитектура)** &nbsp;•&nbsp;
+**[🚀 Быстрый старт](#-быстрый-старт)** &nbsp;•&nbsp;
+**[👤 Роли](#-роли-и-права-доступа)** &nbsp;•&nbsp;
+**[🧠 AI](#-ai--машинное-обучение)** &nbsp;•&nbsp;
+**[🔌 API](#-api)** &nbsp;•&nbsp;
+**[❓ FAQ](#-faq--известные-особенности)**
 
 </div>
 
@@ -36,6 +45,10 @@
 > 💡 Проект ориентирован на производственные предприятия, где важно одновременно видеть сетевой график, реальную загрузку бригад и получать AI-рекомендации о том, где график «поплывёт» раньше, чем это станет проблемой.
 
 <br>
+
+<div align="center">
+<img src="https://capsule-render.vercel.app/api?type=rect&color=0:0b1c33,50:0961f6,100:0b1c33&height=3&width=1000" width="100%"/>
+</div>
 
 ## ✨ Ключевые возможности
 
@@ -66,7 +79,7 @@
 
 ### ⚙️ Технические особенности
 - Локальный REST API на FastAPI, автосвязка Electron ↔ Python при старте
-- SQLite как единая база данных (единый адаптер `db_unified.py`)
+- SQLite как единая база данных
 - Real-time обновления через WebSocket
 - Мультиязычный интерфейс (RU / EN, `locales/*.json`)
 - Кроссплатформенная сборка: Windows (NSIS), macOS (DMG), Linux (AppImage)
@@ -144,6 +157,9 @@ is_brigadier == 1      →  открывается панель бригадир
 
 ## 📁 Структура проекта
 
+<details>
+<summary><b>Развернуть дерево каталогов</b> 📂</summary>
+
 ```
 NEVZ/
 └── EVA/manufacturing-optimizer/
@@ -173,33 +189,39 @@ NEVZ/
     └── docs/                         # Архитектура, гайды, схема БД, changelog
 ```
 
+</details>
+
 <br>
 
 ## 🚀 Быстрый старт
 
 ### Требования
 
-- **Node.js** ≥ 18 и npm
-- **Python** ≥ 3.10 и pip
-- Windows / macOS / Linux
+![Node](https://img.shields.io/badge/Node.js-≥18-339933?style=flat-square&logo=node.js&logoColor=white)
+![Python](https://img.shields.io/badge/Python-≥3.10-3776AB?style=flat-square&logo=python&logoColor=white)
+![OS](https://img.shields.io/badge/OS-Windows%20%7C%20macOS%20%7C%20Linux-2A5294?style=flat-square)
 
-### Установка
+<details open>
+<summary><b>1️⃣ Установка зависимостей</b></summary>
 
 ```bash
-# 1. Клонировать репозиторий
+# Клонировать репозиторий
 git clone https://github.com/VinfinityVois/NEVZ.git
 cd NEVZ/EVA/manufacturing-optimizer
 
-# 2. Установить зависимости бэкенда
+# Зависимости бэкенда
 cd python-backend
 pip install -r requirements.txt
 
-# 3. Установить зависимости desktop-клиента
+# Зависимости desktop-клиента
 cd ../electron-app
 npm install
 ```
 
-### Запуск
+</details>
+
+<details>
+<summary><b>2️⃣ Запуск</b></summary>
 
 ```bash
 # Backend поднимется автоматически при старте Electron,
@@ -213,12 +235,17 @@ cd electron-app
 npm start
 ```
 
-### Сборка дистрибутива
+</details>
+
+<details>
+<summary><b>3️⃣ Сборка дистрибутива</b></summary>
 
 ```bash
 cd electron-app
 npm run build     # electron-builder → dist/ (NSIS / DMG / AppImage)
 ```
+
+</details>
 
 <br>
 
@@ -236,10 +263,20 @@ npm run build     # electron-builder → dist/ (NSIS / DMG / AppImage)
 
 Экран входа поддерживает второй способ авторизации — сканирование QR-кода телефоном:
 
-1. На компьютере генерируется одноразовая сессия (`POST /auth/qr/create`), QR кодирует ссылку вида `http://<IP-компьютера>:8000/auth/qr/page/<token>`.
-2. Телефон (в той же локальной сети) сканирует код и открывает мобильную страницу входа.
-3. После ввода логина/пароля на телефоне (`POST /auth/qr/confirm`) сессия подтверждается.
-4. Окно входа на компьютере, опрашивающее `GET /auth/qr/poll`, автоматически авторизуется и открывает нужную панель.
+```mermaid
+sequenceDiagram
+    participant ПК as 🖥 Экран входа (ПК)
+    participant API as 🐍 FastAPI
+    participant Тел as 📱 Телефон
+
+    ПК->>API: POST /auth/qr/create
+    API-->>ПК: token + payload-ссылка (QR)
+    ПК->>API: GET /auth/qr/poll (опрос)
+    Тел->>API: сканирует QR → GET /auth/qr/page/{token}
+    Тел->>API: POST /auth/qr/confirm (логин/пароль)
+    API-->>ПК: сессия подтверждена
+    ПК->>ПК: открывается нужная панель
+```
 
 QR-сессия действует ограниченное время и одноразовая — после подтверждения токен становится недействителен.
 
@@ -294,27 +331,46 @@ Backend экспонирует REST + WebSocket API, сгруппированн�
 
 <br>
 
-## 📚 Документация
+## ❓ FAQ / известные особенности
 
-| Документ | Содержание |
-|---|---|
-| [`docs/INSTALLATION.md`](docs/INSTALLATION.md) | Подробная установка и настройка окружения |
-| [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) | Руководство пользователя |
-| [`docs/ADMIN_GUIDE.md`](docs/ADMIN_GUIDE.md) | Руководство администратора |
-| [`docs/AI_MODELS.md`](docs/AI_MODELS.md) | Описание AI-моделей и их обучения |
-| [`docs/API_DOCS.md`](docs/API_DOCS.md) | Справочник по API |
-| [`docs/DATABASE_SCHEMA.md`](docs/DATABASE_SCHEMA.md) | Схема базы данных |
-| [`docs/architecture/`](docs/architecture) | Системная архитектура, диаграммы компонентов, потоки данных |
-| [`docs/changelog/CHANGELOG.md`](docs/changelog/CHANGELOG.md) | История изменений |
+<details>
+<summary><b>Я вхожу как обычный сотрудник, но открывается панель бригадира — это баг?</b></summary>
+<br>
+
+Не совсем. Роль вычисляется **только** по полю `is_brigadier` в таблице `workers` (см. [логику роутинга](#-архитектура) выше), а не по тому, как пользователь сам себя воспринимает. Если конкретный логин помечен в БД как `is_brigadier = 1` — это и есть бригадир своей бригады, и панель открывается ожидаемо. Если это ошибка в данных — поле можно сбросить напрямую в БД (`UPDATE workers SET is_brigadier = 0 WHERE id = ...`).
+
+</details>
+
+<details>
+<summary><b>На панели бригадира какие-то разделы пустые, хотя данные в БД есть</b></summary>
+<br>
+
+Проверьте, что запущен только **один** процесс backend'а на порту 8000 — если параллельно висит старый процесс (например, после падения Electron), renderer может достучаться до "зависшего" инстанса со старой in-memory сессией. Помогает: завершить процесс на порту 8000 (`taskkill`/`kill`) и перезапустить приложение. Также стоит убедиться, что локальная копия синхронизирована с `git pull origin main` — расхождение версий фронтенда и бэкенда даёт похожие симптомы.
+
+</details>
+
+<details>
+<summary><b>Работает ли вход по QR, если телефон в мобильном интернете (не Wi-Fi)?</b></summary>
+<br>
+
+Нет — QR кодирует локальный адрес компьютера (`http://<LAN-IP>:8000/...`), поэтому телефон должен быть в **той же локальной сети**, что и компьютер с запущенным backend'ом.
+
+</details>
 
 <br>
 
+<div align="center">
+<img src="https://capsule-render.vercel.app/api?type=rect&color=0:0b1c33,50:0961f6,100:0b1c33&height=3&width=1000" width="100%"/>
+</div>
+
 ## 🗺 Дорожная карта
 
-- [ ] Расширение мобильного QR-флоу до полноценного мобильного клиента
-- [ ] Онлайн-переобучение моделей на потоке новых данных
-- [ ] Экспорт отчётов в PDF/PowerPoint
-- [ ] Тёмная/светлая тема на выбор пользователя
+| Задача | Статус |
+|---|---|
+| Полноценный мобильный клиент для QR-входа | ![planned](https://img.shields.io/badge/-запланировано-lightgrey?style=flat-square) |
+| Онлайн-переобучение AI-моделей на потоке новых данных | ![planned](https://img.shields.io/badge/-запланировано-lightgrey?style=flat-square) |
+| Экспорт отчётов в PDF/PowerPoint | ![planned](https://img.shields.io/badge/-запланировано-lightgrey?style=flat-square) |
+| Тёмная/светлая тема на выбор пользователя | ![in progress](https://img.shields.io/badge/-в%20работе-0961f6?style=flat-square) |
 
 <br>
 
@@ -329,6 +385,8 @@ Issue и Pull Request приветствуются. Перед крупными 
 <br>
 
 <div align="center">
+
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:0961f6,100:66CEF6&height=120&section=footer" width="100%"/>
 
 Сделано командой **Manufacturing Optimizer Team**
 
