@@ -122,7 +122,9 @@ async function loadChatPeerOptions() {
       type: w.is_brigadier ? 'brigadier' : 'worker',
       id: w.id,
       name: w.name || '#' + w.id,
-      meta: (w.is_brigadier ? 'бригадир' : 'сотрудник') + (w.brigade_id != null ? ' · бр.' + w.brigade_id : ''),
+      meta:
+        (w.is_brigadier ? 'бригадир' : 'сотрудник') +
+        (w.brigade_id != null ? ' · бр.' + w.brigade_id : ''),
     });
   });
 
@@ -163,8 +165,10 @@ async function startChatFromPicker() {
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
-    document.getElementById('chatNewModal') && (document.getElementById('chatNewModal').style.display = 'none');
-    document.getElementById('chatNewBody') && (document.getElementById('chatNewBody').value = '');
+    document.getElementById('chatNewModal') &&
+      (document.getElementById('chatNewModal').style.display = 'none');
+    document.getElementById('chatNewBody') &&
+      (document.getElementById('chatNewBody').value = '');
     await loadChatThreads();
     if (d.thread_id) openChatThread(d.thread_id);
   } catch (e) {
@@ -182,7 +186,8 @@ function bindChatNewUi() {
     }
   });
   document.getElementById('chatNewClose')?.addEventListener('click', () => {
-    document.getElementById('chatNewModal') && (document.getElementById('chatNewModal').style.display = 'none');
+    document.getElementById('chatNewModal') &&
+      (document.getElementById('chatNewModal').style.display = 'none');
   });
   document.getElementById('chatNewSend')?.addEventListener('click', () => startChatFromPicker());
 }
@@ -202,6 +207,7 @@ const CHAT_ROLE = 'brigadier';
 const ChatState = { threads: [], activeId: null };
 
 document.addEventListener('DOMContentLoaded', init);
+bindChatNewUi();
 
 async function init() {
       // DEBUG — видно сразу на странице
@@ -212,7 +218,7 @@ async function init() {
   setupSidebar();
   setupNav();
   setupEvents();
-  bindChatNewUi();
+  // bindChatNewUi();
 
   const auth = window.electronAPI?.storage?.get('auth');
   const params = window.electronAPI?.app?.getStartupParams?.() || {};

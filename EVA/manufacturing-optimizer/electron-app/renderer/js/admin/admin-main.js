@@ -524,13 +524,12 @@ async function loadChatPeerOptionsAdmin() {
     const r = await fetch(API + '/workers');
     if (r.ok) {
       const data = await r.json();
-      list = Array.isArray(data) ? data : data.items || data.workers || [];
+      list = Array.isArray(data) ? data : (data.items || data.workers || []);
     }
   } catch (e) {
     console.warn('[chat peers] /workers', e);
   }
 
-  // fallback — уже загруженные в админке
   if (!list.length && Array.isArray(AdminState.workers) && AdminState.workers.length) {
     list = AdminState.workers;
   }
@@ -553,7 +552,7 @@ async function loadChatPeerOptionsAdmin() {
     const rb = await fetch(API + '/brigades');
     if (rb.ok) {
       const bd = await rb.json();
-      const bl = Array.isArray(bd) ? bd : bd.items || [];
+      const bl = Array.isArray(bd) ? bd : (bd.items || []);
       bl.forEach((b) => {
         items.push({
           key: 'brigade:' + b.id,

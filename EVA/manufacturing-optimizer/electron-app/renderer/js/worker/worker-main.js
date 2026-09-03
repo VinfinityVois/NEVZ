@@ -22,11 +22,7 @@ const WorkerState = {
   qr: { token: null, expires: null }
 };
 
-const PeerPicker = {
-  items: [],      // { key, type, id, name, meta }
-  filter: 'all',
-  selected: null, // key
-};
+const PeerPicker = { items: [], filter: 'all', selected: null };
 
 function peerEsc(s) {
   return String(s ?? '')
