@@ -137,18 +137,21 @@ async function loadChatPeerOptions() {
 }
 
 async function startChatFromPicker() {
-const peerTitle = item?.name || (ptype === 'admin' ? 'Администратор' : raw);
-const nameEl = document.getElementById('chatPeerName');
-const metaEl = document.getElementById('chatPeerMeta');
-if (nameEl) nameEl.textContent = peerTitle;
-if (metaEl) metaEl.textContent = ptype === 'admin' ? 'администратор' : (item?.meta || '');
   const raw = document.getElementById('chatPeerValue')?.value || '';
   const body = (document.getElementById('chatNewBody')?.value || '').trim();
   if (!raw) return alert('Выберите получателя в списке');
   if (!body) return alert('Введите текст');
+
   const [ptype, idStr] = raw.split(':');
   const peer_id = Number(idStr);
   const item = PeerPicker.items.find((i) => i.key === raw);
+
+  const peerTitle = item?.name || (ptype === 'admin' ? 'Администратор' : raw);
+  const nameEl = document.getElementById('chatPeerName');
+  const metaEl = document.getElementById('chatPeerMeta');
+  if (nameEl) nameEl.textContent = peerTitle;
+  if (metaEl) metaEl.textContent = ptype === 'admin' ? 'администратор' : (item?.meta || '');
+
   try {
     const r = await fetch(API + '/chat/start', {
       method: 'POST',
@@ -167,17 +170,21 @@ if (metaEl) metaEl.textContent = ptype === 'admin' ? 'администратор
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
-    document.getElementById('chatNewModal') &&
-      (document.getElementById('chatNewModal').style.display = 'none');
-    document.getElementById('chatNewBody') &&
-      (document.getElementById('chatNewBody').value = '');
+
+    const modal = document.getElementById('chatNewModal');
+    if (modal) {
+      modal.classList.remove('is-open');
+      modal.style.display = 'none';
+    }
+    const ta = document.getElementById('chatNewBody');
+    if (ta) ta.value = '';
+
     await loadChatThreads();
     if (d.thread_id) openChatThread(d.thread_id);
   } catch (e) {
     alert(String(e.message || e));
   }
 }
-
 function bindChatNewUi() {
   const btnNew = document.getElementById('btnChatNew');
   const btnSend = document.getElementById('chatNewSend');
@@ -1844,6 +1851,13 @@ async function refreshAi() {
     box.querySelectorAll('.chat-thread-item').forEach((el) => {
       el.addEventListener('click', () => openChatThread(el.getAttribute('data-tid')));
     });
+    <button type="button" class="btn-text chat-del" data-del-id="THREAD_ID" title="Удалить">🗑</button>
+    box.querySelectorAll('[data-del-id]').forEach((btn) => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        deleteChatThread(btn.getAttribute('data-del-id'));
+      };
+    });
   }
   
   async function openChatThread(tid) {
@@ -1974,3 +1988,40 @@ async function refreshAi() {
     if (m) m.style.display = 'none';
   });
   document.getElementById('chatNewSend')?.addEventListener('click', () => startChatFromPicker());
+
+  async function deleteChatThread(threadId) {
+    if (!threadId) return;
+    if (!confirm('Удалить этот диалог и все сообщения?')) return;
+    const role =
+      typeof CHAT_ROLE !== 'undefined'
+        ? CHAT_ROLE
+        : document.body?.dataset?.role || 'worker';
+    const r = await fetch(
+      (typeof API !== 'undefined' ? API : API_BASE || 'http://127.0.0.1:8000') +
+        '/chat/threads/' +
+        threadId +
+        '?role=' +
+        encodeURIComponent(role),
+      { method: 'DELETE' }
+    );
+    if (!r.ok) {
+      alert('Не удалось удалить: HTTP ' + r.status);
+      return;
+    }
+    if (typeof ChatState !== 'undefined') {
+      ChatState.activeId = null;
+      ChatState.threads = (ChatState.threads || []).filter(
+        (t) => Number(t.id) !== Number(threadId)
+      );
+    }
+    if (typeof loadChatThreads === 'function') await loadChatThreads();
+    else if (typeof loadChatThreadsAdmin === 'function') await loadChatThreadsAdmin();
+    const box = document.getElementById('chatMessages');
+    if (box) box.innerHTML = '';
+    const nameEl = document.getElementById('chatPeerName');
+    if (nameEl) nameEl.textContent = 'Выберите диалог';
+
+    document.getElementById('btnChatDelete')?.addEventListener('click', () => {
+      if (ChatState.activeId) deleteChatThread(ChatState.activeId);
+    });
+  }

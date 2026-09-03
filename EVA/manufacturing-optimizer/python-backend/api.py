@@ -3648,6 +3648,23 @@ async def chat_mark_read(thread_id: int, role: str = Query("admin")):
         conn.close()
 
 
+@app.delete("/chat/threads/{thread_id}")
+async def chat_delete_thread(thread_id: int, role: str = "worker", user_id: int = 0):
+    """Удалить диалог и все сообщения."""
+    ensure_messaging_tables()
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM chat_threads WHERE id = ?", (thread_id,))
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="thread not found")
+        cur.execute("DELETE FROM chat_messages WHERE thread_id = ?", (thread_id,))
+        cur.execute("DELETE FROM chat_threads WHERE id = ?", (thread_id,))
+        conn.commit()
+        return {"success": True, "deleted": thread_id}
+    finally:
+        conn.close()
+
 @app.post("/admin-requests")
 async def admin_requests_create(body: AdminRequestBody):
     ensure_messaging_tables()

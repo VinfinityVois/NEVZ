@@ -8728,6 +8728,13 @@ function renderChatThreadListAdmin() {
   box.querySelectorAll('.chat-thread-item').forEach((el) => {
     el.addEventListener('click', () => openChatThreadAdmin(el.getAttribute('data-tid')));
   });
+  <button type="button" class="btn-text chat-del" data-del-id="THREAD_ID" title="Удалить">🗑</button>
+  box.querySelectorAll('[data-del-id]').forEach((btn) => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      deleteChatThread(btn.getAttribute('data-del-id'));
+    };
+  });
 }
 
 function escapeHtml(s) {
@@ -8848,4 +8855,41 @@ function setupPeerPicker() {
 
 async function adminStartChat() {
   return adminStartChatFromSelect();
+}
+
+async function deleteChatThread(threadId) {
+  if (!threadId) return;
+  if (!confirm('Удалить этот диалог и все сообщения?')) return;
+  const role =
+    typeof CHAT_ROLE !== 'undefined'
+      ? CHAT_ROLE
+      : document.body?.dataset?.role || 'worker';
+  const r = await fetch(
+    (typeof API !== 'undefined' ? API : API_BASE || 'http://127.0.0.1:8000') +
+      '/chat/threads/' +
+      threadId +
+      '?role=' +
+      encodeURIComponent(role),
+    { method: 'DELETE' }
+  );
+  if (!r.ok) {
+    alert('Не удалось удалить: HTTP ' + r.status);
+    return;
+  }
+  if (typeof ChatState !== 'undefined') {
+    ChatState.activeId = null;
+    ChatState.threads = (ChatState.threads || []).filter(
+      (t) => Number(t.id) !== Number(threadId)
+    );
+  }
+  if (typeof loadChatThreads === 'function') await loadChatThreads();
+  else if (typeof loadChatThreadsAdmin === 'function') await loadChatThreadsAdmin();
+  const box = document.getElementById('chatMessages');
+  if (box) box.innerHTML = '';
+  const nameEl = document.getElementById('chatPeerName');
+  if (nameEl) nameEl.textContent = 'Выберите диалог';
+
+  document.getElementById('btnChatDelete')?.addEventListener('click', () => {
+    if (ChatState.activeId) deleteChatThread(ChatState.activeId);
+  });
 }
