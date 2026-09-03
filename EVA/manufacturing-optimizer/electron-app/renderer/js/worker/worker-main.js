@@ -59,15 +59,10 @@ window._chatPoll = setInterval(() => {
   document.getElementById('btnChatSend')?.addEventListener('click', sendChatMessage);
   document.getElementById('chatSearch')?.addEventListener('input', renderChatThreadList);
   document.getElementById('btnNotifPanel')?.addEventListener('click', () => {
-    if (typeof showPage === 'function') showPage('messages');
-    loadChatThreads();
+    showHubPage('messages');
   });
   fillChatTemplates();
 
-  if (page === 'settings') {
-    if (typeof fillSettings === 'function') fillSettings();
-    loadPersonalQr(false);
-  }
 
   const auth = window.electronAPI?.storage?.get('auth');
   const q = new URLSearchParams(window.location.search || '');
@@ -171,7 +166,12 @@ function showHubPage(page) {
     fillSettingsForm();
     loadPersonalQr();
   }
+  if (page === 'messages') {
+    loadChatPeerOptions();
+    loadChatThreads();
+  }
 }
+const peerRaw = document.getElementById('chatPeerValue')?.value || 'admin:0';
 
 async function loadWorkerData() {
   showLoading('Загрузка…');
@@ -434,39 +434,43 @@ async function drawQrOnCanvas(canvas, text) {
 
 
 async function loadChatPeerOptions() {
-  const sel = document.getElementById('chatPeerSelect');
-  if (!sel) return;
+  setupPeerPicker();
   const myId = Number(WorkerState.userId || WorkerState.user?.id);
-  sel.innerHTML = '<option value="">— кому (новый диалог) —</option><option value="admin:0">Администратор</option>';
-  try {
-    // коллеги по бригаде
-    const mates = WorkerState.mates || [];
-    mates.forEach((w) => {
-      if (Number(w.id) === myId) return;
-      const o = document.createElement('option');
-      o.value = 'worker:' + w.id;
-      o.textContent = (w.name || ('#' + w.id)) + (w.is_brigadier ? ' · бригадир' : '');
-      sel.appendChild(o);
+  const items = [
+    { key: 'admin:0', type: 'admin', id: 0, name: 'Администратор', meta: 'служба поддержки' },
+  ];
+  const mates = WorkerState.mates || [];
+  mates.forEach((w) => {
+    if (Number(w.id) === myId) return;
+    items.push({
+      key: 'worker:' + w.id,
+      type: w.is_brigadier ? 'brigadier' : 'worker',
+      id: w.id,
+      name: w.name || '#' + w.id,
+      meta: w.is_brigadier ? 'бригадир' : 'сотрудник',
     });
-    // если mates пуст — с API
-    if (mates.length < 2 && WorkerState.brigadeId != null) {
-      const r = await fetch(API + '/workers?brigade_id=' + encodeURIComponent(WorkerState.brigadeId));
+  });
+  if (WorkerState.brigadeId != null && mates.length < 2) {
+    try {
+      const r = await fetch(API + '/workers?brigade_id=' + WorkerState.brigadeId);
       if (r.ok) {
         const data = await r.json();
-        const list = Array.isArray(data) ? data : data.items || [];
-        list.forEach((w) => {
+        (Array.isArray(data) ? data : data.items || []).forEach((w) => {
           if (Number(w.id) === myId) return;
-          if ([...sel.options].some((x) => x.value === 'worker:' + w.id)) return;
-          const o = document.createElement('option');
-          o.value = 'worker:' + w.id;
-          o.textContent = w.name || ('#' + w.id);
-          sel.appendChild(o);
+          if (items.some((i) => i.key === 'worker:' + w.id)) return;
+          items.push({
+            key: 'worker:' + w.id,
+            type: w.is_brigadier ? 'brigadier' : 'worker',
+            id: w.id,
+            name: w.name || '#' + w.id,
+            meta: 'бр.' + WorkerState.brigadeId,
+          });
         });
       }
-    }
-  } catch (e) {
-    console.warn(e);
+    } catch (_) {}
   }
+  PeerPicker.items = items;
+  renderPeerList();
 }
 
 function drawPseudoQr(ctx, text, size) {
@@ -1286,5 +1290,98 @@ async function openChatThread(tid) {
     .join('');
   box.scrollTop = box.scrollHeight;
   loadChatThreads();
+}
+
+const PeerPicker = {
+  items: [],      // { key, type, id, name, meta }
+  filter: 'all',
+  selected: null, // key
+};
+
+function peerEsc(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function setupPeerPicker() {
+  const btn = document.getElementById('chatPeerBtn');
+  const drop = document.getElementById('chatPeerDrop');
+  const search = document.getElementById('chatPeerSearch');
+  if (!btn || !drop) return;
+
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    const open = drop.style.display === 'none' || !drop.style.display;
+    drop.style.display = open ? 'flex' : 'none';
+    if (open) search?.focus();
+  };
+  document.addEventListener('click', (e) => {
+    if (!document.getElementById('chatPeerPicker')?.contains(e.target)) {
+      drop.style.display = 'none';
+    }
+  });
+  search?.addEventListener('input', () => renderPeerList());
+  drop.querySelectorAll('[data-peer-filter]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      drop.querySelectorAll('[data-peer-filter]').forEach((c) => c.classList.remove('active'));
+      chip.classList.add('active');
+      PeerPicker.filter = chip.getAttribute('data-peer-filter') || 'all';
+      renderPeerList();
+    });
+  });
+}
+
+function renderPeerList() {
+  const box = document.getElementById('chatPeerList');
+  if (!box) return;
+  const q = (document.getElementById('chatPeerSearch')?.value || '').toLowerCase().trim();
+  let list = PeerPicker.items.slice();
+  if (PeerPicker.filter !== 'all') {
+    list = list.filter((x) => x.type === PeerPicker.filter);
+  }
+  if (q) {
+    list = list.filter(
+      (x) =>
+        String(x.name).toLowerCase().includes(q) ||
+        String(x.meta).toLowerCase().includes(q) ||
+        String(x.id).includes(q)
+    );
+  }
+  box.innerHTML = list.length
+    ? list
+        .map((x) => {
+          const sel = PeerPicker.selected === x.key ? ' selected' : '';
+          return (
+            '<div class="peer-item' +
+            sel +
+            '" data-key="' +
+            peerEsc(x.key) +
+            '">' +
+            '<span class="p-name">' +
+            peerEsc(x.name) +
+            '</span>' +
+            '<span class="p-meta">' +
+            peerEsc(x.meta) +
+            '</span></div>'
+          );
+        })
+        .join('')
+    : '<p class="muted" style="padding:8px">Никого не найдено</p>';
+
+  box.querySelectorAll('.peer-item').forEach((el) => {
+    el.addEventListener('click', () => {
+      const key = el.getAttribute('data-key');
+      const item = PeerPicker.items.find((i) => i.key === key);
+      PeerPicker.selected = key;
+      const val = document.getElementById('chatPeerValue');
+      const label = document.getElementById('chatPeerLabel');
+      if (val) val.value = key;
+      if (label && item) label.textContent = item.name;
+      document.getElementById('chatPeerDrop').style.display = 'none';
+      renderPeerList();
+    });
+  });
 }
 

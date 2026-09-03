@@ -1377,3 +1377,32 @@ border-radius: 8px; background: #d93025; color: #fff;
 font-size: 10px; font-weight: 700; line-height: 16px; text-align: center;
 }
 .nav-svg { width: 20px; height: 20px; display: block; color: currentColor; }
+
+.peer-picker { position: relative; min-width: 200px; }
+.peer-picker-btn {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; text-align: left; cursor: pointer;
+}
+.peer-picker-drop {
+  position: absolute; left: 0; right: 0; top: calc(100% + 4px);
+  z-index: 50; background: #fff; border: 1px solid #e0e3e6;
+  border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  padding: 10px; max-height: 320px; display: flex; flex-direction: column; gap: 8px;
+}
+.peer-picker-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.peer-picker-filters .chip {
+  border: 1px solid #c1c6d6; background: #f7f9fc; border-radius: 999px;
+  padding: 4px 10px; font-size: 12px; cursor: pointer;
+}
+.peer-picker-filters .chip.active {
+  background: #e8f0fe; border-color: #1a73e8; color: #1a73e8; font-weight: 600;
+}
+.peer-picker-list { overflow: auto; max-height: 220px; }
+.peer-item {
+  padding: 8px 10px; border-radius: 8px; cursor: pointer;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.peer-item:hover { background: #eef3ff; }
+.peer-item.selected { background: #e8f0fe; outline: 1px solid #1a73e8; }
+.peer-item .p-name { font-size: 13px; font-weight: 600; }
+.peer-item .p-meta { font-size: 11px; color: #727785; }

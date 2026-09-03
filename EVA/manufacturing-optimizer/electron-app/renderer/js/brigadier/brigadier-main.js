@@ -1737,3 +1737,96 @@ async function refreshAi() {
       notify('Чат', String(e.message || e), 'error');
     }
   }
+
+  const PeerPicker = {
+    items: [],      // { key, type, id, name, meta }
+    filter: 'all',
+    selected: null, // key
+  };
+  
+  function peerEsc(s) {
+    return String(s ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+  
+  function setupPeerPicker() {
+    const btn = document.getElementById('chatPeerBtn');
+    const drop = document.getElementById('chatPeerDrop');
+    const search = document.getElementById('chatPeerSearch');
+    if (!btn || !drop) return;
+  
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const open = drop.style.display === 'none' || !drop.style.display;
+      drop.style.display = open ? 'flex' : 'none';
+      if (open) search?.focus();
+    };
+    document.addEventListener('click', (e) => {
+      if (!document.getElementById('chatPeerPicker')?.contains(e.target)) {
+        drop.style.display = 'none';
+      }
+    });
+    search?.addEventListener('input', () => renderPeerList());
+    drop.querySelectorAll('[data-peer-filter]').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        drop.querySelectorAll('[data-peer-filter]').forEach((c) => c.classList.remove('active'));
+        chip.classList.add('active');
+        PeerPicker.filter = chip.getAttribute('data-peer-filter') || 'all';
+        renderPeerList();
+      });
+    });
+  }
+  
+  function renderPeerList() {
+    const box = document.getElementById('chatPeerList');
+    if (!box) return;
+    const q = (document.getElementById('chatPeerSearch')?.value || '').toLowerCase().trim();
+    let list = PeerPicker.items.slice();
+    if (PeerPicker.filter !== 'all') {
+      list = list.filter((x) => x.type === PeerPicker.filter);
+    }
+    if (q) {
+      list = list.filter(
+        (x) =>
+          String(x.name).toLowerCase().includes(q) ||
+          String(x.meta).toLowerCase().includes(q) ||
+          String(x.id).includes(q)
+      );
+    }
+    box.innerHTML = list.length
+      ? list
+          .map((x) => {
+            const sel = PeerPicker.selected === x.key ? ' selected' : '';
+            return (
+              '<div class="peer-item' +
+              sel +
+              '" data-key="' +
+              peerEsc(x.key) +
+              '">' +
+              '<span class="p-name">' +
+              peerEsc(x.name) +
+              '</span>' +
+              '<span class="p-meta">' +
+              peerEsc(x.meta) +
+              '</span></div>'
+            );
+          })
+          .join('')
+      : '<p class="muted" style="padding:8px">Никого не найдено</p>';
+  
+    box.querySelectorAll('.peer-item').forEach((el) => {
+      el.addEventListener('click', () => {
+        const key = el.getAttribute('data-key');
+        const item = PeerPicker.items.find((i) => i.key === key);
+        PeerPicker.selected = key;
+        const val = document.getElementById('chatPeerValue');
+        const label = document.getElementById('chatPeerLabel');
+        if (val) val.value = key;
+        if (label && item) label.textContent = item.name;
+        document.getElementById('chatPeerDrop').style.display = 'none';
+        renderPeerList();
+      });
+    });
+  }

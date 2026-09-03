@@ -753,9 +753,26 @@
 </div>
 
 <div id="messages-tab" class="tab-pane">
-    <select class="input" id="chatPeerSelect" title="Кому">
-        <option value="">— выбрать получателя —</option>
-      </select>
+    <div class="peer-picker" id="chatPeerPicker">
+        <button type="button" class="input peer-picker-btn" id="chatPeerBtn">
+          <span id="chatPeerLabel">— кому написать —</span>
+          <span class="peer-caret">▾</span>
+        </button>
+        <input type="hidden" id="chatPeerValue" value="">
+        <div class="peer-picker-drop" id="chatPeerDrop" style="display:none">
+          <input type="search" class="input" id="chatPeerSearch" placeholder="Поиск по имени, ID, бригаде…">
+          <div class="peer-picker-filters">
+            <button type="button" class="chip active" data-peer-filter="all">Все</button>
+            <button type="button" class="chip" data-peer-filter="admin">Админы</button>
+            <button type="button" class="chip" data-peer-filter="brigadier">Бригадиры</button>
+            <button type="button" class="chip" data-peer-filter="worker">Сотрудники</button>
+            <button type="button" class="chip" data-peer-filter="brigade">Бригады</button>
+          </div>
+          <div class="peer-picker-list" id="chatPeerList">
+            <p class="muted">Загрузка…</p>
+          </div>
+        </div>
+      </div>
     <div class="page-head row-between">
       <div>
         <h1>Сообщения</h1>

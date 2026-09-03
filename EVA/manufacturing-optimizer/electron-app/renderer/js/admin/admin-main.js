@@ -391,22 +391,34 @@ async function initAdmin() {
   setupFileInput();
   initSidebarBehavior();
 
-  const fromBoot = await tryLoadFromBootstrap();
-  if (fromBoot) {
-    console.log('[Admin] UI from bootstrap cache');
-    await hydrateUiFromBootstrapCache();
-    window.electronAPI?.bootstrap?.refresh?.(['operations', 'brigades', 'workers'])
-      .then((c) => {
-        if (applyBootstrapCache(c)) {
-          if (typeof updateDashboardCards === 'function') {
+  let fromBoot = false;
+  try {
+    fromBoot = await tryLoadFromBootstrap();
+  } catch (e) {
+    console.warn('[Admin] bootstrap error', e);
+    fromBoot = false;
+  }
+
+  try {
+    if (fromBoot && (allOperationsCache || []).length > 0) {
+      console.log('[Admin] UI from bootstrap cache', allOperationsCache.length);
+      await hydrateUiFromBootstrapCache();
+      window.electronAPI?.bootstrap?.refresh?.(['operations', 'brigades', 'workers'])
+        .then((c) => {
+          if (applyBootstrapCache(c) && typeof updateDashboardCards === 'function') {
             updateDashboardCards(allOperationsCache, AdminState.brigades || []);
           }
-        }
-      })
-      .catch(() => {});
-  } else {
-    console.log('[Admin] bootstrap empty → loadAllData');
-    await loadAllData();
+        })
+        .catch(() => {});
+    } else {
+      console.log('[Admin] bootstrap empty → loadAllData');
+      await loadAllData();
+    }
+  } catch (e) {
+    console.error('[Admin] load failed', e);
+    showNotification('Ошибка', 'Не удалось загрузить данные: ' + (e.message || e), 'error');
+  } finally {
+    hideLoading();
   }
 
   restoreAiPanelSnapshot();
@@ -432,39 +444,61 @@ window._chatPollAdmin = setInterval(() => {
 
 
 async function loadChatPeerOptionsAdmin() {
-  const sel = document.getElementById('chatPeerSelect');
-  if (!sel) return;
-  sel.innerHTML = '<option value="">— получатель —</option>';
-  const r = await fetch(API_CHAT + '/workers');
-  if (!r.ok) return;
-  const data = await r.json();
-  const list = Array.isArray(data) ? data : data.items || [];
-  list
-    .slice()
-    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ru'))
-    .forEach((w) => {
-      const o = document.createElement('option');
-      o.value = 'worker:' + w.id;
-      o.textContent =
-        (w.name || '#' + w.id) +
-        (w.is_brigadier ? ' · бригадир' : '') +
-        (w.brigade_id != null ? ' · бр.' + w.brigade_id : '');
-      sel.appendChild(o);
-    });
-  // бригады
+  setupPeerPicker();
+  const API = API_CHAT || API_BASE || 'http://127.0.0.1:8000';
+  const items = [];
+
+  // Админы — отдельная группа
+  items.push({
+    key: 'admin:0',
+    type: 'admin',
+    id: 0,
+    name: 'Администратор системы',
+    meta: 'роль: admin',
+  });
+
   try {
-    const rb = await fetch(API_CHAT + '/brigades');
+    const r = await fetch(API + '/workers');
+    if (r.ok) {
+      const data = await r.json();
+      const list = Array.isArray(data) ? data : data.items || [];
+      list.forEach((w) => {
+        const isBr = !!(w.is_brigadier || w.role === 'brigadier');
+        items.push({
+          key: 'worker:' + w.id,
+          type: isBr ? 'brigadier' : 'worker',
+          id: w.id,
+          name: w.name || ('#' + w.id),
+          meta:
+            (isBr ? 'бригадир' : 'сотрудник') +
+            (w.brigade_id != null ? ' · бр.' + w.brigade_id : '') +
+            (w.login ? ' · ' + w.login : ''),
+        });
+      });
+    }
+  } catch (e) {
+    console.warn(e);
+  }
+
+  try {
+    const rb = await fetch(API + '/brigades');
     if (rb.ok) {
       const bd = await rb.json();
       const bl = Array.isArray(bd) ? bd : bd.items || [];
       bl.forEach((b) => {
-        const o = document.createElement('option');
-        o.value = 'brigade:' + b.id;
-        o.textContent = 'Бригада: ' + (b.name || b.id);
-        sel.appendChild(o);
+        items.push({
+          key: 'brigade:' + b.id,
+          type: 'brigade',
+          id: b.id,
+          name: b.name || ('Бригада ' + b.id),
+          meta: 'бригада #' + b.id,
+        });
       });
     }
   } catch (_) {}
+
+  PeerPicker.items = items;
+  renderPeerList();
 }
 // function setupEventListeners() {
 //     const DOM = getDOM();
@@ -1836,6 +1870,7 @@ document.getElementById('btnChatSend')?.addEventListener('click', sendChatMessag
 document.getElementById('chatSearch')?.addEventListener('input', renderChatThreadListAdmin);
 document.getElementById('btnChatNew')?.addEventListener('click', adminStartChat);
 document.getElementById('btnNotifPanel')?.addEventListener('click', () => switchTab('messages'));
+
 
 document.getElementById('prevPage')?.addEventListener('click', prevPage);
 document.getElementById('nextPage')?.addEventListener('click', nextPage);
@@ -7288,7 +7323,14 @@ function switchTab(tabId) {
     if (tabId === 'gantt') setTimeout(() => {
         if (typeof renderGantt === 'function') renderGantt();
     }, 100);
-    if (tabId === 'dashboard') setTimeout(renderCharts, 100);
+    if (tabId === 'dashboard') {
+      setTimeout(() => {
+        if (typeof updateDashboardCards === 'function') {
+          updateDashboardCards(allOperationsCache || AdminState.operations || [], AdminState.brigades || []);
+        }
+        if (typeof renderCharts === 'function') renderCharts();
+      }, 50);
+    }
     if (tabId === 'brigade-groups') loadBrigadeGroups();
 
     if (tabId === 'brigades') {
@@ -7312,11 +7354,13 @@ function switchTab(tabId) {
         }
     }
     if (tabId === 'messages') {
-      if (typeof loadChatThreadsAdmin === 'function') loadChatThreadsAdmin();
-      if (typeof fillChatTemplatesAdmin === 'function') fillChatTemplatesAdmin();
+      loadChatThreadsAdmin?.();
+      fillChatTemplatesAdmin?.();
+      loadChatPeerOptionsAdmin?.();
     }
 }
-
+const raw = document.getElementById('chatPeerValue')?.value || '';
+document.getElementById('refreshBtn')?.addEventListener('click', () => loadAllData());
 function showLoading(text = 'Загрузка...') {
     const DOM = getDOM();
     if (DOM.loadingOverlay) { DOM.loadingOverlay.style.display = 'flex'; if (DOM.loadingText) DOM.loadingText.textContent = text; }
@@ -8621,4 +8665,97 @@ async function adminStartChatFromSelect() {
   document.getElementById('chatBody').value = '';
   await loadChatThreadsAdmin();
   openChatThreadAdmin(d.thread_id);
+}
+
+const PeerPicker = {
+  items: [],      // { key, type, id, name, meta }
+  filter: 'all',
+  selected: null, // key
+};
+
+function peerEsc(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function setupPeerPicker() {
+  const btn = document.getElementById('chatPeerBtn');
+  const drop = document.getElementById('chatPeerDrop');
+  const search = document.getElementById('chatPeerSearch');
+  if (!btn || !drop) return;
+
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    const open = drop.style.display === 'none' || !drop.style.display;
+    drop.style.display = open ? 'flex' : 'none';
+    if (open) search?.focus();
+  };
+  document.addEventListener('click', (e) => {
+    if (!document.getElementById('chatPeerPicker')?.contains(e.target)) {
+      drop.style.display = 'none';
+    }
+  });
+  search?.addEventListener('input', () => renderPeerList());
+  drop.querySelectorAll('[data-peer-filter]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      drop.querySelectorAll('[data-peer-filter]').forEach((c) => c.classList.remove('active'));
+      chip.classList.add('active');
+      PeerPicker.filter = chip.getAttribute('data-peer-filter') || 'all';
+      renderPeerList();
+    });
+  });
+}
+
+function renderPeerList() {
+  const box = document.getElementById('chatPeerList');
+  if (!box) return;
+  const q = (document.getElementById('chatPeerSearch')?.value || '').toLowerCase().trim();
+  let list = PeerPicker.items.slice();
+  if (PeerPicker.filter !== 'all') {
+    list = list.filter((x) => x.type === PeerPicker.filter);
+  }
+  if (q) {
+    list = list.filter(
+      (x) =>
+        String(x.name).toLowerCase().includes(q) ||
+        String(x.meta).toLowerCase().includes(q) ||
+        String(x.id).includes(q)
+    );
+  }
+  box.innerHTML = list.length
+    ? list
+        .map((x) => {
+          const sel = PeerPicker.selected === x.key ? ' selected' : '';
+          return (
+            '<div class="peer-item' +
+            sel +
+            '" data-key="' +
+            peerEsc(x.key) +
+            '">' +
+            '<span class="p-name">' +
+            peerEsc(x.name) +
+            '</span>' +
+            '<span class="p-meta">' +
+            peerEsc(x.meta) +
+            '</span></div>'
+          );
+        })
+        .join('')
+    : '<p class="muted" style="padding:8px">Никого не найдено</p>';
+
+  box.querySelectorAll('.peer-item').forEach((el) => {
+    el.addEventListener('click', () => {
+      const key = el.getAttribute('data-key');
+      const item = PeerPicker.items.find((i) => i.key === key);
+      PeerPicker.selected = key;
+      const val = document.getElementById('chatPeerValue');
+      const label = document.getElementById('chatPeerLabel');
+      if (val) val.value = key;
+      if (label && item) label.textContent = item.name;
+      document.getElementById('chatPeerDrop').style.display = 'none';
+      renderPeerList();
+    });
+  });
 }
