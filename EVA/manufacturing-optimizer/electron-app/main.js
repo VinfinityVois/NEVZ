@@ -472,12 +472,12 @@ app.on('before-quit', () => {
 });
 
 function blockDevShortcuts(win) {
-    win.webContents.on('before-input-event', (event, input) => {
-      if (input.key === 'F12') event.preventDefault();
-      if (input.control && input.shift && ['I', 'J', 'C'].includes((input.key || '').toUpperCase())) {
-        event.preventDefault();
-      }
-    });
+    // win.webContents.on('before-input-event', (event, input) => {
+    //   if (input.key === 'F12') event.preventDefault();
+    //   if (input.control && input.shift && ['I', 'J', 'C'].includes((input.key || '').toUpperCase())) {
+    //     event.preventDefault();
+    //   }
+    // });
   }
   
   function createSplashWindow() {
@@ -527,11 +527,12 @@ function blockDevShortcuts(win) {
         nodeIntegration: false,
         contextIsolation: true,
         preload: path.join(__dirname, 'preload.js'),
-        devTools: false
+        devTools: true          // было false
       }
     });
     adminWindow.loadFile(path.join(__dirname, 'renderer', 'admin.html'));
-    blockDevShortcuts(adminWindow);
+    // blockDevShortcuts(adminWindow);  // временно выкл.
+    adminWindow.webContents.openDevTools({ mode: 'detach' }); // сразу открыть F12
     adminWindow.on('closed', () => { adminWindow = null; });
   }
   

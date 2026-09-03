@@ -763,74 +763,123 @@ function setupFileInput() {
 // }
 async function loadAllData() {
   showLoading('Загрузка данных...');
-  
+
   try {
-      // Загружаем ВСЕ операции сразу
-      const allOps = await api.getOperations();
-      
-      // Сохраняем в оригинальный кэш (сортируем по ID)
-      allOperationsCache = allOps.sort((a, b) => a.id - b.id);
-      window.allOperationsCache = allOperationsCache;
-      window.filteredOperationsCache = filteredOperationsCache;
-      window.allOperationsCache = allOperationsCache;
-      window.filteredOperationsCache = filteredOperationsCache;
-      
-      // Изначально отфильтрованный кэш = оригинальный
-      filteredOperationsCache = [...allOperationsCache];
-      totalOperations = filteredOperationsCache.length;
-      
-      // Загружаем первую страницу
+    // 1) Операции
+    const allOpsRaw = await api.getOperations();
+    const allOps = Array.isArray(allOpsRaw)
+      ? allOpsRaw
+      : allOpsRaw?.items || allOpsRaw?.operations || [];
+
+    allOperationsCache = allOps.slice().sort((a, b) => (a.id || 0) - (b.id || 0));
+    window.allOperationsCache = allOperationsCache;
+    filteredOperationsCache = [...allOperationsCache];
+    window.filteredOperationsCache = filteredOperationsCache;
+    totalOperations = filteredOperationsCache.length;
+    AdminState.operations = allOperationsCache;
+
+    if (typeof loadOperationsPageFromCache === 'function') {
       loadOperationsPageFromCache(1);
-      
-      // Бригады и рабочие - все
-      const [brigs, works, stats] = await Promise.all([
-          api.getBrigades(),
-          api.getWorkers(),
-          api.getStatistics()
-      ]);
-      
-      AdminState.brigades = brigs || [];
-      AdminState.workers = works || [];
-      
-      // Пересчитываем загрузку для всех бригад
-      for (const brigade of AdminState.brigades) {
-          await api.post(`/brigades/${brigade.id}/recalculate-load`, {});
-      }
-      
-      // Обновляем данные бригад после пересчёта
-      const refreshedBrigades = await api.get('/brigades');
-      AdminState.brigades = refreshedBrigades || [];
-      
-      console.log(`📊 Загружено: ${allOperationsCache.length} оп, ${AdminState.brigades.length} бригад, ${AdminState.workers.length} рабочих`);
-      
-      updateStats(stats);
-      
-      const cpm = await api.calculateCPM();
-      AdminState.criticalPath = cpm.critical_path || [];
+    }
 
-      restoreAIPaths();   // ← СЮДА, перед cpShow
+    // 2) Бригады, рабочие, статистика — параллельно
+    const [brigsRaw, worksRaw, stats] = await Promise.all([
+      api.getBrigades(),
+      api.getWorkers(),
+      api.getStatistics().catch(() => null),
+    ]);
 
-      const cpShow = AdminState.aiCriticalPath.length
-        ? AdminState.aiCriticalPath
-        : AdminState.criticalPath;
-      updateCriticalPathUI({
-        critical_path: cpShow,
-        project_duration: cpm.project_duration,
-        critical_path_length: cpShow.length
+    const brigs = Array.isArray(brigsRaw) ? brigsRaw : brigsRaw?.items || [];
+    const works = Array.isArray(worksRaw) ? worksRaw : worksRaw?.items || [];
+    AdminState.brigades = brigs;
+    AdminState.workers = works;
+
+    // 3) СРАЗУ обновить дашборд (не ждать recalculate / CPM)
+    if (typeof updateDashboardCards === 'function') {
+      updateDashboardCards(allOperationsCache, AdminState.brigades);
+    }
+    if (typeof updateStats === 'function') {
+      updateStats(
+        stats || {
+          total_operations: allOperationsCache.length,
+          completed: allOperationsCache.filter((o) => o.status === 'completed').length,
+          in_progress: allOperationsCache.filter((o) => o.status === 'in_progress').length,
+          pending: allOperationsCache.filter((o) => o.status === 'pending').length,
+          active_brigades: AdminState.brigades.length,
+        }
+      );
+    }
+
+    if (typeof populateWorkerBrigadeFilter === 'function') populateWorkerBrigadeFilter();
+    if (typeof updateWorkersCache === 'function') updateWorkersCache();
+    if (typeof populateFilters === 'function') populateFilters();
+    if (typeof renderAll === 'function') renderAll();
+    if (typeof renderCharts === 'function') renderCharts();
+
+    console.log(
+      '[Admin] Загружено:',
+      allOperationsCache.length,
+      'оп,',
+      AdminState.brigades.length,
+      'бригад,',
+      AdminState.workers.length,
+      'рабочих'
+    );
+
+    // 4) CPM и AI — в фоне, не блокируют UI
+    Promise.resolve()
+      .then(async () => {
+        try {
+          const cpm = await api.calculateCPM();
+          AdminState.criticalPath = cpm.critical_path || cpm.critical_path_ids || [];
+          if (typeof restoreAIPaths === 'function') restoreAIPaths();
+          const cpShow = AdminState.aiCriticalPath?.length
+            ? AdminState.aiCriticalPath
+            : AdminState.criticalPath;
+          if (typeof updateCriticalPathUI === 'function') {
+            updateCriticalPathUI({
+              critical_path: cpShow,
+              project_duration: cpm.project_duration || cpm.project_duration_days,
+              critical_path_length: Array.isArray(cpShow) ? cpShow.length : 0,
+            });
+          }
+        } catch (e) {
+          console.warn('CPM:', e);
+        }
+        try {
+          if (typeof loadAIRecommendations === 'function') await loadAIRecommendations();
+        } catch (e) {
+          console.warn('AI recs:', e);
+        }
       });
-      
-      populateWorkerBrigadeFilter();
-      updateWorkersCache();
-      populateFilters();
-      renderAll();
-      renderCharts();
-      await loadAIRecommendations();
-      
+
+    // 5) Пересчёт загрузки бригад — ТОЛЬКО в фоне, пачками (не блокирует дашборд)
+    Promise.resolve().then(async () => {
+      const list = AdminState.brigades || [];
+      const CHUNK = 10;
+      for (let i = 0; i < list.length; i += CHUNK) {
+        const slice = list.slice(i, i + CHUNK);
+        await Promise.allSettled(
+          slice.map((b) =>
+            api.post(`/brigades/${b.id}/recalculate-load`, {}).catch(() => null)
+          )
+        );
+      }
+      try {
+        const refreshed = await api.getBrigades();
+        AdminState.brigades = Array.isArray(refreshed) ? refreshed : refreshed?.items || list;
+        if (typeof updateDashboardCards === 'function') {
+          updateDashboardCards(allOperationsCache, AdminState.brigades);
+        }
+      } catch (_) {}
+    });
   } catch (error) {
-      console.error('❌ Ошибка загрузки:', error);
-      showNotification('Ошибка', 'Не удалось загрузить данные', 'error');
+    console.error('❌ Ошибка загрузки:', error);
+    if (typeof showNotification === 'function') {
+      showNotification('Ошибка', 'Не удалось загрузить данные: ' + (error.message || error), 'error');
+    }
   } finally {
-      hideLoading();
+    hideLoading();
   }
 }
 
@@ -1865,11 +1914,19 @@ function goToPage(page) {
   }
 }
 
-// В setupEventListeners добавьте:
-document.getElementById('btnChatSend')?.addEventListener('click', sendChatMessageAdmin);
-document.getElementById('chatSearch')?.addEventListener('input', renderChatThreadListAdmin);
-document.getElementById('btnChatNew')?.addEventListener('click', adminStartChat);
-document.getElementById('btnNotifPanel')?.addEventListener('click', () => switchTab('messages'));
+document.getElementById('btnChatSend')?.addEventListener('click', () => {
+  if (typeof sendChatMessageAdmin === 'function') sendChatMessageAdmin();
+});
+document.getElementById('chatSearch')?.addEventListener('input', () => {
+  if (typeof renderChatThreadListAdmin === 'function') renderChatThreadListAdmin();
+});
+document.getElementById('btnChatNew')?.addEventListener('click', () => {
+  // имя функции в файле — adminStartChatFromSelect, не adminStartChat
+  if (typeof adminStartChatFromSelect === 'function') adminStartChatFromSelect();
+});
+document.getElementById('btnNotifPanel')?.addEventListener('click', () => {
+  if (typeof switchTab === 'function') switchTab('messages');
+});
 
 
 document.getElementById('prevPage')?.addEventListener('click', prevPage);
@@ -8758,4 +8815,8 @@ function renderPeerList() {
       renderPeerList();
     });
   });
+}
+
+async function adminStartChat() {
+  return adminStartChatFromSelect();
 }
