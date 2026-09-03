@@ -22,6 +22,21 @@ const WorkerState = {
   qr: { token: null, expires: null }
 };
 
+const PeerPicker = {
+  items: [],      // { key, type, id, name, meta }
+  filter: 'all',
+  selected: null, // key
+};
+
+function peerEsc(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+
+
 const DOM = {};
 
 const PAGE_LABELS = {
@@ -470,6 +485,9 @@ async function loadChatPeerOptions() {
     } catch (_) {}
   }
   PeerPicker.items = items;
+  renderPeerList();
+
+  console.log('[chat peers] worker count=', items.length);
   renderPeerList();
 }
 
@@ -1292,18 +1310,7 @@ async function openChatThread(tid) {
   loadChatThreads();
 }
 
-const PeerPicker = {
-  items: [],      // { key, type, id, name, meta }
-  filter: 'all',
-  selected: null, // key
-};
 
-function peerEsc(s) {
-  return String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
 
 function setupPeerPicker() {
   const search = document.getElementById('chatPeerSearch');

@@ -18,7 +18,174 @@ const State = {
   calMonth: new Date().getMonth(),
   calSelected: null
 };
+const PeerPicker = { items: [], filter: 'all', selected: null };
 
+function peerEsc(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function setupPeerPicker() {
+  const search = document.getElementById('chatPeerSearch');
+  const filtersRoot = document.getElementById('chatPeerFilters') || document;
+  if (search && !search.dataset.peerBound) {
+    search.dataset.peerBound = '1';
+    search.addEventListener('input', () => renderPeerList());
+  }
+  filtersRoot.querySelectorAll('[data-peer-filter]').forEach((chip) => {
+    if (chip.dataset.peerBound) return;
+    chip.dataset.peerBound = '1';
+    chip.addEventListener('click', () => {
+      filtersRoot.querySelectorAll('[data-peer-filter]').forEach((c) => c.classList.remove('active'));
+      chip.classList.add('active');
+      PeerPicker.filter = chip.getAttribute('data-peer-filter') || 'all';
+      renderPeerList();
+    });
+  });
+}
+
+function renderPeerList() {
+  const box = document.getElementById('chatPeerList');
+  if (!box) {
+    console.warn('[chat] нет #chatPeerList');
+    return;
+  }
+  const q = (document.getElementById('chatPeerSearch')?.value || '').toLowerCase().trim();
+  let list = PeerPicker.items.slice();
+  if (PeerPicker.filter !== 'all') list = list.filter((x) => x.type === PeerPicker.filter);
+  if (q) {
+    list = list.filter(
+      (x) =>
+        String(x.name).toLowerCase().includes(q) ||
+        String(x.meta || '').toLowerCase().includes(q) ||
+        String(x.id).includes(q)
+    );
+  }
+  box.innerHTML = list.length
+    ? list
+        .map((x) => {
+          const sel = PeerPicker.selected === x.key ? ' selected' : '';
+          return (
+            '<div class="peer-item' +
+            sel +
+            '" data-key="' +
+            peerEsc(x.key) +
+            '"><span class="p-name">' +
+            peerEsc(x.name) +
+            '</span><span class="p-meta">' +
+            peerEsc(x.meta || '') +
+            '</span></div>'
+          );
+        })
+        .join('')
+    : '<p class="muted" style="padding:8px">Никого не найдено</p>';
+  box.querySelectorAll('.peer-item').forEach((el) => {
+    el.onclick = () => {
+      PeerPicker.selected = el.getAttribute('data-key');
+      const val = document.getElementById('chatPeerValue');
+      if (val) val.value = PeerPicker.selected;
+      renderPeerList();
+    };
+  });
+}
+
+async function loadChatPeerOptions() {
+  setupPeerPicker();
+  const myId = Number(State.userId);
+  const items = [
+    { key: 'admin:0', type: 'admin', id: 0, name: 'Администратор', meta: 'служба поддержки' },
+  ];
+
+  let workers = Array.isArray(State.workers) ? State.workers.slice() : [];
+  if (workers.length < 1) {
+    try {
+      const url =
+        State.brigadeId != null
+          ? API + '/workers?brigade_id=' + encodeURIComponent(State.brigadeId)
+          : API + '/workers';
+      const r = await fetch(url);
+      if (r.ok) {
+        const data = await r.json();
+        workers = Array.isArray(data) ? data : data.items || [];
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+  }
+
+  workers.forEach((w) => {
+    if (Number(w.id) === myId) return;
+    items.push({
+      key: 'worker:' + w.id,
+      type: w.is_brigadier ? 'brigadier' : 'worker',
+      id: w.id,
+      name: w.name || '#' + w.id,
+      meta: (w.is_brigadier ? 'бригадир' : 'сотрудник') + (w.brigade_id != null ? ' · бр.' + w.brigade_id : ''),
+    });
+  });
+
+  PeerPicker.items = items;
+  PeerPicker.selected = null;
+  const hv = document.getElementById('chatPeerValue');
+  if (hv) hv.value = '';
+  console.log('[chat peers] brig count=', items.length);
+  renderPeerList();
+}
+
+async function startChatFromPicker() {
+  const raw = document.getElementById('chatPeerValue')?.value || '';
+  const body = (document.getElementById('chatNewBody')?.value || '').trim();
+  if (!raw) return alert('Выберите получателя в списке');
+  if (!body) return alert('Введите текст');
+  const [ptype, idStr] = raw.split(':');
+  const peer_id = Number(idStr);
+  const item = PeerPicker.items.find((i) => i.key === raw);
+  try {
+    const r = await fetch(API + '/chat/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        peer_type: 'worker',
+        peer_id: ptype === 'admin' ? Number(State.userId) : peer_id,
+        peer_name:
+          ptype === 'admin'
+            ? (State.user?.name || 'Бригадир') + ' → Админ'
+            : item?.name || raw,
+        brigade_id: State.brigadeId,
+        subject: body.slice(0, 80),
+        body: (ptype === 'admin' ? '[к администратору] ' : '') + body,
+        sender_role: 'brigadier',
+        sender_id: Number(State.userId),
+        sender_name: State.user?.name || 'Бригадир',
+      }),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    document.getElementById('chatNewModal') && (document.getElementById('chatNewModal').style.display = 'none');
+    document.getElementById('chatNewBody') && (document.getElementById('chatNewBody').value = '');
+    await loadChatThreads();
+    if (d.thread_id) openChatThread(d.thread_id);
+  } catch (e) {
+    alert(String(e.message || e));
+  }
+}
+
+function bindChatNewUi() {
+  document.getElementById('btnChatNew')?.addEventListener('click', async () => {
+    await loadChatPeerOptions();
+    const m = document.getElementById('chatNewModal');
+    if (m) {
+      m.style.display = 'flex';
+      document.getElementById('chatPeerSearch')?.focus();
+    }
+  });
+  document.getElementById('chatNewClose')?.addEventListener('click', () => {
+    document.getElementById('chatNewModal') && (document.getElementById('chatNewModal').style.display = 'none');
+  });
+  document.getElementById('chatNewSend')?.addEventListener('click', () => startChatFromPicker());
+}
 const PAGE_LABELS = {
   dashboard: 'Сводка',
   employees: 'Сотрудники',
@@ -45,6 +212,7 @@ async function init() {
   setupSidebar();
   setupNav();
   setupEvents();
+  bindChatNewUi();
 
   const auth = window.electronAPI?.storage?.get('auth');
   const params = window.electronAPI?.app?.getStartupParams?.() || {};
@@ -101,6 +269,7 @@ window._chatPoll = setInterval(() => {
   await reloadAll();
   setInterval(checkHealth, 30000);
   checkHealth();
+  
 }
 
 
@@ -1728,54 +1897,54 @@ async function refreshAi() {
     }
   }
 
-  async function startChatFromPicker() {
-    const raw = document.getElementById('chatPeerValue')?.value || '';
-    const body = (document.getElementById('chatNewBody')?.value || '').trim();
-    if (!raw) return alert('Выберите получателя');
-    if (!body) return alert('Введите текст');
-    const [ptype, idStr] = raw.split(':');
-    const peer_id = Number(idStr);
-    const item = PeerPicker.items.find((i) => i.key === raw);
-    try {
-      const r = await fetch(API + '/chat/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          peer_type: 'worker',
-          peer_id: ptype === 'admin' ? Number(State.userId) : peer_id,
-          peer_name:
-            ptype === 'admin'
-              ? (State.user?.name || 'Бригадир') + ' → Админ'
-              : item?.name || raw,
-          brigade_id: State.brigadeId,
-          subject: body.slice(0, 80),
-          body: (ptype === 'admin' ? '[к администратору] ' : '') + body,
-          sender_role: 'brigadier',
-          sender_id: Number(State.userId),
-          sender_name: State.user?.name || 'Бригадир',
-        }),
-      });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const d = await r.json();
-      const modal = document.getElementById('chatNewModal');
-      if (modal) modal.style.display = 'none';
-      const ta = document.getElementById('chatNewBody');
-      if (ta) ta.value = '';
-      await loadChatThreads();
-      if (d.thread_id) openChatThread(d.thread_id);
-    } catch (e) {
-      alert(String(e.message || e));
-    }
-  }
+  // async function startChatFromPicker() {
+  //   const raw = document.getElementById('chatPeerValue')?.value || '';
+  //   const body = (document.getElementById('chatNewBody')?.value || '').trim();
+  //   if (!raw) return alert('Выберите получателя');
+  //   if (!body) return alert('Введите текст');
+  //   const [ptype, idStr] = raw.split(':');
+  //   const peer_id = Number(idStr);
+  //   const item = PeerPicker.items.find((i) => i.key === raw);
+  //   try {
+  //     const r = await fetch(API + '/chat/start', {
+  //       method: 'POST',
+  //       headers: { 'Content-Type': 'application/json' },
+  //       body: JSON.stringify({
+  //         peer_type: 'worker',
+  //         peer_id: ptype === 'admin' ? Number(State.userId) : peer_id,
+  //         peer_name:
+  //           ptype === 'admin'
+  //             ? (State.user?.name || 'Бригадир') + ' → Админ'
+  //             : item?.name || raw,
+  //         brigade_id: State.brigadeId,
+  //         subject: body.slice(0, 80),
+  //         body: (ptype === 'admin' ? '[к администратору] ' : '') + body,
+  //         sender_role: 'brigadier',
+  //         sender_id: Number(State.userId),
+  //         sender_name: State.user?.name || 'Бригадир',
+  //       }),
+  //     });
+  //     if (!r.ok) throw new Error('HTTP ' + r.status);
+  //     const d = await r.json();
+  //     const modal = document.getElementById('chatNewModal');
+  //     if (modal) modal.style.display = 'none';
+  //     const ta = document.getElementById('chatNewBody');
+  //     if (ta) ta.value = '';
+  //     await loadChatThreads();
+  //     if (d.thread_id) openChatThread(d.thread_id);
+  //   } catch (e) {
+  //     alert(String(e.message || e));
+  //   }
+  // }
   
-  document.getElementById('btnChatNew')?.addEventListener('click', async () => {
-    await loadChatPeerOptions();
-    const m = document.getElementById('chatNewModal');
-    if (m) {
-      m.style.display = 'flex';
-      document.getElementById('chatPeerSearch')?.focus();
-    }
-  });
+  // document.getElementById('btnChatNew')?.addEventListener('click', async () => {
+  //   await loadChatPeerOptions();
+  //   const m = document.getElementById('chatNewModal');
+  //   if (m) {
+  //     m.style.display = 'flex';
+  //     document.getElementById('chatPeerSearch')?.focus();
+  //   }
+  // });
   document.getElementById('chatNewClose')?.addEventListener('click', () => {
     const m = document.getElementById('chatNewModal');
     if (m) m.style.display = 'none';
