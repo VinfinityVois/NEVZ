@@ -323,12 +323,12 @@ function fillSettingsForm() {
 }
 
 async function loadPersonalQr(force) {
-  const frame = document.getElementById('personalQrFrame');
+  // const frame = document.getElementById('personalQrFrame');
     const frame = document.getElementById('personalQrFrame') || document.getElementById('bgQrWrap');
   const canvas =
     document.getElementById('personalQrCanvas') ||
     document.getElementById('workerQrCanvas');
-  const ph = document.getElementById('personalQrPlaceholder');
+  // const ph = document.getElementById('personalQrPlaceholder');
   const ph = document.getElementById('personalQrPlaceholder');
   const expEl = document.getElementById('qrExpires');
   const stEl = document.getElementById('qrStatus');
