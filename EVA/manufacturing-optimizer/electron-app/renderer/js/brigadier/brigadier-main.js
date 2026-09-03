@@ -28,8 +28,11 @@ const PAGE_LABELS = {
   assign: 'Назначения',
   ai: 'AI-оптимизация',
   reports: 'Отчёты',
+  messages: 'Сообщения',
   settings: 'Настройки'
 };
+const CHAT_ROLE = 'brigadier';
+const ChatState = { threads: [], activeId: null };
 
 document.addEventListener('DOMContentLoaded', init);
 
@@ -133,6 +136,7 @@ function showPage(page) {
   if (page === 'schedule') renderCalendar();
   if (page === 'docs') renderDocsArchive();
   if (page === 'ai') refreshAi();
+  if (page === 'messages') loadChatThreads();
 }
 
 
@@ -233,6 +237,15 @@ function setupEvents() {
   document.getElementById('btnNewDocReport')?.addEventListener('click', () => {
     document.getElementById('docTitle')?.focus();
   });
+
+  document.getElementById('btnChatSend')?.addEventListener('click', sendChatMessage);
+  document.getElementById('chatSearch')?.addEventListener('input', renderChatThreadList);
+  document.getElementById('btnNotifPanel')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showPage('messages');
+    loadChatThreads();
+  });
+  fillChatTemplates();
 }
 
 function saveBrigUiSettings() {
@@ -350,6 +363,7 @@ async function reloadAll() {
       renderOps();
       fillAssignSelects();
       fillSettings();
+      await loadChatThreads();
     } catch (e) {
       console.error(e);
       notify('Ошибка', String(e.message || e), 'error');
@@ -1543,5 +1557,161 @@ async function refreshAi() {
       }
     } catch (e) {
       console.warn('inbox', e);
+    }
+  }
+
+  const CHAT_TEMPLATES_BRIG = {
+    profile: 'Прошу обновить данные профиля (ФИО / email / телефон).',
+    password: 'Проблема со входом или сменой пароля.',
+    brigade: 'Ошибка состава бригады — прошу сверить список.',
+    ops: 'Неверные сроки или статусы операций — нужна правка.',
+    access: 'Нужны дополнительные права доступа.',
+  };
+  
+  function fillChatTemplates() {
+    const sel = document.getElementById('chatTemplate');
+    if (!sel) return;
+    const map = CHAT_TEMPLATES_BRIG;
+    sel.innerHTML =
+      '<option value="">— шаблон —</option>' +
+      Object.keys(map).map((k) => '<option value="' + k + '">' + k + '</option>').join('');
+    sel.onchange = () => {
+      if (map[sel.value]) document.getElementById('chatBody').value = map[sel.value];
+    };
+  }
+  
+  async function loadChatThreads() {
+    if (!State.userId) return;
+    const params = new URLSearchParams({
+      role: CHAT_ROLE,
+      worker_id: String(State.userId),
+      limit: '100',
+    });
+    if (State.brigadeId != null) params.set('brigade_id', String(State.brigadeId));
+    try {
+      const r = await fetch(API + '/chat/threads?' + params.toString());
+      if (!r.ok) return;
+      const d = await r.json();
+      ChatState.threads = d.items || [];
+      renderChatThreadList();
+      const n = ChatState.threads.reduce((s, t) => s + (t.unread || 0), 0);
+      const dot = document.getElementById('notifDot');
+      if (dot) {
+        if (n > 0) {
+          dot.style.display = 'block';
+          dot.textContent = n > 99 ? '99+' : String(n);
+        } else {
+          dot.style.display = 'none';
+        }
+      }
+    } catch (e) {
+      console.warn('chat threads', e);
+    }
+  }
+  
+  function renderChatThreadList() {
+    const box = document.getElementById('chatThreadList');
+    if (!box) return;
+    const q = (document.getElementById('chatSearch')?.value || '').toLowerCase();
+    let list = ChatState.threads;
+    if (q) {
+      list = list.filter(
+        (t) =>
+          String(t.peer_name || '').toLowerCase().includes(q) ||
+          String(t.subject || '').toLowerCase().includes(q) ||
+          String(t.last_preview || '').toLowerCase().includes(q)
+      );
+    }
+    box.innerHTML = list.length
+      ? list
+          .map((t) => {
+            const active = Number(t.id) === Number(ChatState.activeId) ? ' active' : '';
+            const unread = t.unread ? '<span class="unread-pill">' + t.unread + '</span>' : '';
+            return (
+              '<div class="chat-thread-item' + active + '" data-tid="' + t.id + '">' +
+              '<div class="t-title">' + esc(t.subject || t.peer_name || ('#' + t.id)) + '</div>' +
+              '<div class="t-prev">' + esc(t.last_preview || '') + '</div>' +
+              '<div class="t-meta"><span>' + esc((t.updated_at || '').slice(0, 16)) + '</span>' + unread + '</div></div>'
+            );
+          })
+          .join('')
+      : '<p class="muted" style="padding:12px">Нет диалогов</p>';
+    box.querySelectorAll('.chat-thread-item').forEach((el) => {
+      el.addEventListener('click', () => openChatThread(el.getAttribute('data-tid')));
+    });
+  }
+  
+  async function openChatThread(tid) {
+    ChatState.activeId = Number(tid);
+    renderChatThreadList();
+    const t = ChatState.threads.find((x) => Number(x.id) === Number(tid));
+    setText('chatPeerName', t?.subject || t?.peer_name || ('Диалог #' + tid));
+    setText('chatPeerMeta', (t?.peer_type || '') + (t?.brigade_id != null ? ' · бр. ' + t.brigade_id : ''));
+    await fetch(API + '/chat/threads/' + tid + '/read?role=' + CHAT_ROLE, { method: 'POST' });
+    const r = await fetch(API + '/chat/threads/' + tid + '/messages');
+    const d = r.ok ? await r.json() : { items: [] };
+    const box = document.getElementById('chatMessages');
+    if (!box) return;
+    box.innerHTML = (d.items || [])
+      .map((m) => {
+        const isMe = m.sender_role !== 'admin';
+        return (
+          '<div class="chat-bubble ' + (isMe ? 'me' : 'them') + '">' +
+          esc(m.body) +
+          '<div class="b-meta">' + esc(m.sender_name || m.sender_role) + ' · ' +
+          esc((m.created_at || '').slice(0, 16)) + '</div></div>'
+        );
+      })
+      .join('');
+    box.scrollTop = box.scrollHeight;
+    loadChatThreads();
+  }
+  
+  async function sendChatMessage() {
+    const body = (document.getElementById('chatBody')?.value || '').trim();
+    if (!body) return;
+    const template_key = document.getElementById('chatTemplate')?.value || null;
+    try {
+      if (!ChatState.activeId) {
+        const r = await fetch(API + '/chat/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            peer_type: 'worker',
+            peer_id: State.userId,
+            peer_name: State.user?.name,
+            brigade_id: State.brigadeId,
+            subject: body.slice(0, 80),
+            body,
+            sender_role: 'brigadier',
+            sender_id: State.userId,
+            sender_name: State.user?.name,
+            template_key,
+          }),
+        });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const d = await r.json();
+        document.getElementById('chatBody').value = '';
+        await loadChatThreads();
+        openChatThread(d.thread_id);
+        return;
+      }
+      const r = await fetch(API + '/chat/reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          thread_id: ChatState.activeId,
+          body,
+          sender_role: 'brigadier',
+          sender_id: State.userId,
+          sender_name: State.user?.name,
+          template_key,
+        }),
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      document.getElementById('chatBody').value = '';
+      openChatThread(ChatState.activeId);
+    } catch (e) {
+      notify('Чат', String(e.message || e), 'error');
     }
   }

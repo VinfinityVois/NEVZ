@@ -67,6 +67,10 @@
       <button type="button" class="hub-nav-item" data-page="ai" title="AI-поддержка">
         <span class="hub-nav-ico">🤖</span><span class="hub-nav-label">AI-поддержка</span>
       </button>
+      <button type="button" class="hub-nav-item" data-page="messages" title="Сообщения">
+        <span class="hub-nav-ico"><svg class="nav-svg"><use href="#ico-bell"/></svg></span>
+        <span class="hub-nav-label">Сообщения</span>
+      </button>
       <button type="button" class="hub-nav-item" data-page="settings" title="Настройки">
         <span class="hub-nav-ico">⚙️</span><span class="hub-nav-label">Настройки</span>
       </button>
@@ -102,6 +106,12 @@
             <span class="user-name" id="userName">Сотрудник</span>
             <span class="user-brigade" id="userBrigade">—</span>
           </div>
+        </div>
+        <div class="notif-wrap">
+          <button type="button" class="btn-icon" id="btnNotifPanel" title="Уведомления">
+            <svg class="nav-svg"><use href="#ico-bell"/></svg>
+            <span class="notif-dot" id="notifDot" style="display:none">0</span>
+          </button>
         </div>
         <button type="button" class="btn-icon" id="refreshBtn" title="Обновить">↻</button>
         <button type="button" class="btn-icon" id="logoutBtn" title="Выйти">⎋</button>

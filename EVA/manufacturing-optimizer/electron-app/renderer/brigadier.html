@@ -120,6 +120,10 @@
           <span class="hub-nav-ico"><svg class="nav-svg"><use href="#ico-chart"/></svg></span>
           <span class="hub-nav-label">Отчёты</span>
         </button>
+        <button type="button" class="hub-nav-item" data-page="messages" title="Сообщения">
+          <span class="hub-nav-ico"><svg class="nav-svg"><use href="#ico-bell"/></svg></span>
+          <span class="hub-nav-label">Сообщения</span>
+        </button>
         <button type="button" class="hub-nav-item" data-page="settings" title="Настройки">
           <span class="hub-nav-ico"><svg class="nav-svg"><use href="#ico-gear"/></svg></span>
           <span class="hub-nav-label">Настройки</span>
@@ -433,6 +437,37 @@
               <div class="card">
                 <div class="card-header"><h2>Архив бригады</h2></div>
                 <div class="card-body" id="docsArchiveList"><p class="muted">Пока пусто</p></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="hub-page" id="page-messages">
+            <div class="page-head">
+              <h1>Сообщения</h1>
+              <p class="page-sub">Переписка с администрацией</p>
+            </div>
+            <div class="chat-layout">
+              <aside class="chat-list-pane">
+                <div class="chat-list-toolbar">
+                  <input type="search" class="input" id="chatSearch" placeholder="Поиск…">
+                </div>
+                <div class="chat-thread-list" id="chatThreadList">
+                  <p class="muted">Нет диалогов</p>
+                </div>
+              </aside>
+              <div class="chat-main-pane">
+                <div class="chat-main-head">
+                  <strong id="chatPeerName">Выберите диалог</strong>
+                  <div class="muted" id="chatPeerMeta"></div>
+                </div>
+                <div class="chat-messages" id="chatMessages"></div>
+                <div class="chat-compose">
+                  <select class="input" id="chatTemplate">
+                    <option value="">— шаблон —</option>
+                  </select>
+                  <textarea class="input textarea" id="chatBody" rows="2" placeholder="Сообщение…"></textarea>
+                  <button type="button" class="btn btn-primary" id="btnChatSend">Отправить</button>
+                </div>
               </div>
             </div>
           </section>

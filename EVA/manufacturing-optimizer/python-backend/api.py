@@ -3145,6 +3145,52 @@ from pydantic import BaseModel
 from typing import Optional
 import sqlite3
 
+# def ensure_messaging_tables():
+#     conn = get_db()
+#     try:
+#         cur = conn.cursor()
+#         cur.execute("""
+#         CREATE TABLE IF NOT EXISTS notifications (
+#             id INTEGER PRIMARY KEY AUTOINCREMENT,
+#             created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+#             sender_role TEXT NOT NULL DEFAULT 'admin',
+#             sender_id INTEGER,
+#             sender_name TEXT,
+#             target_type TEXT NOT NULL,
+#             target_id INTEGER,
+#             target_role TEXT,
+#             title TEXT NOT NULL,
+#             body TEXT NOT NULL,
+#             kind TEXT DEFAULT 'info',
+#             related_op_id INTEGER,
+#             related_brigade_id INTEGER,
+#             read_at TEXT,
+#             payload TEXT
+#         )
+#         """)
+#         cur.execute("""
+#         CREATE TABLE IF NOT EXISTS admin_requests (
+#             id INTEGER PRIMARY KEY AUTOINCREMENT,
+#             created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+#             worker_id INTEGER NOT NULL,
+#             worker_name TEXT,
+#             brigade_id INTEGER,
+#             template_key TEXT,
+#             subject TEXT NOT NULL,
+#             body TEXT NOT NULL,
+#             status TEXT DEFAULT 'open',
+#             admin_reply TEXT,
+#             replied_at TEXT
+#         )
+#         """)
+#         conn.commit()
+#     finally:
+#         conn.close()
+# ===== CHAT + MESSAGING (дополнить ensure_messaging_tables) =====
+from fastapi import Query
+from pydantic import BaseModel
+from typing import Optional
+
 def ensure_messaging_tables():
     conn = get_db()
     try:
@@ -3183,10 +3229,207 @@ def ensure_messaging_tables():
             replied_at TEXT
         )
         """)
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS chat_threads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            subject TEXT NOT NULL DEFAULT '',
+            peer_type TEXT NOT NULL,
+            peer_id INTEGER NOT NULL,
+            peer_name TEXT,
+            brigade_id INTEGER,
+            status TEXT DEFAULT 'open',
+            last_preview TEXT,
+            last_sender_role TEXT
+        )
+        """)
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            thread_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            sender_role TEXT NOT NULL,
+            sender_id INTEGER,
+            sender_name TEXT,
+            body TEXT NOT NULL,
+            template_key TEXT,
+            is_read INTEGER DEFAULT 0
+        )
+        """)
         conn.commit()
     finally:
         conn.close()
 
+
+class ChatStartBody(BaseModel):
+    peer_type: str
+    peer_id: int
+    peer_name: Optional[str] = None
+    brigade_id: Optional[int] = None
+    subject: str = ""
+    body: str
+    sender_role: str = "admin"
+    sender_id: Optional[int] = 0
+    sender_name: str = "Администратор"
+    template_key: Optional[str] = None
+
+
+class ChatReplyBody(BaseModel):
+    thread_id: int
+    body: str
+    sender_role: str
+    sender_id: Optional[int] = None
+    sender_name: Optional[str] = None
+    template_key: Optional[str] = None
+
+
+@app.post("/chat/start")
+async def chat_start(body: ChatStartBody):
+    ensure_messaging_tables()
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT id FROM chat_threads
+               WHERE peer_type=? AND peer_id=? AND status='open'
+               ORDER BY id DESC LIMIT 1""",
+            (body.peer_type, body.peer_id),
+        )
+        row = cur.fetchone()
+        if row:
+            tid = row["id"]
+        else:
+            cur.execute(
+                """INSERT INTO chat_threads
+                   (subject, peer_type, peer_id, peer_name, brigade_id, last_preview, last_sender_role)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (
+                    body.subject or body.body[:80],
+                    body.peer_type,
+                    body.peer_id,
+                    body.peer_name,
+                    body.brigade_id,
+                    body.body[:120],
+                    body.sender_role,
+                ),
+            )
+            tid = cur.lastrowid
+        cur.execute(
+            """INSERT INTO chat_messages
+               (thread_id, sender_role, sender_id, sender_name, body, template_key)
+               VALUES (?,?,?,?,?,?)""",
+            (tid, body.sender_role, body.sender_id, body.sender_name, body.body, body.template_key),
+        )
+        cur.execute(
+            """UPDATE chat_threads SET updated_at=datetime('now','localtime'),
+               last_preview=?, last_sender_role=? WHERE id=?""",
+            (body.body[:120], body.sender_role, tid),
+        )
+        conn.commit()
+        return {"success": True, "thread_id": tid}
+    finally:
+        conn.close()
+
+
+@app.post("/chat/reply")
+async def chat_reply(body: ChatReplyBody):
+    ensure_messaging_tables()
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO chat_messages
+               (thread_id, sender_role, sender_id, sender_name, body, template_key)
+               VALUES (?,?,?,?,?,?)""",
+            (body.thread_id, body.sender_role, body.sender_id, body.sender_name, body.body, body.template_key),
+        )
+        cur.execute(
+            """UPDATE chat_threads SET updated_at=datetime('now','localtime'),
+               last_preview=?, last_sender_role=? WHERE id=?""",
+            (body.body[:120], body.sender_role, body.thread_id),
+        )
+        conn.commit()
+        return {"success": True, "id": cur.lastrowid}
+    finally:
+        conn.close()
+
+
+@app.get("/chat/threads")
+async def chat_threads(
+    role: str = Query("admin"),
+    worker_id: Optional[int] = None,
+    brigade_id: Optional[int] = None,
+    limit: int = 100,
+):
+    ensure_messaging_tables()
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        if role == "admin":
+            cur.execute("SELECT * FROM chat_threads ORDER BY updated_at DESC, id DESC LIMIT ?", (limit,))
+        else:
+            cur.execute(
+                """SELECT * FROM chat_threads
+                   WHERE (peer_type='worker' AND peer_id=?)
+                      OR (peer_type='brigade' AND peer_id=?)
+                      OR (brigade_id IS NOT NULL AND brigade_id=?)
+                   ORDER BY updated_at DESC, id DESC LIMIT ?""",
+                (worker_id or -1, brigade_id if brigade_id is not None else -1,
+                 brigade_id if brigade_id is not None else -1, limit),
+            )
+        rows = [dict(r) for r in cur.fetchall()]
+        for row in rows:
+            if role == "admin":
+                cur.execute(
+                    "SELECT COUNT(*) AS c FROM chat_messages WHERE thread_id=? AND sender_role!='admin' AND is_read=0",
+                    (row["id"],),
+                )
+            else:
+                cur.execute(
+                    "SELECT COUNT(*) AS c FROM chat_messages WHERE thread_id=? AND sender_role='admin' AND is_read=0",
+                    (row["id"],),
+                )
+            row["unread"] = cur.fetchone()["c"]
+        return {"items": rows}
+    finally:
+        conn.close()
+
+
+@app.get("/chat/threads/{thread_id}/messages")
+async def chat_messages(thread_id: int, limit: int = 200):
+    ensure_messaging_tables()
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT * FROM chat_messages WHERE thread_id=? ORDER BY id ASC LIMIT ?",
+            (thread_id, limit),
+        )
+        return {"items": [dict(r) for r in cur.fetchall()]}
+    finally:
+        conn.close()
+
+
+@app.post("/chat/threads/{thread_id}/read")
+async def chat_mark_read(thread_id: int, role: str = Query("admin")):
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        if role == "admin":
+            cur.execute(
+                "UPDATE chat_messages SET is_read=1 WHERE thread_id=? AND sender_role!='admin'",
+                (thread_id,),
+            )
+        else:
+            cur.execute(
+                "UPDATE chat_messages SET is_read=1 WHERE thread_id=? AND sender_role='admin'",
+                (thread_id,),
+            )
+        conn.commit()
+        return {"success": True}
+    finally:
+        conn.close()
 
 class NotifySendBody(BaseModel):
     target_type: str
@@ -3216,7 +3459,7 @@ async def _startup_messaging():
         ensure_messaging_tables()
     except Exception as e:
         print("[WARN] messaging tables:", e)
-
+ensure_messaging_tables()
 
 @app.post("/notifications/send")
 async def notifications_send(body: NotifySendBody):
@@ -3279,6 +3522,198 @@ async def notifications_read(nid: int):
             "UPDATE notifications SET read_at = datetime('now','localtime') WHERE id = ?",
             (nid,),
         )
+        conn.commit()
+        return {"success": True}
+    finally:
+        conn.close()
+
+class ChatStartBody(BaseModel):
+    peer_type: str  # worker | brigade
+    peer_id: int
+    peer_name: Optional[str] = None
+    brigade_id: Optional[int] = None
+    subject: str = ""
+    body: str
+    sender_role: str = "admin"
+    sender_id: Optional[int] = 0
+    sender_name: str = "Администратор"
+    template_key: Optional[str] = None
+
+class ChatReplyBody(BaseModel):
+    thread_id: int
+    body: str
+    sender_role: str
+    sender_id: Optional[int] = None
+    sender_name: Optional[str] = None
+    template_key: Optional[str] = None
+
+@app.get("/chat/threads")
+async def chat_threads(
+    role: str = Query("admin"),  # admin | worker | brigadier
+    worker_id: Optional[int] = None,
+    brigade_id: Optional[int] = None,
+    limit: int = 100,
+):
+    ensure_messaging_tables()
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        if role == "admin":
+            cur.execute(
+                "SELECT * FROM chat_threads ORDER BY updated_at DESC, id DESC LIMIT ?",
+                (limit,),
+            )
+        else:
+            # свои треды: peer worker или peer brigade
+            cur.execute(
+                """
+                SELECT * FROM chat_threads
+                WHERE (peer_type = 'worker' AND peer_id = ?)
+                   OR (peer_type = 'brigade' AND peer_id = ?)
+                   OR (brigade_id = ? AND ? IS NOT NULL)
+                ORDER BY updated_at DESC, id DESC LIMIT ?
+                """,
+                (
+                    worker_id or -1,
+                    brigade_id if brigade_id is not None else -1,
+                    brigade_id if brigade_id is not None else -1,
+                    brigade_id,
+                    limit,
+                ),
+            )
+        rows = [dict(r) for r in cur.fetchall()]
+        # непрочитанные для текущего
+        for row in rows:
+            if role == "admin":
+                cur.execute(
+                    "SELECT COUNT(*) AS c FROM chat_messages WHERE thread_id=? AND sender_role!='admin' AND is_read=0",
+                    (row["id"],),
+                )
+            else:
+                cur.execute(
+                    "SELECT COUNT(*) AS c FROM chat_messages WHERE thread_id=? AND sender_role='admin' AND is_read=0",
+                    (row["id"],),
+                )
+            row["unread"] = cur.fetchone()["c"]
+        return {"items": rows}
+    finally:
+        conn.close()
+
+@app.get("/chat/threads/{thread_id}/messages")
+async def chat_messages(thread_id: int, limit: int = 200):
+    ensure_messaging_tables()
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT * FROM chat_messages WHERE thread_id = ? ORDER BY id ASC LIMIT ?",
+            (thread_id, limit),
+        )
+        return {"items": [dict(r) for r in cur.fetchall()]}
+    finally:
+        conn.close()
+
+@app.post("/chat/start")
+async def chat_start(body: ChatStartBody):
+    ensure_messaging_tables()
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        # ищем открытый тред с этим peer
+        cur.execute(
+            """SELECT id FROM chat_threads
+               WHERE peer_type=? AND peer_id=? AND status='open'
+               ORDER BY id DESC LIMIT 1""",
+            (body.peer_type, body.peer_id),
+        )
+        row = cur.fetchone()
+        if row:
+            tid = row["id"]
+        else:
+            cur.execute(
+                """INSERT INTO chat_threads
+                   (subject, peer_type, peer_id, peer_name, brigade_id, last_preview, last_sender_role)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (
+                    body.subject or body.body[:80],
+                    body.peer_type,
+                    body.peer_id,
+                    body.peer_name,
+                    body.brigade_id,
+                    body.body[:120],
+                    body.sender_role,
+                ),
+            )
+            tid = cur.lastrowid
+        cur.execute(
+            """INSERT INTO chat_messages
+               (thread_id, sender_role, sender_id, sender_name, body, template_key)
+               VALUES (?,?,?,?,?,?)""",
+            (
+                tid,
+                body.sender_role,
+                body.sender_id,
+                body.sender_name,
+                body.body,
+                body.template_key,
+            ),
+        )
+        cur.execute(
+            """UPDATE chat_threads SET updated_at=datetime('now','localtime'),
+               last_preview=?, last_sender_role=?, subject=COALESCE(NULLIF(subject,''), ?)
+               WHERE id=?""",
+            (body.body[:120], body.sender_role, body.subject or body.body[:80], tid),
+        )
+        conn.commit()
+        return {"success": True, "thread_id": tid}
+    finally:
+        conn.close()
+
+@app.post("/chat/reply")
+async def chat_reply(body: ChatReplyBody):
+    ensure_messaging_tables()
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO chat_messages
+               (thread_id, sender_role, sender_id, sender_name, body, template_key)
+               VALUES (?,?,?,?,?,?)""",
+            (
+                body.thread_id,
+                body.sender_role,
+                body.sender_id,
+                body.sender_name,
+                body.body,
+                body.template_key,
+            ),
+        )
+        cur.execute(
+            """UPDATE chat_threads SET updated_at=datetime('now','localtime'),
+               last_preview=?, last_sender_role=? WHERE id=?""",
+            (body.body[:120], body.sender_role, body.thread_id),
+        )
+        conn.commit()
+        return {"success": True, "id": cur.lastrowid}
+    finally:
+        conn.close()
+
+@app.post("/chat/threads/{thread_id}/read")
+async def chat_mark_read(thread_id: int, role: str = Query("admin")):
+    """role = кто читает: admin читает чужие; worker читает admin."""
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        if role == "admin":
+            cur.execute(
+                "UPDATE chat_messages SET is_read=1 WHERE thread_id=? AND sender_role!='admin'",
+                (thread_id,),
+            )
+        else:
+            cur.execute(
+                "UPDATE chat_messages SET is_read=1 WHERE thread_id=? AND sender_role='admin'",
+                (thread_id,),
+            )
         conn.commit()
         return {"success": True}
     finally:

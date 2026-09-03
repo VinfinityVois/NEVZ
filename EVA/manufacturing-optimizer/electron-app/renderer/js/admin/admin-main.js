@@ -270,6 +270,18 @@ const api = {
     }
 };
 
+const CHAT_ROLE = 'admin';
+const ChatState = { threads: [], activeId: null };
+const API_CHAT = (typeof API !== 'undefined' ? API : 'http://127.0.0.1:8000');
+
+const CHAT_TEMPLATES_ADMIN = {
+  deadline: 'Напоминание: проверьте сроки операций и обновите статусы.',
+  overdue: 'Зафиксирована просрочка. Сообщите причину и план устранения.',
+  status: 'Статус работ обновлён. Ознакомьтесь в кабинете.',
+  plan: 'Изменён план смены. Сверьте назначения.',
+  ack: 'Принято. Ожидайте обновления данных в системе.',
+  need_info: 'Уточните: участок, номер операции и что именно неверно.',
+};
 
 if (typeof cytoscape !== 'undefined') {
     [
@@ -8407,3 +8419,147 @@ window.checkAIDataQuality = async function () {
   window.initSidebarBehavior = initSidebarBehavior;
   
 document.addEventListener('DOMContentLoaded', initAdmin);
+
+function fillChatTemplatesAdmin() {
+  const sel = document.getElementById('chatTemplate');
+  if (!sel) return;
+  const map = CHAT_TEMPLATES_ADMIN;
+  sel.innerHTML =
+    '<option value="">— шаблон —</option>' +
+    Object.keys(map).map((k) => '<option value="' + k + '">' + k + '</option>').join('');
+  sel.onchange = () => {
+    if (map[sel.value]) document.getElementById('chatBody').value = map[sel.value];
+  };
+}
+
+async function loadChatThreadsAdmin() {
+  const r = await fetch(API_CHAT + '/chat/threads?role=admin&limit=100');
+  if (!r.ok) return;
+  const d = await r.json();
+  ChatState.threads = d.items || [];
+  renderChatThreadListAdmin();
+  const n = ChatState.threads.reduce((s, t) => s + (t.unread || 0), 0);
+  const dot = document.getElementById('notifDot');
+  if (dot) {
+    if (n > 0) {
+      dot.style.display = 'block';
+      dot.textContent = String(n);
+    } else {
+      dot.style.display = 'none';
+    }
+  }
+}
+
+function renderChatThreadListAdmin() {
+  const box = document.getElementById('chatThreadList');
+  if (!box) return;
+  const q = (document.getElementById('chatSearch')?.value || '').toLowerCase();
+  let list = ChatState.threads;
+  if (q) {
+    list = list.filter(
+      (t) =>
+        String(t.peer_name || '').toLowerCase().includes(q) ||
+        String(t.subject || '').toLowerCase().includes(q)
+    );
+  }
+  box.innerHTML = list.length
+    ? list
+        .map((t) => {
+          const active = Number(t.id) === Number(ChatState.activeId) ? ' active' : '';
+          const unread = t.unread ? '<span class="unread-pill">' + t.unread + '</span>' : '';
+          return (
+            '<div class="chat-thread-item' + active + '" data-tid="' + t.id + '">' +
+            '<div class="t-title">' + escapeHtml(t.peer_name || t.subject || ('#' + t.id)) + '</div>' +
+            '<div class="t-prev">' + escapeHtml(t.last_preview || '') + '</div>' +
+            '<div class="t-meta"><span>' + escapeHtml((t.updated_at || '').slice(0, 16)) + '</span>' + unread + '</div></div>'
+          );
+        })
+        .join('')
+    : '<p class="muted" style="padding:12px">Нет диалогов</p>';
+  box.querySelectorAll('.chat-thread-item').forEach((el) => {
+    el.addEventListener('click', () => openChatThreadAdmin(el.getAttribute('data-tid')));
+  });
+}
+
+function escapeHtml(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+async function openChatThreadAdmin(tid) {
+  ChatState.activeId = Number(tid);
+  renderChatThreadListAdmin();
+  const t = ChatState.threads.find((x) => Number(x.id) === Number(tid));
+  const nameEl = document.getElementById('chatPeerName');
+  const metaEl = document.getElementById('chatPeerMeta');
+  if (nameEl) nameEl.textContent = t?.peer_name || t?.subject || ('#' + tid);
+  if (metaEl) metaEl.textContent = (t?.peer_type || '') + (t?.brigade_id != null ? ' · бр. ' + t.brigade_id : '');
+  await fetch(API_CHAT + '/chat/threads/' + tid + '/read?role=admin', { method: 'POST' });
+  const r = await fetch(API_CHAT + '/chat/threads/' + tid + '/messages');
+  const d = r.ok ? await r.json() : { items: [] };
+  const box = document.getElementById('chatMessages');
+  if (!box) return;
+  box.innerHTML = (d.items || [])
+    .map((m) => {
+      const isMe = m.sender_role === 'admin';
+      return (
+        '<div class="chat-bubble ' + (isMe ? 'me' : 'them') + '">' +
+        escapeHtml(m.body) +
+        '<div class="b-meta">' + escapeHtml(m.sender_name || m.sender_role) + ' · ' +
+        escapeHtml((m.created_at || '').slice(0, 16)) + '</div></div>'
+      );
+    })
+    .join('');
+  box.scrollTop = box.scrollHeight;
+  loadChatThreadsAdmin();
+}
+
+async function sendChatMessageAdmin() {
+  const body = (document.getElementById('chatBody')?.value || '').trim();
+  if (!body || !ChatState.activeId) return alert('Выберите диалог и введите текст');
+  const template_key = document.getElementById('chatTemplate')?.value || null;
+  const r = await fetch(API_CHAT + '/chat/reply', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      thread_id: ChatState.activeId,
+      body,
+      sender_role: 'admin',
+      sender_id: 0,
+      sender_name: 'Администратор',
+      template_key,
+    }),
+  });
+  if (!r.ok) return alert('Ошибка ' + r.status);
+  document.getElementById('chatBody').value = '';
+  openChatThreadAdmin(ChatState.activeId);
+}
+
+async function adminStartChat() {
+  const peer_type = prompt('Тип получателя: worker или brigade', 'brigade');
+  const peer_id = Number(prompt('ID worker или brigade', '325'));
+  const peer_name = prompt('Имя / название', 'Бригада');
+  const text = prompt('Первое сообщение', 'Проверьте сроки операций');
+  if (!peer_type || !peer_id || !text) return;
+  const r = await fetch(API_CHAT + '/chat/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      peer_type,
+      peer_id,
+      peer_name,
+      brigade_id: peer_type === 'brigade' ? peer_id : null,
+      subject: text.slice(0, 80),
+      body: text,
+      sender_role: 'admin',
+      sender_name: 'Администратор',
+    }),
+  });
+  if (!r.ok) return alert('Ошибка ' + r.status);
+  const d = await r.json();
+  await loadChatThreadsAdmin();
+  openChatThreadAdmin(d.thread_id);
+}

@@ -135,6 +135,14 @@
                     </svg>
                     <span>Отчёты</span>
                 </a>
+
+                <a href="#messages" class="nav-item" data-tab="messages">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none">
+                        <path d="M18 8C18 6.41 17.37 4.88 16.24 3.76C15.12 2.63 13.59 2 12 2C10.41 2 8.88 2.63 7.76 3.76C6.63 4.88 6 6.41 6 8C6 15 3 17 3 17H21C21 17 18 15 18 8Z" stroke="currentColor" stroke-width="2"/>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                    <span>Сообщения</span>
+                </a>
                 
                 <a href="#settings" class="nav-item" data-tab="settings">
                     <svg class="nav-icon" viewBox="0 0 24 24" fill="none">
@@ -733,6 +741,40 @@
     <!-- СЕТКА РАБОЧИХ -->
     <div class="workers-grid" id="workersGrid"></div>
 </div>
+
+<div class="tab-panel" id="tab-messages" style="display:none">
+    <div class="page-head row-between">
+      <div>
+        <h1>Сообщения</h1>
+        <p class="page-sub">Диалоги с бригадами и сотрудниками</p>
+      </div>
+    </div>
+    <div class="chat-layout">
+      <aside class="chat-list-pane">
+        <div class="chat-list-toolbar">
+          <input type="search" class="input" id="chatSearch" placeholder="Поиск…">
+          <button type="button" class="btn btn-primary btn-sm" id="btnChatNew">＋ Диалог</button>
+        </div>
+        <div class="chat-thread-list" id="chatThreadList">
+          <p class="muted">Нет диалогов</p>
+        </div>
+      </aside>
+      <div class="chat-main-pane">
+        <div class="chat-main-head">
+          <strong id="chatPeerName">Выберите диалог</strong>
+          <div class="muted" id="chatPeerMeta"></div>
+        </div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-compose">
+          <select class="input" id="chatTemplate">
+            <option value="">— шаблон —</option>
+          </select>
+          <textarea class="input textarea" id="chatBody" rows="2" placeholder="Ответ…"></textarea>
+          <button type="button" class="btn btn-primary" id="btnChatSend">Отправить</button>
+        </div>
+      </div>
+    </div>
+  </div>
                 
                 <!-- ===== ВКЛАДКА AI ОПТИМИЗАЦИЯ ===== -->
                 <!-- AI Tab -->
