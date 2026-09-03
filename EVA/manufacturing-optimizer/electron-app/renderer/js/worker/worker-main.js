@@ -1306,26 +1306,19 @@ function peerEsc(s) {
 }
 
 function setupPeerPicker() {
-  const btn = document.getElementById('chatPeerBtn');
-  const drop = document.getElementById('chatPeerDrop');
   const search = document.getElementById('chatPeerSearch');
-  if (!btn || !drop) return;
+  const filtersRoot = document.getElementById('chatPeerFilters') || document;
 
-  btn.onclick = (e) => {
-    e.stopPropagation();
-    const open = drop.style.display === 'none' || !drop.style.display;
-    drop.style.display = open ? 'flex' : 'none';
-    if (open) search?.focus();
-  };
-  document.addEventListener('click', (e) => {
-    if (!document.getElementById('chatPeerPicker')?.contains(e.target)) {
-      drop.style.display = 'none';
-    }
-  });
-  search?.addEventListener('input', () => renderPeerList());
-  drop.querySelectorAll('[data-peer-filter]').forEach((chip) => {
+  if (search && !search.dataset.peerBound) {
+    search.dataset.peerBound = '1';
+    search.addEventListener('input', () => renderPeerList());
+  }
+
+  filtersRoot.querySelectorAll('[data-peer-filter]').forEach((chip) => {
+    if (chip.dataset.peerBound) return;
+    chip.dataset.peerBound = '1';
     chip.addEventListener('click', () => {
-      drop.querySelectorAll('[data-peer-filter]').forEach((c) => c.classList.remove('active'));
+      filtersRoot.querySelectorAll('[data-peer-filter]').forEach((c) => c.classList.remove('active'));
       chip.classList.add('active');
       PeerPicker.filter = chip.getAttribute('data-peer-filter') || 'all';
       renderPeerList();
@@ -1385,3 +1378,57 @@ function renderPeerList() {
   });
 }
 
+async function startChatFromPicker() {
+  const raw = document.getElementById('chatPeerValue')?.value || '';
+  const body = (document.getElementById('chatNewBody')?.value || '').trim();
+  if (!raw) return alert('Выберите получателя');
+  if (!body) return alert('Введите текст');
+  const [ptype, idStr] = raw.split(':');
+  const peer_id = Number(idStr);
+  const uid = Number(WorkerState.userId || WorkerState.user?.id);
+  const item = PeerPicker.items.find((i) => i.key === raw);
+  try {
+    const r = await fetch(API + '/chat/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        peer_type: 'worker',
+        peer_id: ptype === 'admin' ? uid : peer_id,
+        peer_name:
+          ptype === 'admin'
+            ? (WorkerState.user?.name || 'Сотрудник') + ' → Админ'
+            : item?.name || raw,
+        brigade_id: WorkerState.brigadeId,
+        subject: body.slice(0, 80),
+        body: (ptype === 'admin' ? '[к администратору] ' : '') + body,
+        sender_role: 'worker',
+        sender_id: uid,
+        sender_name: WorkerState.user?.name || 'Сотрудник',
+      }),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    const modal = document.getElementById('chatNewModal');
+    if (modal) modal.style.display = 'none';
+    const ta = document.getElementById('chatNewBody');
+    if (ta) ta.value = '';
+    await loadChatThreads();
+    if (d.thread_id) openChatThread(d.thread_id);
+  } catch (e) {
+    alert(String(e.message || e));
+  }
+}
+
+document.getElementById('btnChatNew')?.addEventListener('click', async () => {
+  if (typeof loadChatPeerOptions === 'function') await loadChatPeerOptions();
+  const m = document.getElementById('chatNewModal');
+  if (m) {
+    m.style.display = 'flex';
+    document.getElementById('chatPeerSearch')?.focus();
+  }
+});
+document.getElementById('chatNewClose')?.addEventListener('click', () => {
+  const m = document.getElementById('chatNewModal');
+  if (m) m.style.display = 'none';
+});
+document.getElementById('chatNewSend')?.addEventListener('click', () => startChatFromPicker());

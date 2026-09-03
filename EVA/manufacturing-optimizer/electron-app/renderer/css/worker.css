@@ -1406,3 +1406,18 @@ font-size: 10px; font-weight: 700; line-height: 16px; text-align: center;
 .peer-item.selected { background: #e8f0fe; outline: 1px solid #1a73e8; }
 .peer-item .p-name { font-size: 13px; font-weight: 600; }
 .peer-item .p-meta { font-size: 11px; color: #727785; }
+
+.peer-picker-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.peer-picker-filters .chip {
+  border: 1px solid #c1c6d6; background: #f7f9fc; border-radius: 999px;
+  padding: 4px 10px; font-size: 12px; cursor: pointer;
+}
+.peer-picker-filters .chip.active {
+  background: #e8f0fe; border-color: #1a73e8; color: #1a73e8; font-weight: 600;
+}
+.peer-item { padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+.peer-item:hover { background: #eef3ff; }
+.peer-item.selected { background: #e8f0fe; outline: 1px solid #1a73e8; }
+.peer-item .p-name { font-size: 13px; font-weight: 600; display: block; }
+.peer-item .p-meta { font-size: 11px; color: #727785; }
+#chatNewModal { display: none; }
