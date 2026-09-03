@@ -1008,3 +1008,6 @@
   font-size: 10px; font-weight: 700; line-height: 16px; text-align: center;
 }
 .nav-svg { width: 20px; height: 20px; display: block; color: currentColor; }
+
+.nav-svg { width: 20px; height: 20px; color: currentColor; }
+.hub-nav-item.active .nav-svg { color: #fff; }

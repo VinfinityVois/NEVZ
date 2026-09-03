@@ -1066,7 +1066,8 @@ function fillChatTemplates() {
 }
 
 async function loadChatThreads() {
-  const uid = State?.userId || State?.user?.id;
+  const uid = WorkerState?.userId || WorkerState?.user?.id;
+  const brigadeId = WorkerState?.brigadeId ?? WorkerState?.user?.brigade_id;
   if (!uid) return;
   const params = new URLSearchParams({ role: 'worker', worker_id: String(uid), limit: '100' });
   if (State.brigadeId != null) params.set('brigade_id', String(State.brigadeId));
@@ -1165,8 +1166,9 @@ async function sendChatMessage() {
   const body = (document.getElementById('chatBody')?.value || '').trim();
   if (!body) return;
   const template_key = document.getElementById('chatTemplate')?.value || null;
-  const uid = State?.userId || State?.user?.id;
-  const name = State?.user?.name;
+  const uid = WorkerState?.userId || WorkerState?.user?.id;
+  const name = WorkerState?.user?.name || WorkerState?.userName;
+  const brigadeId = WorkerState?.brigadeId ?? WorkerState?.user?.brigade_id;
   try {
     if (!ChatState.activeId) {
       const r = await fetch(API + '/chat/start', {
@@ -1176,7 +1178,7 @@ async function sendChatMessage() {
           peer_type: 'worker',
           peer_id: uid,
           peer_name: name,
-          brigade_id: State.brigadeId,
+          brigade_id: brigadeId,
           subject: body.slice(0, 80),
           body,
           sender_role: 'worker',
