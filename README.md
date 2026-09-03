@@ -26,13 +26,18 @@
 
 <br><br>
 
+**[📸 Скриншоты](#-скриншоты)** &nbsp;•&nbsp;
 **[✨ Возможности](#-ключевые-возможности)** &nbsp;•&nbsp;
 **[🏗 Архитектура](#-архитектура)** &nbsp;•&nbsp;
 **[🚀 Быстрый старт](#-быстрый-старт)** &nbsp;•&nbsp;
+**[⚙️ Конфигурация](#️-конфигурация)** &nbsp;•&nbsp;
 **[👤 Роли](#-роли-и-права-доступа)** &nbsp;•&nbsp;
 **[🏭 Операции](#-поддерживаемые-типы-производственных-операций)** &nbsp;•&nbsp;
 **[🧠 AI](#-ai--машинное-обучение)** &nbsp;•&nbsp;
 **[🔌 API](#-api)** &nbsp;•&nbsp;
+**[🗄 БД](#-база-данных)** &nbsp;•&nbsp;
+**[🧪 Тесты](#-тестирование)** &nbsp;•&nbsp;
+**[🔒 Безопасность](#-безопасность)** &nbsp;•&nbsp;
 **[❓ FAQ](#-faq--известные-особенности)**
 
 </div>
@@ -46,6 +51,25 @@
 Приложение работает как связка **Electron-клиента** (три специализированные панели — администратор, бригадир, рабочий) и локального **Python/FastAPI-бэкенда**, который считает критический путь, запускает ML-модели и хранит данные в SQLite.
 
 > 💡 Проект ориентирован на производственные предприятия, где важно одновременно видеть сетевой график, реальную загрузку бригад и получать AI-рекомендации о том, где график «поплывёт» раньше, чем это станет проблемой.
+
+<br>
+
+## <img src="EVA/manufacturing-optimizer/docs/assets/icons/dashboard.svg" width="26" valign="middle"/> Скриншоты
+
+<div align="center">
+<table>
+<tr>
+<td width="50%" align="center">
+<img src="EVA/manufacturing-optimizer/docs/assets/screenshots/login-screen.png" width="100%" alt="Экран входа"/>
+<br><sub><b>Экран входа</b> — логин/пароль или QR-код со смартфона</sub>
+</td>
+<td width="50%" align="center">
+<img src="EVA/manufacturing-optimizer/docs/assets/screenshots/brigadier-assignments.png" width="100%" alt="Панель бригадира — Назначения"/>
+<br><sub><b>Панель бригадира</b> — перенос сотрудников и назначение работ бригаде</sub>
+</td>
+</tr>
+</table>
+</div>
 
 <br>
 
@@ -254,6 +278,29 @@ npm run build     # electron-builder → dist/ (NSIS / DMG / AppImage)
 
 <br>
 
+## ⚙️ Конфигурация
+
+Настройки читаются из `python-backend/.env` (шаблон — [`.env.example`](EVA/manufacturing-optimizer/python-backend/.env.example)):
+
+| Переменная | По умолчанию | Назначение |
+|---|---|---|
+| `API_HOST` | `127.0.0.1` | Адрес, на котором поднимается FastAPI |
+| `API_PORT` | `8000` | Порт backend'а (используется и для QR-ссылок) |
+| `DEBUG` | `true` | Режим отладки FastAPI |
+| `DATA_DIR` | `../data` | Каталог с `manufacturing.db` |
+| `MODELS_DIR` | `./models_storage` | Каталог сохранённых AI-моделей |
+| `LOGS_DIR` | `./logs` | Логи backend'а |
+| `MODEL_TYPE` | `gradient_boosting` | Тип модели предсказания срывов |
+| `DEFAULT_EFFICIENCY_THRESHOLD` | `0.75` | Порог эффективности бригады |
+| `MAX_WORKERS_PER_BRIGADE` | `11` | Лимит численности бригады |
+
+```bash
+cp python-backend/.env.example python-backend/.env
+# при необходимости отредактируйте значения
+```
+
+<br>
+
 ## <img src="EVA/manufacturing-optimizer/docs/assets/icons/user-profile.svg" width="26" valign="middle"/> Роли и права доступа
 
 | Роль | Как попадает | Возможности |
@@ -306,6 +353,51 @@ npm run build     # electron-builder → dist/ (NSIS / DMG / AppImage)
 </tr>
 </table>
 
+</div>
+
+<br>
+
+## 🎨 Библиотека иконок
+
+Все иконки документации и часть иконок интерфейса — собственный набор SVG (`docs/assets/icons/`), в едином фирменном синем `#0961f6`:
+
+<div align="center">
+<table>
+<tr>
+<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/factory-gear.svg" width="26"/></td>
+<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/operations.svg" width="26"/></td>
+<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/brigade.svg" width="26"/></td>
+<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/terminal.svg" width="26"/></td>
+<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/analytics.svg" width="26"/></td>
+<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/process-node.svg" width="26"/></td>
+<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/dashboard.svg" width="26"/></td>
+<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/ai-layers.svg" width="26"/></td>
+<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/time.svg" width="26"/></td>
+<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/alert.svg" width="26"/></td>
+</tr>
+<tr>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/assembly.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/welding.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/cnc.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/quality-control.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/warehouse.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/painting.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/electronics.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/logistics.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/user-profile.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/search.svg" width="26"/></td>
+</tr>
+<tr>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/help.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/notifications.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/logout.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/filter.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/calendar.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/pdf-export.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/excel-export.svg" width="26"/></td>
+<td></td><td></td><td></td>
+</tr>
+</table>
 </div>
 
 <br>
@@ -378,7 +470,76 @@ Backend экспонирует REST + WebSocket API, сгруппированн�
 
 `workers` · `brigades` · `brigade_groups` · `brigade_group_members` · `brigade_tasks` · `brigade_schedule` · `operations` · `operation_history` · `ai_training_data`
 
+```mermaid
+erDiagram
+    BRIGADES ||--o{ WORKERS : "включает"
+    BRIGADES ||--o{ BRIGADE_TASKS : "выполняет"
+    BRIGADES ||--o{ BRIGADE_SCHEDULE : "имеет"
+    BRIGADES }o--o{ BRIGADE_GROUPS : "группируется через"
+    BRIGADE_GROUPS ||--o{ BRIGADE_GROUP_MEMBERS : "состоит из"
+    OPERATIONS ||--o{ BRIGADE_TASKS : "назначается как"
+    OPERATIONS ||--o{ OPERATION_HISTORY : "логируется в"
+    WORKERS ||--o{ OPERATION_HISTORY : "выполняет"
+
+    WORKERS {
+        int id PK
+        string name
+        string login
+        string role
+        int is_brigadier
+        int brigade_id FK
+        string status
+    }
+    BRIGADES {
+        int id PK
+        string name
+        string description
+    }
+    OPERATIONS {
+        int id PK
+        string name
+        int duration
+        string status
+    }
+    BRIGADE_TASKS {
+        int id PK
+        int brigade_id FK
+        int operation_id FK
+        string status
+    }
+```
+
 Подробная схема — в [`docs/DATABASE_SCHEMA.md`](docs/DATABASE_SCHEMA.md).
+
+<br>
+
+## 🧪 Тестирование
+
+Backend покрыт тестами на `pytest` (`python-backend/tests/`):
+
+| Файл | Что проверяет |
+|---|---|
+| `test_cpm.py` | Расчёт критического пути и PERT |
+| `test_ai.py` | Предиктивные AI-модели |
+| `test_optimization.py` | Оптимизацию бригад (OR-Tools, генетический алгоритм) |
+| `test_api.py` | REST-эндпоинты FastAPI |
+| `test_database.py` | Слой доступа к SQLite |
+| `test_daily_load.py` | Расчёт дневной загрузки бригад |
+
+```bash
+cd python-backend
+pytest tests/ -v
+```
+
+<br>
+
+## 🔒 Безопасность
+
+- Пароли сотрудников хешируются через **passlib (bcrypt)** — в открытом виде в БД не хранятся
+- Вход по QR — **одноразовый токен** с ограниченным временем жизни (`/auth/qr/create` → `/auth/qr/confirm`); после подтверждения токен инвалидируется
+- QR-ссылка ведёт на **локальный адрес в LAN**, а не в интернет — вход по QR принципиально невозможен вне локальной сети
+- По умолчанию backend слушает только `127.0.0.1` (см. [конфигурацию](#️-конфигурация)) — наружу не торчит без явной настройки
+- Роль пользователя определяется исключительно на backend'е (`row_user()`), а не клиентом — renderer не может «повысить» себе права
 
 <br>
 
@@ -422,6 +583,16 @@ Backend экспонирует REST + WebSocket API, сгруппированн�
 | Онлайн-переобучение AI-моделей на потоке новых данных | ![planned](https://img.shields.io/badge/-запланировано-lightgrey?style=flat-square) |
 | Экспорт отчётов в PDF/PowerPoint | ![planned](https://img.shields.io/badge/-запланировано-lightgrey?style=flat-square) |
 | Тёмная/светлая тема на выбор пользователя | ![in progress](https://img.shields.io/badge/-в%20работе-0961f6?style=flat-square) |
+
+<br>
+
+## ⭐ История звёзд
+
+<div align="center">
+<a href="https://star-history.com/#VinfinityVois/NEVZ&Date">
+  <img src="https://api.star-history.com/svg?repos=VinfinityVois/NEVZ&type=Date" width="80%" alt="Star History Chart"/>
+</a>
+</div>
 
 <br>
 
