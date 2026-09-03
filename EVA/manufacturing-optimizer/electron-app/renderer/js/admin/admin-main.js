@@ -7268,7 +7268,7 @@ function switchTab(tabId) {
     if (tabId === 'messages') {
       if (typeof loadChatThreadsAdmin === 'function') loadChatThreadsAdmin();
       if (typeof fillChatTemplatesAdmin === 'function') fillChatTemplatesAdmin();
-  }
+    }
 }
 
 function showLoading(text = 'Загрузка...') {
