@@ -102,18 +102,101 @@ window._chatPoll = setInterval(() => {
   setInterval(checkHealth, 30000);
   checkHealth();
 }
-async function loadChatPeerOptions() {
-  const sel = document.getElementById('chatPeerSelect');
-  if (!sel) return;
-  sel.innerHTML =
-    '<option value="">— кому —</option><option value="admin:0">Администратор</option>';
-  (State.workers || []).forEach((w) => {
-    if (Number(w.id) === Number(State.userId)) return;
-    const o = document.createElement('option');
-    o.value = 'worker:' + w.id;
-    o.textContent = w.name || '#' + w.id;
-    sel.appendChild(o);
+const PeerPicker = { items: [], filter: 'all', selected: null };
+
+function peerEsc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function setupPeerPicker() {
+  const search = document.getElementById('chatPeerSearch');
+  const filtersRoot = document.getElementById('chatPeerFilters') || document;
+  search?.addEventListener('input', () => renderPeerList());
+  filtersRoot.querySelectorAll?.('[data-peer-filter]')?.forEach((chip) => {
+    chip.onclick = () => {
+      filtersRoot.querySelectorAll('[data-peer-filter]').forEach((c) => c.classList.remove('active'));
+      chip.classList.add('active');
+      PeerPicker.filter = chip.getAttribute('data-peer-filter') || 'all';
+      renderPeerList();
+    };
   });
+}
+
+function renderPeerList() {
+  const box = document.getElementById('chatPeerList');
+  if (!box) return;
+  const q = (document.getElementById('chatPeerSearch')?.value || '').toLowerCase().trim();
+  let list = PeerPicker.items.slice();
+  if (PeerPicker.filter !== 'all') list = list.filter((x) => x.type === PeerPicker.filter);
+  if (q) {
+    list = list.filter(
+      (x) =>
+        String(x.name).toLowerCase().includes(q) ||
+        String(x.meta).toLowerCase().includes(q) ||
+        String(x.id).includes(q)
+    );
+  }
+  box.innerHTML = list.length
+    ? list
+        .map((x) => {
+          const sel = PeerPicker.selected === x.key ? ' selected' : '';
+          return (
+            '<div class="peer-item' + sel + '" data-key="' + peerEsc(x.key) + '">' +
+            '<span class="p-name">' + peerEsc(x.name) + '</span>' +
+            '<span class="p-meta">' + peerEsc(x.meta) + '</span></div>'
+          );
+        })
+        .join('')
+    : '<p class="muted" style="padding:8px">Никого не найдено</p>';
+  box.querySelectorAll('.peer-item').forEach((el) => {
+    el.onclick = () => {
+      const key = el.getAttribute('data-key');
+      PeerPicker.selected = key;
+      const val = document.getElementById('chatPeerValue');
+      if (val) val.value = key;
+      renderPeerList();
+    };
+  });
+}
+
+async function loadChatPeerOptions() {
+  setupPeerPicker();
+  const myId = Number(State.userId);
+  const items = [
+    { key: 'admin:0', type: 'admin', id: 0, name: 'Администратор', meta: 'служба поддержки' },
+  ];
+  (State.workers || []).forEach((w) => {
+    if (Number(w.id) === myId) return;
+    items.push({
+      key: 'worker:' + w.id,
+      type: w.is_brigadier ? 'brigadier' : 'worker',
+      id: w.id,
+      name: w.name || '#' + w.id,
+      meta: (w.is_brigadier ? 'бригадир' : 'сотрудник') + (w.brigade_id != null ? ' · бр.' + w.brigade_id : ''),
+    });
+  });
+  // если workers пуст — с API
+  if (items.length < 2 && State.brigadeId != null) {
+    try {
+      const r = await fetch(API + '/workers?brigade_id=' + encodeURIComponent(State.brigadeId));
+      if (r.ok) {
+        const data = await r.json();
+        (Array.isArray(data) ? data : data.items || []).forEach((w) => {
+          if (Number(w.id) === myId) return;
+          if (items.some((i) => i.key === 'worker:' + w.id)) return;
+          items.push({
+            key: 'worker:' + w.id,
+            type: w.is_brigadier ? 'brigadier' : 'worker',
+            id: w.id,
+            name: w.name || '#' + w.id,
+            meta: 'бр.' + State.brigadeId,
+          });
+        });
+      }
+    } catch (_) {}
+  }
+  PeerPicker.items = items;
+  renderPeerList();
 }
 function setupSidebar() {
   const side = document.getElementById('hubSidebar');

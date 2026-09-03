@@ -753,26 +753,7 @@
 </div>
 
 <div id="messages-tab" class="tab-pane">
-    <div class="peer-picker" id="chatPeerPicker">
-        <button type="button" class="input peer-picker-btn" id="chatPeerBtn">
-          <span id="chatPeerLabel">— кому написать —</span>
-          <span class="peer-caret">▾</span>
-        </button>
-        <input type="hidden" id="chatPeerValue" value="">
-        <div class="peer-picker-drop" id="chatPeerDrop" style="display:none">
-          <input type="search" class="input" id="chatPeerSearch" placeholder="Поиск по имени, ID, бригаде…">
-          <div class="peer-picker-filters">
-            <button type="button" class="chip active" data-peer-filter="all">Все</button>
-            <button type="button" class="chip" data-peer-filter="admin">Админы</button>
-            <button type="button" class="chip" data-peer-filter="brigadier">Бригадиры</button>
-            <button type="button" class="chip" data-peer-filter="worker">Сотрудники</button>
-            <button type="button" class="chip" data-peer-filter="brigade">Бригады</button>
-          </div>
-          <div class="peer-picker-list" id="chatPeerList">
-            <p class="muted">Загрузка…</p>
-          </div>
-        </div>
-      </div>
+
     <div class="page-head row-between">
       <div>
         <h1>Сообщения</h1>
@@ -795,13 +776,13 @@
           <div class="muted" id="chatPeerMeta"></div>
         </div>
         <div class="chat-messages" id="chatMessages"></div>
-        <div class="chat-compose">
-          <select class="input" id="chatTemplate">
-            <option value="">— шаблон —</option>
-          </select>
-          <textarea class="input textarea" id="chatBody" rows="2" placeholder="Ответ…"></textarea>
-          <button type="button" class="btn btn-primary" id="btnChatSend">Отправить</button>
-        </div>
+        <div class="chat-compose" style="grid-template-columns: 160px 1fr auto; gap:8px;">
+            <select class="input" id="chatTemplate">
+              <option value="">— шаблон —</option>
+            </select>
+            <textarea class="input textarea" id="chatBody" rows="2" placeholder="Сообщение…"></textarea>
+            <button type="button" class="btn btn-primary" id="btnChatSend">Отправить</button>
+          </div>
       </div>
     </div>
   </div>
@@ -1143,5 +1124,27 @@ document.getElementById('settingSidebarStartCollapsed').checked =
   localStorage.getItem('sidebarCollapsed') === '1';
 </script>
 
+<div id="chatNewModal" class="modal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(15,23,42,.45); align-items:center; justify-content:center;">
+    <div class="card" style="width:min(440px,92vw); max-height:80vh; display:flex; flex-direction:column; background:#fff; border-radius:16px; padding:0; overflow:hidden;">
+      <div style="padding:14px 16px; border-bottom:1px solid #e0e3e6; display:flex; justify-content:space-between; align-items:center;">
+        <strong>Новый диалог</strong>
+        <button type="button" class="btn-text" id="chatNewClose">✕</button>
+      </div>
+      <div style="padding:12px 16px; display:flex; flex-direction:column; gap:8px; min-height:0; flex:1;">
+        <input type="search" class="input" id="chatPeerSearch" placeholder="Поиск по имени, ID, бригаде…">
+        <div class="peer-picker-filters" id="chatPeerFilters">
+          <button type="button" class="chip active" data-peer-filter="all">Все</button>
+          <button type="button" class="chip" data-peer-filter="admin">Админы</button>
+          <button type="button" class="chip" data-peer-filter="brigadier">Бригадиры</button>
+          <button type="button" class="chip" data-peer-filter="worker">Сотрудники</button>
+          <button type="button" class="chip" data-peer-filter="brigade">Бригады</button>
+        </div>
+        <div class="peer-picker-list" id="chatPeerList" style="overflow:auto; max-height:280px; border:1px solid #e0e3e6; border-radius:10px;"></div>
+        <textarea class="input textarea" id="chatNewBody" rows="3" placeholder="Первое сообщение…"></textarea>
+        <button type="button" class="btn btn-primary" id="chatNewSend">Создать и отправить</button>
+      </div>
+    </div>
+  </div>
+  <input type="hidden" id="chatPeerValue" value="">
 </body>
 </html>

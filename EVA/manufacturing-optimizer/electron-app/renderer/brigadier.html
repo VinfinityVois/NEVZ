@@ -445,6 +445,10 @@
             <div class="page-head">
               <h1>Сообщения</h1>
               <p class="page-sub">Переписка с администрацией</p>
+              <div class="chat-list-toolbar">
+                <input type="search" class="input" id="chatSearch" placeholder="Поиск…">
+                <button type="button" class="btn btn-primary btn-sm" id="btnChatNew">＋ Диалог</button>
+              </div>
             </div>
             <div class="chat-layout">
               <aside class="chat-list-pane">
@@ -462,26 +466,7 @@
                 </div>
                 <div class="chat-messages" id="chatMessages"></div>
                 <div class="chat-compose" style="grid-template-columns: 180px 140px 1fr auto; gap:8px;">
-                  <div class="peer-picker" id="chatPeerPicker">
-                    <button type="button" class="input peer-picker-btn" id="chatPeerBtn">
-                      <span id="chatPeerLabel">— кому написать —</span>
-                      <span class="peer-caret">▾</span>
-                    </button>
-                    <input type="hidden" id="chatPeerValue" value="">
-                    <div class="peer-picker-drop" id="chatPeerDrop" style="display:none">
-                      <input type="search" class="input" id="chatPeerSearch" placeholder="Поиск по имени, ID, бригаде…">
-                      <div class="peer-picker-filters">
-                        <button type="button" class="chip active" data-peer-filter="all">Все</button>
-                        <button type="button" class="chip" data-peer-filter="admin">Админы</button>
-                        <button type="button" class="chip" data-peer-filter="brigadier">Бригадиры</button>
-                        <button type="button" class="chip" data-peer-filter="worker">Сотрудники</button>
-                        <button type="button" class="chip" data-peer-filter="brigade">Бригады</button>
-                      </div>
-                      <div class="peer-picker-list" id="chatPeerList">
-                        <p class="muted">Загрузка…</p>
-                      </div>
-                    </div>
-                  </div>
+
                   <select class="input" id="chatTemplate">...</select>
                   <textarea class="input textarea" id="chatBody" rows="2"></textarea>
                   <button type="button" class="btn btn-primary" id="btnChatSend">Отправить</button>

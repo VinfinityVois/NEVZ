@@ -1920,8 +1920,19 @@ document.getElementById('btnChatSend')?.addEventListener('click', () => {
 document.getElementById('chatSearch')?.addEventListener('input', () => {
   if (typeof renderChatThreadListAdmin === 'function') renderChatThreadListAdmin();
 });
-document.getElementById('btnChatNew')?.addEventListener('click', () => {
-  // имя функции в файле — adminStartChatFromSelect, не adminStartChat
+document.getElementById('btnChatNew')?.addEventListener('click', async () => {
+  await loadChatPeerOptionsAdmin();
+  const m = document.getElementById('chatNewModal');
+  if (m) {
+    m.style.display = 'flex';
+    document.getElementById('chatPeerSearch')?.focus();
+  }
+});
+document.getElementById('chatNewClose')?.addEventListener('click', () => {
+  const m = document.getElementById('chatNewModal');
+  if (m) m.style.display = 'none';
+});
+document.getElementById('chatNewSend')?.addEventListener('click', () => {
   if (typeof adminStartChatFromSelect === 'function') adminStartChatFromSelect();
 });
 document.getElementById('btnNotifPanel')?.addEventListener('click', () => {
@@ -8696,19 +8707,23 @@ async function sendChatMessageAdmin() {
 }
 
 async function adminStartChatFromSelect() {
-  const raw = document.getElementById('chatPeerSelect')?.value;
-  const body = (document.getElementById('chatBody')?.value || '').trim();
-  if (!raw) return alert('Выберите получателя');
-  if (!body) return alert('Введите текст');
+  const raw = document.getElementById('chatPeerValue')?.value || '';
+  const body =
+    (document.getElementById('chatNewBody')?.value || '').trim() ||
+    (document.getElementById('chatBody')?.value || '').trim();
+  if (!raw) return alert('Выберите получателя в списке');
+  if (!body) return alert('Введите текст сообщения');
   const [peer_type, idStr] = raw.split(':');
   const peer_id = Number(idStr);
-  const peer_name = document.getElementById('chatPeerSelect').selectedOptions[0].textContent;
-  const r = await fetch(API_CHAT + '/chat/start', {
+  const item = (typeof PeerPicker !== 'undefined' ? PeerPicker.items : []).find((i) => i.key === raw);
+  const peer_name = item?.name || raw;
+
+  const r = await fetch((typeof API_CHAT !== 'undefined' ? API_CHAT : 'http://127.0.0.1:8000') + '/chat/start', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      peer_type,
-      peer_id,
+      peer_type: peer_type === 'admin' ? 'worker' : peer_type,
+      peer_id: peer_type === 'admin' ? 0 : peer_id,
       peer_name,
       brigade_id: peer_type === 'brigade' ? peer_id : null,
       subject: body.slice(0, 80),
@@ -8719,9 +8734,10 @@ async function adminStartChatFromSelect() {
   });
   if (!r.ok) return alert('Ошибка ' + r.status);
   const d = await r.json();
-  document.getElementById('chatBody').value = '';
+  document.getElementById('chatNewBody') && (document.getElementById('chatNewBody').value = '');
+  document.getElementById('chatNewModal') && (document.getElementById('chatNewModal').style.display = 'none');
   await loadChatThreadsAdmin();
-  openChatThreadAdmin(d.thread_id);
+  if (d.thread_id) openChatThreadAdmin(d.thread_id);
 }
 
 const PeerPicker = {
