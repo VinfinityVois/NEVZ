@@ -1786,6 +1786,11 @@ function goToPage(page) {
 }
 
 // В setupEventListeners добавьте:
+document.getElementById('btnChatSend')?.addEventListener('click', sendChatMessageAdmin);
+document.getElementById('chatSearch')?.addEventListener('input', renderChatThreadListAdmin);
+document.getElementById('btnChatNew')?.addEventListener('click', adminStartChat);
+document.getElementById('btnNotifPanel')?.addEventListener('click', () => switchTab('messages'));
+
 document.getElementById('prevPage')?.addEventListener('click', prevPage);
 document.getElementById('nextPage')?.addEventListener('click', nextPage);
 document.getElementById('cardCompleted')?.addEventListener('click', () => {
@@ -7212,6 +7217,7 @@ function switchTab(tabId) {
         workers: 'Рабочие',
         ai: 'AI Оптимизация',
         reports: 'Отчёты',
+        messages: 'Сообщения',
         settings: 'Настройки'
     };
 
@@ -7259,6 +7265,10 @@ function switchTab(tabId) {
             renderReportsCompare();
         }
     }
+    if (tabId === 'messages') {
+      if (typeof loadChatThreadsAdmin === 'function') loadChatThreadsAdmin();
+      if (typeof fillChatTemplatesAdmin === 'function') fillChatTemplatesAdmin();
+  }
 }
 
 function showLoading(text = 'Загрузка...') {

@@ -3459,7 +3459,7 @@ async def _startup_messaging():
         ensure_messaging_tables()
     except Exception as e:
         print("[WARN] messaging tables:", e)
-ensure_messaging_tables()
+
 
 @app.post("/notifications/send")
 async def notifications_send(body: NotifySendBody):
@@ -3527,17 +3527,17 @@ async def notifications_read(nid: int):
     finally:
         conn.close()
 
-class ChatStartBody(BaseModel):
-    peer_type: str  # worker | brigade
-    peer_id: int
-    peer_name: Optional[str] = None
-    brigade_id: Optional[int] = None
-    subject: str = ""
-    body: str
-    sender_role: str = "admin"
-    sender_id: Optional[int] = 0
-    sender_name: str = "Администратор"
-    template_key: Optional[str] = None
+# class ChatStartBody(BaseModel):
+#     peer_type: str  # worker | brigade
+#     peer_id: int
+#     peer_name: Optional[str] = None
+#     brigade_id: Optional[int] = None
+#     subject: str = ""
+#     body: str
+#     sender_role: str = "admin"
+#     sender_id: Optional[int] = 0
+#     sender_name: str = "Администратор"
+#     template_key: Optional[str] = None
 
 class ChatReplyBody(BaseModel):
     thread_id: int

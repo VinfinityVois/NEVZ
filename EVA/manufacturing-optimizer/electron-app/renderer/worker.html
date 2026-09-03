@@ -53,26 +53,32 @@
     </div>
     <nav class="hub-nav">
       <button type="button" class="hub-nav-item active" data-page="tasks" title="Мои задачи">
-        <span class="hub-nav-ico">📋</span><span class="hub-nav-label">Мои задачи</span>
+        <span class="hub-nav-ico"><svg class="nav-svg"><use href="#ico-ops"/></svg></span>
+        <span class="hub-nav-label">Мои задачи</span>
       </button>
       <button type="button" class="hub-nav-item" data-page="operations" title="Операции">
-        <span class="hub-nav-ico">⚙️</span><span class="hub-nav-label">Операции</span>
+        <span class="hub-nav-ico"><svg class="nav-svg"><use href="#ico-ops"/></svg></span>
+        <span class="hub-nav-label">Операции</span>
       </button>
       <button type="button" class="hub-nav-item" data-page="schedule" title="Расписание">
-        <span class="hub-nav-ico">📅</span><span class="hub-nav-label">Расписание</span>
+        <span class="hub-nav-ico"><svg class="nav-svg"><use href="#ico-calendar"/></svg></span>
+        <span class="hub-nav-label">Расписание</span>
       </button>
-      <button type="button" class="hub-nav-item" data-page="graph" title="Граф процесса">
-        <span class="hub-nav-ico">🔗</span><span class="hub-nav-label">Граф процесса</span>
+      <button type="button" class="hub-nav-item" data-page="graph" title="Граф">
+        <span class="hub-nav-ico"><svg class="nav-svg"><use href="#ico-assign"/></svg></span>
+        <span class="hub-nav-label">Граф процесса</span>
       </button>
-      <button type="button" class="hub-nav-item" data-page="ai" title="AI-поддержка">
-        <span class="hub-nav-ico">🤖</span><span class="hub-nav-label">AI-поддержка</span>
+      <button type="button" class="hub-nav-item" data-page="ai" title="AI">
+        <span class="hub-nav-ico"><svg class="nav-svg"><use href="#ico-ai"/></svg></span>
+        <span class="hub-nav-label">AI-поддержка</span>
       </button>
       <button type="button" class="hub-nav-item" data-page="messages" title="Сообщения">
         <span class="hub-nav-ico"><svg class="nav-svg"><use href="#ico-bell"/></svg></span>
         <span class="hub-nav-label">Сообщения</span>
       </button>
       <button type="button" class="hub-nav-item" data-page="settings" title="Настройки">
-        <span class="hub-nav-ico">⚙️</span><span class="hub-nav-label">Настройки</span>
+        <span class="hub-nav-ico"><svg class="nav-svg"><use href="#ico-gear"/></svg></span>
+        <span class="hub-nav-label">Настройки</span>
       </button>
     </nav>
     <div class="hub-sidebar-foot">
@@ -255,6 +261,35 @@
             <div class="badge badge-progress">Подсказка</div>
             <h3>Как пользоваться</h3>
             <p class="muted">Опишите операцию или сбой. При доступном AI API ответ появится в чате.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="hub-page" id="page-messages">
+      <div class="page-head">
+        <h1>Сообщения</h1>
+        <p class="page-sub">Переписка с администрацией</p>
+      </div>
+      <div class="chat-layout">
+        <aside class="chat-list-pane">
+          <div class="chat-list-toolbar">
+            <input type="search" class="input" id="chatSearch" placeholder="Поиск…">
+          </div>
+          <div class="chat-thread-list" id="chatThreadList">
+            <p class="muted">Нет диалогов</p>
+          </div>
+        </aside>
+        <div class="chat-main-pane">
+          <div class="chat-main-head">
+            <strong id="chatPeerName">Выберите диалог</strong>
+            <div class="muted" id="chatPeerMeta"></div>
+          </div>
+          <div class="chat-messages" id="chatMessages"></div>
+          <div class="chat-compose">
+            <select class="input" id="chatTemplate"><option value="">— шаблон —</option></select>
+            <textarea class="input textarea" id="chatBody" rows="2" placeholder="Сообщение…"></textarea>
+            <button type="button" class="btn btn-primary" id="btnChatSend">Отправить</button>
           </div>
         </div>
       </div>

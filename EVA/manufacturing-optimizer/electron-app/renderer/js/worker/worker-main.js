@@ -30,8 +30,13 @@ const PAGE_LABELS = {
   schedule: 'Расписание',
   graph: 'Граф процесса',
   ai: 'AI-поддержка',
+  messages: 'Сообщения',
   settings: 'Настройки'
 };
+
+const CHAT_ROLE = 'worker';
+const ChatState = { threads: [], activeId: null };
+
 
 async function initWorker() {
   cacheDomElements();
@@ -39,6 +44,14 @@ async function initWorker() {
   setupHubNav();
   setupEventListeners();
   setupSettings();
+
+  document.getElementById('btnChatSend')?.addEventListener('click', sendChatMessage);
+  document.getElementById('chatSearch')?.addEventListener('input', renderChatThreadList);
+  document.getElementById('btnNotifPanel')?.addEventListener('click', () => {
+    if (typeof showPage === 'function') showPage('messages');
+    loadChatThreads();
+  });
+  fillChatTemplates();
 
   const auth = window.electronAPI?.storage?.get('auth');
   const q = new URLSearchParams(window.location.search || '');
@@ -1030,3 +1043,172 @@ function updateOnlineStatusField() {
 
 
 document.addEventListener('DOMContentLoaded', initWorker);
+
+
+const CHAT_TEMPLATES_WORKER = {
+  profile: 'Прошу исправить данные профиля.',
+  password: 'Не могу войти / сменить пароль.',
+  task: 'Вопрос по назначенной задаче.',
+  delay: 'Сообщаю о задержке на участке.',
+  other: 'Другой вопрос к администрации.',
+};
+
+function fillChatTemplates() {
+  const sel = document.getElementById('chatTemplate');
+  if (!sel) return;
+  const map = CHAT_TEMPLATES_WORKER;
+  sel.innerHTML =
+    '<option value="">— шаблон —</option>' +
+    Object.keys(map).map((k) => '<option value="' + k + '">' + k + '</option>').join('');
+  sel.onchange = () => {
+    if (map[sel.value]) document.getElementById('chatBody').value = map[sel.value];
+  };
+}
+
+async function loadChatThreads() {
+  const uid = State?.userId || State?.user?.id;
+  if (!uid) return;
+  const params = new URLSearchParams({ role: 'worker', worker_id: String(uid), limit: '100' });
+  if (State.brigadeId != null) params.set('brigade_id', String(State.brigadeId));
+  try {
+    const r = await fetch(API + '/chat/threads?' + params);
+    if (!r.ok) return;
+    ChatState.threads = (await r.json()).items || [];
+    renderChatThreadList();
+    const n = ChatState.threads.reduce((s, t) => s + (t.unread || 0), 0);
+    const dot = document.getElementById('notifDot');
+    if (dot) {
+      dot.style.display = n > 0 ? 'block' : 'none';
+      if (n > 0) dot.textContent = n > 99 ? '99+' : String(n);
+    }
+  } catch (e) {
+    console.warn(e);
+  }
+}
+
+function renderChatThreadList() {
+  const box = document.getElementById('chatThreadList');
+  if (!box) return;
+  const q = (document.getElementById('chatSearch')?.value || '').toLowerCase();
+  let list = ChatState.threads;
+  if (q) {
+    list = list.filter(
+      (t) =>
+        String(t.subject || '').toLowerCase().includes(q) ||
+        String(t.last_preview || '').toLowerCase().includes(q)
+    );
+  }
+  const esc = (s) =>
+    String(s ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  box.innerHTML = list.length
+    ? list
+        .map((t) => {
+          const active = Number(t.id) === Number(ChatState.activeId) ? ' active' : '';
+          const unread = t.unread ? '<span class="unread-pill">' + t.unread + '</span>' : '';
+          return (
+            '<div class="chat-thread-item' + active + '" data-tid="' + t.id + '">' +
+            '<div class="t-title">' + esc(t.subject || t.peer_name || '#' + t.id) + '</div>' +
+            '<div class="t-prev">' + esc(t.last_preview || '') + '</div>' +
+            '<div class="t-meta"><span>' + esc((t.updated_at || '').slice(0, 16)) + '</span>' +
+            unread + '</div></div>'
+          );
+        })
+        .join('')
+    : '<p class="muted" style="padding:12px">Нет диалогов</p>';
+  box.querySelectorAll('.chat-thread-item').forEach((el) => {
+    el.addEventListener('click', () => openChatThread(el.getAttribute('data-tid')));
+  });
+}
+
+async function openChatThread(tid) {
+  ChatState.activeId = Number(tid);
+  renderChatThreadList();
+  const t = ChatState.threads.find((x) => Number(x.id) === Number(tid));
+  const setT = (id, v) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = v || '';
+  };
+  setT('chatPeerName', t?.subject || t?.peer_name || 'Диалог #' + tid);
+  setT('chatPeerMeta', t?.peer_type || '');
+  await fetch(API + '/chat/threads/' + tid + '/read?role=worker', { method: 'POST' });
+  const r = await fetch(API + '/chat/threads/' + tid + '/messages');
+  const d = r.ok ? await r.json() : { items: [] };
+  const box = document.getElementById('chatMessages');
+  if (!box) return;
+  const esc = (s) =>
+    String(s ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  box.innerHTML = (d.items || [])
+    .map((m) => {
+      const isMe = m.sender_role !== 'admin';
+      return (
+        '<div class="chat-bubble ' + (isMe ? 'me' : 'them') + '">' +
+        esc(m.body) +
+        '<div class="b-meta">' +
+        esc(m.sender_name || m.sender_role) +
+        ' · ' +
+        esc((m.created_at || '').slice(0, 16)) +
+        '</div></div>'
+      );
+    })
+    .join('');
+  box.scrollTop = box.scrollHeight;
+  loadChatThreads();
+}
+
+async function sendChatMessage() {
+  const body = (document.getElementById('chatBody')?.value || '').trim();
+  if (!body) return;
+  const template_key = document.getElementById('chatTemplate')?.value || null;
+  const uid = State?.userId || State?.user?.id;
+  const name = State?.user?.name;
+  try {
+    if (!ChatState.activeId) {
+      const r = await fetch(API + '/chat/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          peer_type: 'worker',
+          peer_id: uid,
+          peer_name: name,
+          brigade_id: State.brigadeId,
+          subject: body.slice(0, 80),
+          body,
+          sender_role: 'worker',
+          sender_id: uid,
+          sender_name: name,
+          template_key,
+        }),
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      document.getElementById('chatBody').value = '';
+      await loadChatThreads();
+      openChatThread(d.thread_id);
+      return;
+    }
+    const r = await fetch(API + '/chat/reply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        thread_id: ChatState.activeId,
+        body,
+        sender_role: 'worker',
+        sender_id: uid,
+        sender_name: name,
+        template_key,
+      }),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    document.getElementById('chatBody').value = '';
+    openChatThread(ChatState.activeId);
+  } catch (e) {
+    console.error(e);
+    alert('Чат: ' + (e.message || e));
+  }
+}
