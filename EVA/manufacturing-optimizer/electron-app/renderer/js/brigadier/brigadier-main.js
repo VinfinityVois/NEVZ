@@ -85,6 +85,16 @@ async function init() {
     document.getElementById('hubSidebar')?.classList.add('collapsed');
   }
 
+  if (window._chatPoll) clearInterval(window._chatPoll);
+window._chatPoll = setInterval(() => {
+  if (State.page === 'messages' || document.querySelector('.hub-nav-item.active[data-page="messages"]')) {
+    loadChatThreads();
+    if (ChatState.activeId) openChatThread(ChatState.activeId);
+  } else {
+    loadChatThreads();
+  }
+}, 8000);
+
   paintUser();
   startClock();
   showPage('dashboard');
@@ -92,7 +102,19 @@ async function init() {
   setInterval(checkHealth, 30000);
   checkHealth();
 }
-
+async function loadChatPeerOptions() {
+  const sel = document.getElementById('chatPeerSelect');
+  if (!sel) return;
+  sel.innerHTML =
+    '<option value="">— кому —</option><option value="admin:0">Администратор</option>';
+  (State.workers || []).forEach((w) => {
+    if (Number(w.id) === Number(State.userId)) return;
+    const o = document.createElement('option');
+    o.value = 'worker:' + w.id;
+    o.textContent = w.name || '#' + w.id;
+    sel.appendChild(o);
+  });
+}
 function setupSidebar() {
   const side = document.getElementById('hubSidebar');
   const toggle = document.getElementById('sidebarToggle');

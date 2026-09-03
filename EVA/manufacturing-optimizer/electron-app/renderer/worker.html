@@ -285,9 +285,13 @@
             <div class="muted" id="chatPeerMeta"></div>
           </div>
           <div class="chat-messages" id="chatMessages"></div>
-          <div class="chat-compose">
-            <select class="input" id="chatTemplate"><option value="">— шаблон —</option></select>
-            <textarea class="input textarea" id="chatBody" rows="2" placeholder="Сообщение…"></textarea>
+          <div class="chat-compose" style="grid-template-columns: 180px 140px 1fr auto; gap:8px;">
+            <select class="input" id="chatPeerSelect" title="Кому">
+              <option value="">— кому (новый диалог) —</option>
+              <option value="admin:0">Администратор</option>
+            </select>
+            <select class="input" id="chatTemplate">...</select>
+            <textarea class="input textarea" id="chatBody" rows="2"></textarea>
             <button type="button" class="btn btn-primary" id="btnChatSend">Отправить</button>
           </div>
         </div>
@@ -316,7 +320,7 @@
                 <button type="button" class="btn btn-outline" id="avatarChangeBtn">Сменить фото</button>
                 <button type="button" class="btn btn-outline" id="avatarDeleteBtn">Удалить фото</button>
               </div>
-              <span class="muted" style="font-size:11px;margin-top:6px;">Хранится на этом ПК</span>
+              <span class="muted" style="margin-top:6px;font-size:11px;">Хранится на этом ПК</span>
             </div>
             <div class="settings-fields full-readonly">
               <div class="form-group"><label>ФИО</label><input class="input" id="settingsName" readonly></div>
@@ -327,6 +331,7 @@
               <div class="form-group"><label>Email</label><input class="input" id="settingsEmail" readonly></div>
               <div class="form-group"><label>Телефон</label><input class="input" id="settingsPhone" readonly></div>
               <div class="form-group"><label>Должность</label><input class="input" id="settingsPosition" readonly></div>
+              <div class="form-group"><label>В сети</label><input class="input" id="settingsOnlineStatus" readonly value="в сети"></div>
             </div>
           </div>
         </div>
@@ -335,9 +340,9 @@
           <div class="card-header"><h2>Личный QR</h2></div>
           <div class="card-body qr-body">
             <div id="bgQrWrap" class="qr-frame">
-              <canvas id="workerQrCanvas" width="200" height="200"></canvas>
+              <canvas id="bgQrCanvas" width="200" height="200"></canvas>
             </div>
-            <button type="button" class="btn btn-outline" id="workerQrRefreshBtn">Обновить QR</button>
+            <button type="button" class="btn btn-outline" id="bgQrRefreshBtn">Обновить QR</button>
             <p class="muted qr-note">Раз в сутки · вход без пароля</p>
           </div>
         </div>
@@ -347,8 +352,8 @@
         <div class="card">
           <div class="card-header"><h2>Смена пароля</h2></div>
           <div class="card-body form-stack">
-            <div class="form-group"><label>Текущий</label><input class="input" id="wOldPass" type="password"></div>
-            <div class="form-group"><label>Новый</label><input class="input" id="wNewPass" type="password"></div>
+            <div class="form-group"><label>Текущий пароль</label><input class="input" id="wOldPass" type="password"></div>
+            <div class="form-group"><label>Новый пароль</label><input class="input" id="wNewPass" type="password"></div>
             <div class="form-group"><label>Повтор</label><input class="input" id="wNewPass2" type="password"></div>
             <button type="button" class="btn btn-primary" id="wChangePassBtn">Сменить пароль</button>
           </div>
@@ -366,10 +371,39 @@
                 <option value="other">Другое</option>
               </select>
             </div>
-            <div class="form-group"><label>Тема</label><input class="input" id="bgSubject"></div>
-            <div class="form-group"><label>Текст</label><textarea class="input textarea" id="rptBody" rows="4"></textarea></div>
+            <div class="form-group"><label>Тема</label><input class="input" id="bgSubject" placeholder="Изменить email / данные…"></div>
+            <div class="form-group"><label>Причина</label><textarea class="input textarea" id="rptBody" rows="4"></textarea></div>
             <button type="button" class="btn btn-primary" id="wSendReportBtn">Отправить</button>
           </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <div class="card-header"><h2>Интерфейс и дашборд</h2></div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label>Язык</label>
+              <select class="input" id="settingsLang"><option value="ru">Русский</option></select>
+            </div>
+            <div class="form-group">
+              <label>Боковое меню</label>
+              <select class="input" id="settingsSidebarMode">
+                <option value="hover">При наведении</option>
+                <option value="click">Только по клику</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Плотность сводки</label>
+              <select class="input" id="settingsDensity">
+                <option value="normal">Обычная</option>
+                <option value="compact">Компактная</option>
+              </select>
+            </div>
+          </div>
+          <label class="check"><input type="checkbox" id="notifApp" checked> Уведомления в приложении</label>
+          <label class="check"><input type="checkbox" id="notifCritical" checked> Критические работы</label>
+          <button type="button" class="btn btn-primary" id="saveUiPrefsBtn" style="margin-top:12px;">Сохранить настройки интерфейса</button>
         </div>
       </div>
     </section>

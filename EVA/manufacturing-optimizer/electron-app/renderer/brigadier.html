@@ -461,11 +461,13 @@
                   <div class="muted" id="chatPeerMeta"></div>
                 </div>
                 <div class="chat-messages" id="chatMessages"></div>
-                <div class="chat-compose">
-                  <select class="input" id="chatTemplate">
-                    <option value="">— шаблон —</option>
+                <div class="chat-compose" style="grid-template-columns: 180px 140px 1fr auto; gap:8px;">
+                  <select class="input" id="chatPeerSelect" title="Кому">
+                    <option value="">— кому (новый диалог) —</option>
+                    <option value="admin:0">Администратор</option>
                   </select>
-                  <textarea class="input textarea" id="chatBody" rows="2" placeholder="Сообщение…"></textarea>
+                  <select class="input" id="chatTemplate">...</select>
+                  <textarea class="input textarea" id="chatBody" rows="2"></textarea>
                   <button type="button" class="btn btn-primary" id="btnChatSend">Отправить</button>
                 </div>
               </div>

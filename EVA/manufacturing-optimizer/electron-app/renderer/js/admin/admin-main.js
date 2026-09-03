@@ -416,10 +416,56 @@ async function initAdmin() {
     console.warn('explain on init', e);
   }
 
+  if (window._chatPollAdmin) clearInterval(window._chatPollAdmin);
+window._chatPollAdmin = setInterval(() => {
+  if (AdminState.currentTab === 'messages') {
+    loadChatThreadsAdmin();
+    if (ChatState.activeId) openChatThreadAdmin(ChatState.activeId);
+  } else if (typeof loadChatThreadsAdmin === 'function') {
+    loadChatThreadsAdmin(); // обновит notifDot
+  }
+}, 8000);
+
   console.log('[Admin] ✅ Готово!');
   showNotification('Добро пожаловать!', 'Админ-панель загружена', 'success');
 }
 
+
+async function loadChatPeerOptionsAdmin() {
+  const sel = document.getElementById('chatPeerSelect');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— получатель —</option>';
+  const r = await fetch(API_CHAT + '/workers');
+  if (!r.ok) return;
+  const data = await r.json();
+  const list = Array.isArray(data) ? data : data.items || [];
+  list
+    .slice()
+    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ru'))
+    .forEach((w) => {
+      const o = document.createElement('option');
+      o.value = 'worker:' + w.id;
+      o.textContent =
+        (w.name || '#' + w.id) +
+        (w.is_brigadier ? ' · бригадир' : '') +
+        (w.brigade_id != null ? ' · бр.' + w.brigade_id : '');
+      sel.appendChild(o);
+    });
+  // бригады
+  try {
+    const rb = await fetch(API_CHAT + '/brigades');
+    if (rb.ok) {
+      const bd = await rb.json();
+      const bl = Array.isArray(bd) ? bd : bd.items || [];
+      bl.forEach((b) => {
+        const o = document.createElement('option');
+        o.value = 'brigade:' + b.id;
+        o.textContent = 'Бригада: ' + (b.name || b.id);
+        sel.appendChild(o);
+      });
+    }
+  } catch (_) {}
+}
 // function setupEventListeners() {
 //     const DOM = getDOM();
     
@@ -8548,12 +8594,14 @@ async function sendChatMessageAdmin() {
   openChatThreadAdmin(ChatState.activeId);
 }
 
-async function adminStartChat() {
-  const peer_type = prompt('Тип получателя: worker или brigade', 'brigade');
-  const peer_id = Number(prompt('ID worker или brigade', '325'));
-  const peer_name = prompt('Имя / название', 'Бригада');
-  const text = prompt('Первое сообщение', 'Проверьте сроки операций');
-  if (!peer_type || !peer_id || !text) return;
+async function adminStartChatFromSelect() {
+  const raw = document.getElementById('chatPeerSelect')?.value;
+  const body = (document.getElementById('chatBody')?.value || '').trim();
+  if (!raw) return alert('Выберите получателя');
+  if (!body) return alert('Введите текст');
+  const [peer_type, idStr] = raw.split(':');
+  const peer_id = Number(idStr);
+  const peer_name = document.getElementById('chatPeerSelect').selectedOptions[0].textContent;
   const r = await fetch(API_CHAT + '/chat/start', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -8562,14 +8610,15 @@ async function adminStartChat() {
       peer_id,
       peer_name,
       brigade_id: peer_type === 'brigade' ? peer_id : null,
-      subject: text.slice(0, 80),
-      body: text,
+      subject: body.slice(0, 80),
+      body,
       sender_role: 'admin',
       sender_name: 'Администратор',
     }),
   });
   if (!r.ok) return alert('Ошибка ' + r.status);
   const d = await r.json();
+  document.getElementById('chatBody').value = '';
   await loadChatThreadsAdmin();
   openChatThreadAdmin(d.thread_id);
 }

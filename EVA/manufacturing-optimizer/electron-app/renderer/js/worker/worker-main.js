@@ -45,6 +45,17 @@ async function initWorker() {
   setupEventListeners();
   setupSettings();
 
+  if (window._chatPoll) clearInterval(window._chatPoll);
+window._chatPoll = setInterval(() => {
+  if (WorkerState.page === 'messages') {
+    loadChatThreads();
+    if (ChatState.activeId) openChatThread(ChatState.activeId);
+  } else {
+    // только бейдж непрочитанных
+    loadChatThreads();
+  }
+}, 8000);
+
   document.getElementById('btnChatSend')?.addEventListener('click', sendChatMessage);
   document.getElementById('chatSearch')?.addEventListener('input', renderChatThreadList);
   document.getElementById('btnNotifPanel')?.addEventListener('click', () => {
@@ -52,6 +63,11 @@ async function initWorker() {
     loadChatThreads();
   });
   fillChatTemplates();
+
+  if (page === 'settings') {
+    if (typeof fillSettings === 'function') fillSettings();
+    loadPersonalQr(false);
+  }
 
   const auth = window.electronAPI?.storage?.get('auth');
   const q = new URLSearchParams(window.location.search || '');
@@ -323,81 +339,69 @@ function fillSettingsForm() {
 }
 
 async function loadPersonalQr(force) {
-  // const frame = document.getElementById('personalQrFrame');
-    const frame = document.getElementById('personalQrFrame') || document.getElementById('bgQrWrap');
-  const canvas =
-    document.getElementById('personalQrCanvas') ||
-    document.getElementById('workerQrCanvas');
-  // const ph = document.getElementById('personalQrPlaceholder');
-  const ph = document.getElementById('personalQrPlaceholder');
-  const expEl = document.getElementById('qrExpires');
-  const stEl = document.getElementById('qrStatus');
-  if (ph) ph.textContent = 'Загрузка…';
-
-  const auth = window.electronAPI?.storage?.get('auth');
-  const workerId = auth?.user?.id || WorkerState.userId;
-  if (!workerId) {
-    if (ph) ph.textContent = 'Нет сессии';
-    if (stEl) stEl.textContent = 'ошибка';
+  const canvas = document.getElementById('bgQrCanvas');
+  const wrap = document.getElementById('bgQrWrap');
+  if (!canvas) {
+    console.warn('bgQrCanvas not found');
     return;
   }
+  const workerId = WorkerState.userId || WorkerState.user?.id;
+  if (!workerId) return;
 
+  let token = null;
   try {
-    // Prefer personal daily QR endpoint
-    let res = await fetch(API + '/auth/qr/my?worker_id=' + encodeURIComponent(workerId) + (force ? '&refresh=1' : ''));
+    let res = await fetch(
+      API + '/auth/qr/my?worker_id=' + encodeURIComponent(workerId) + (force ? '&refresh=1' : '')
+    );
     if (!res.ok) {
-      // fallback: create session token for display
       res = await fetch(API + '/auth/qr/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ worker_id: workerId, purpose: 'personal_daily' })
+        body: JSON.stringify({}),
       });
     }
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
-    const token = data.token || data.qr_token || data.code || data.payload;
-    const expires = data.expires_at || data.expires || data.valid_until;
-    WorkerState.qr = { token, expires };
-
-    if (expEl) {
-      try {
-        expEl.textContent = expires
-          ? new Date(expires).toLocaleString('ru-RU')
-          : 'до полуночи (сервер)';
-      } catch (_) {
-        expEl.textContent = String(expires || '—');
-      }
-    }
-    if (stEl) stEl.textContent = data.status || 'активен';
-    const payload = typeof token === 'string' ? token : JSON.stringify(token || data);
-    const prev = document.getElementById('qrTokenPreview');
-    if (prev) {
-      const s = String(payload);
-      prev.textContent = s.length > 28 ? s.slice(0, 14) + '…' + s.slice(-8) : s;
-    }
-    await drawQrOnCanvas(canvas, payload);
-    frame?.classList.add('has-qr');
-    if (ph) ph.style.display = 'none';
+    token = data.token || data.payload || data.qr_token || JSON.stringify(data);
   } catch (e) {
-    console.warn('[QR]', e);
-    frame?.classList.remove('has-qr');
-    if (ph) {
-      ph.style.display = 'flex';
-      ph.textContent = 'QR недоступен: ' + (e.message || e) + '. Нужен /auth/qr/my на API.';
-    }
-    if (stEl) stEl.textContent = 'не загружен';
-    // local fallback pattern for UI demo
-    if (canvas) {
+    // локальный токен, чтобы QR всё равно рисовался
+    token =
+      'NEVZ|worker|' +
+      workerId +
+      '|' +
+      new Date().toISOString().slice(0, 10) +
+      (force ? '|' + Date.now() : '');
+    console.warn('[QR] API fallback', e);
+  }
+
+  try {
+    if (typeof QRCode !== 'undefined' && QRCode.toCanvas) {
+      await QRCode.toCanvas(canvas, String(token), {
+        width: 200,
+        margin: 1,
+        color: { dark: '#1b2b48', light: '#ffffff' },
+      });
+    } else if (typeof QRCode === 'function') {
+      // davidshimjs: очистить и пересоздать
+      const host = wrap || canvas.parentElement;
+      host.innerHTML = '';
+      const div = document.createElement('div');
+      host.appendChild(div);
+      new QRCode(div, { text: String(token), width: 180, height: 180 });
+    } else {
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#fff';
-      ctx.fillRect(0, 0, 180, 180);
-      ctx.fillStyle = '#1b2b48';
-      ctx.font = '12px sans-serif';
-      ctx.fillText('QR API offline', 40, 90);
+      ctx.fillRect(0, 0, 200, 200);
+      ctx.fillStyle = '#191c1e';
+      ctx.font = '12px monospace';
+      ctx.fillText(String(token).slice(0, 28), 10, 100);
     }
+    WorkerState.qr = { token, at: Date.now() };
+  } catch (e) {
+    console.error('QR draw', e);
   }
 }
-
+document.getElementById('bgQrRefreshBtn')?.addEventListener('click', () => loadPersonalQr(true));
 /** Minimal QR-like placeholder if no library — tries CDN-free matrix from token hash */
 async function drawQrOnCanvas(canvas, text) {
   if (!canvas) return;
@@ -426,6 +430,43 @@ async function drawQrOnCanvas(canvas, text) {
     });
   }
   drawPseudoQr(ctx, text, size);
+}
+
+
+async function loadChatPeerOptions() {
+  const sel = document.getElementById('chatPeerSelect');
+  if (!sel) return;
+  const myId = Number(WorkerState.userId || WorkerState.user?.id);
+  sel.innerHTML = '<option value="">— кому (новый диалог) —</option><option value="admin:0">Администратор</option>';
+  try {
+    // коллеги по бригаде
+    const mates = WorkerState.mates || [];
+    mates.forEach((w) => {
+      if (Number(w.id) === myId) return;
+      const o = document.createElement('option');
+      o.value = 'worker:' + w.id;
+      o.textContent = (w.name || ('#' + w.id)) + (w.is_brigadier ? ' · бригадир' : '');
+      sel.appendChild(o);
+    });
+    // если mates пуст — с API
+    if (mates.length < 2 && WorkerState.brigadeId != null) {
+      const r = await fetch(API + '/workers?brigade_id=' + encodeURIComponent(WorkerState.brigadeId));
+      if (r.ok) {
+        const data = await r.json();
+        const list = Array.isArray(data) ? data : data.items || [];
+        list.forEach((w) => {
+          if (Number(w.id) === myId) return;
+          if ([...sel.options].some((x) => x.value === 'worker:' + w.id)) return;
+          const o = document.createElement('option');
+          o.value = 'worker:' + w.id;
+          o.textContent = w.name || ('#' + w.id);
+          sel.appendChild(o);
+        });
+      }
+    }
+  } catch (e) {
+    console.warn(e);
+  }
 }
 
 function drawPseudoQr(ctx, text, size) {
@@ -1114,16 +1155,24 @@ async function sendChatMessage() {
   }
   try {
     if (!ChatState.activeId) {
+      const peerRaw = document.getElementById('chatPeerSelect')?.value || 'admin:0';
+      const [ptype, pid] = peerRaw.split(':');
+      const peer_type = ptype === 'admin' ? 'worker' : ptype; // peer в БД: worker|brigade
+      // для admin как получателя: peer_type=worker, peer_id=0, subject помечаем
+      const peer_id = Number(pid);
+      const peer_name =
+        document.getElementById('chatPeerSelect')?.selectedOptions?.[0]?.textContent || name;
+
       const r = await fetch(API + '/chat/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          peer_type: 'worker',
-          peer_id: Number(uid),
-          peer_name: name,
-          brigade_id: brigadeId != null ? Number(brigadeId) : null,
+          peer_type: peer_id === 0 ? 'worker' : 'worker',
+          peer_id: peer_id === 0 ? Number(uid) : peer_id, // диалог «с админом» привязан к себе; админ видит все
+          peer_name: peer_id === 0 ? name + ' → Админ' : peer_name,
+          brigade_id: WorkerState.brigadeId,
           subject: body.slice(0, 80),
-          body,
+          body: (peer_id === 0 ? '[к администратору] ' : '') + body,
           sender_role: 'worker',
           sender_id: Number(uid),
           sender_name: name,
