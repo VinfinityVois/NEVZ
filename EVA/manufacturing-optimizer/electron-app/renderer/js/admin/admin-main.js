@@ -72,8 +72,11 @@ function renderPeerList() {
   box.querySelectorAll('.peer-item').forEach((el) => {
     el.addEventListener('click', () => {
       const key = el.getAttribute('data-key');
-      const item = PeerPicker.items.find((i) => i.key === key);
+      // const item = PeerPicker.items.find((i) => i.key === key);
       PeerPicker.selected = key;
+      const item = PeerPicker.items.find((i) => i.key === key);
+      const lab = document.getElementById('chatPeerSelectedLabel');
+      if (lab) lab.textContent = item ? ('Выбран: ' + item.name) : 'Никто не выбран';
       const val = document.getElementById('chatPeerValue');
       const label = document.getElementById('chatPeerLabel');
       if (val) val.value = key;
@@ -1999,6 +2002,7 @@ document.getElementById('btnChatNew')?.addEventListener('click', async () => {
   await loadChatPeerOptionsAdmin();
   const m = document.getElementById('chatNewModal');
   if (m) {
+    m.classList.add('is-open');
     m.style.display = 'flex';
     document.getElementById('chatPeerSearch')?.focus();
   }
@@ -2006,6 +2010,8 @@ document.getElementById('btnChatNew')?.addEventListener('click', async () => {
 document.getElementById('chatNewClose')?.addEventListener('click', () => {
   const m = document.getElementById('chatNewModal');
   if (m) m.style.display = 'none';
+  m.classList.remove('is-open');
+  m.style.display = 'none'; 
 });
 document.getElementById('chatNewSend')?.addEventListener('click', () => {
   if (typeof adminStartChatFromSelect === 'function') adminStartChatFromSelect();

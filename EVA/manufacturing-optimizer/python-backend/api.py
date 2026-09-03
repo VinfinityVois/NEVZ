@@ -634,6 +634,82 @@ async def auth_qr_poll(token: str):
         return {"status": "ok", "user": sess["user"], "token": sess.get("token_auth")}
     return {"status": "pending"}
 
+@app.get("/auth/qr/my")
+async def auth_qr_my(worker_id: int, refresh: int = 0):
+    """
+    Личный QR сотрудника/бригадира для входа без пароля.
+    Клиент: GET /auth/qr/my?worker_id=114&refresh=1
+    """
+    if worker_id is None or int(worker_id) <= 0:
+        raise HTTPException(status_code=400, detail="worker_id required")
+
+    wid = int(worker_id)
+
+    # Проверяем, что сотрудник есть в БД
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, login, name, role, brigade_id, is_brigadier, is_active "
+            "FROM workers WHERE id = ? LIMIT 1",
+            (wid,),
+        )
+        row = cur.fetchone()
+    finally:
+        conn.close()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="worker not found")
+
+    worker = dict(row)
+
+    # Ищем ещё не истёкшую сессию этого worker (если не refresh)
+    now = _time.time()
+    token = None
+    if not refresh:
+        for t, sess in list(_QR_SESSIONS.items()):
+            if (
+                sess.get("worker_id") == wid
+                and sess.get("kind") == "personal"
+                and now <= float(sess.get("expires") or 0)
+            ):
+                token = t
+                break
+
+    if not token:
+        token = secrets.token_urlsafe(24)
+        # 24 часа — «обновляется раз в сутки»; refresh=1 — новый сразу
+        _QR_SESSIONS[token] = {
+            "expires": now + 86400,
+            "user": None,
+            "token_auth": None,
+            "worker_id": wid,
+            "kind": "personal",
+            "worker_preview": {
+                "id": worker.get("id"),
+                "login": worker.get("login"),
+                "name": worker.get("name"),
+                "role": worker.get("role")
+                or ("brigadier" if worker.get("is_brigadier") else "worker"),
+                "brigade_id": worker.get("brigade_id"),
+            },
+        }
+
+    sess = _QR_SESSIONS[token]
+    payload = json.dumps(
+        {"t": token, "v": 1, "uid": wid, "kind": "personal"},
+        ensure_ascii=False,
+    )
+
+    return {
+        "success": True,
+        "token": token,
+        "payload": payload,
+        "qr_token": token,
+        "expires_in": max(0, int(float(sess["expires"]) - now)),
+        "worker_id": wid,
+        "worker": sess.get("worker_preview"),
+    }
 
 @app.post("/auth/forgot-password")
 async def auth_forgot(body: AuthForgotBody):

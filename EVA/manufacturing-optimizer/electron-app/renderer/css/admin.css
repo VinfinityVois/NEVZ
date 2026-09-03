@@ -2981,3 +2981,18 @@ input:checked + .slider:before {
   .chat-new-overlay[style*="flex"] {
     display: flex !important;
   }
+
+  .chat-new-overlay.is-open {
+    display: flex !important;
+  }
+  .peer-item.selected {
+    background: #e8f0fe !important;
+    outline: 2px solid #1a73e8;
+  }
+  #chatPeerSelectedLabel {
+    padding: 6px 8px;
+    background: #f0f4ff;
+    border-radius: 8px;
+    color: #1a73e8;
+    font-weight: 600;
+  }

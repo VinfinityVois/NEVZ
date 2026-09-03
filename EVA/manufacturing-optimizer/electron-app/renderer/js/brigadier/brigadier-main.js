@@ -137,6 +137,11 @@ async function loadChatPeerOptions() {
 }
 
 async function startChatFromPicker() {
+const peerTitle = item?.name || (ptype === 'admin' ? 'Администратор' : raw);
+const nameEl = document.getElementById('chatPeerName');
+const metaEl = document.getElementById('chatPeerMeta');
+if (nameEl) nameEl.textContent = peerTitle;
+if (metaEl) metaEl.textContent = ptype === 'admin' ? 'администратор' : (item?.meta || '');
   const raw = document.getElementById('chatPeerValue')?.value || '';
   const body = (document.getElementById('chatNewBody')?.value || '').trim();
   if (!raw) return alert('Выберите получателя в списке');
@@ -151,10 +156,7 @@ async function startChatFromPicker() {
       body: JSON.stringify({
         peer_type: 'worker',
         peer_id: ptype === 'admin' ? Number(State.userId) : peer_id,
-        peer_name:
-          ptype === 'admin'
-            ? (State.user?.name || 'Бригадир') + ' → Админ'
-            : item?.name || raw,
+        peer_name: ptype === 'admin' ? 'Администратор' : (item?.name || raw),
         brigade_id: State.brigadeId,
         subject: body.slice(0, 80),
         body: (ptype === 'admin' ? '[к администратору] ' : '') + body,
@@ -177,19 +179,35 @@ async function startChatFromPicker() {
 }
 
 function bindChatNewUi() {
-  document.getElementById('btnChatNew')?.addEventListener('click', async () => {
-    await loadChatPeerOptions();
-    const m = document.getElementById('chatNewModal');
-    if (m) {
-      m.style.display = 'flex';
-      document.getElementById('chatPeerSearch')?.focus();
-    }
-  });
-  document.getElementById('chatNewClose')?.addEventListener('click', () => {
-    document.getElementById('chatNewModal') &&
-      (document.getElementById('chatNewModal').style.display = 'none');
-  });
-  document.getElementById('chatNewSend')?.addEventListener('click', () => startChatFromPicker());
+  const btnNew = document.getElementById('btnChatNew');
+  const btnSend = document.getElementById('chatNewSend');
+  const btnClose = document.getElementById('chatNewClose');
+  if (btnNew && !btnNew.dataset.bound) {
+    btnNew.dataset.bound = '1';
+    btnNew.addEventListener('click', async () => {
+      await loadChatPeerOptions();
+      const m = document.getElementById('chatNewModal');
+      if (m) {
+        m.classList.add('is-open');
+        m.style.display = 'flex';
+        document.getElementById('chatPeerSearch')?.focus();
+      }
+    });
+  }
+  if (btnClose && !btnClose.dataset.bound) {
+    btnClose.dataset.bound = '1';
+    btnClose.addEventListener('click', () => {
+      const m = document.getElementById('chatNewModal');
+      if (m) {
+        m.classList.remove('is-open');
+        m.style.display = 'none';
+      }
+    });
+  }
+  if (btnSend && !btnSend.dataset.bound) {
+    btnSend.dataset.bound = '1';
+    btnSend.addEventListener('click', () => startChatFromPicker());
+  }
 }
 const PAGE_LABELS = {
   dashboard: 'Сводка',

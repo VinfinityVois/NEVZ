@@ -450,6 +450,8 @@ async function loadChatPeerOptions() {
   const items = [
     { key: 'admin:0', type: 'admin', id: 0, name: 'Администратор', meta: 'служба поддержки' },
   ];
+
+  // 1) коллеги из mates
   const mates = WorkerState.mates || [];
   mates.forEach((w) => {
     if (Number(w.id) === myId) return;
@@ -457,32 +459,50 @@ async function loadChatPeerOptions() {
       key: 'worker:' + w.id,
       type: w.is_brigadier ? 'brigadier' : 'worker',
       id: w.id,
-      name: w.name || '#' + w.id,
+      name: w.name || ('#' + w.id),
       meta: w.is_brigadier ? 'бригадир' : 'сотрудник',
     });
   });
-  if (WorkerState.brigadeId != null && mates.length < 2) {
-    try {
-      const r = await fetch(API + '/workers?brigade_id=' + WorkerState.brigadeId);
-      if (r.ok) {
-        const data = await r.json();
-        (Array.isArray(data) ? data : data.items || []).forEach((w) => {
-          if (Number(w.id) === myId) return;
-          if (items.some((i) => i.key === 'worker:' + w.id)) return;
-          items.push({
-            key: 'worker:' + w.id,
-            type: w.is_brigadier ? 'brigadier' : 'worker',
-            id: w.id,
-            name: w.name || '#' + w.id,
-            meta: 'бр.' + WorkerState.brigadeId,
-          });
-        });
-      }
-    } catch (_) {}
-  }
-  PeerPicker.items = items;
-  renderPeerList();
 
+  // 2) ВСЕГДА догрузить с API (не только если mates < 2)
+  try {
+    let url = API + '/workers';
+    if (WorkerState.brigadeId != null) {
+      url += '?brigade_id=' + encodeURIComponent(WorkerState.brigadeId);
+    }
+    const r = await fetch(url);
+    if (r.ok) {
+      const data = await r.json();
+      const list = Array.isArray(data) ? data : data.items || [];
+      list.forEach((w) => {
+        if (Number(w.id) === myId) return;
+        if (items.some((i) => i.key === 'worker:' + w.id)) return;
+        items.push({
+          key: 'worker:' + w.id,
+          type: w.is_brigadier || w.role === 'brigadier' ? 'brigadier' : 'worker',
+          id: w.id,
+          name: w.name || ('#' + w.id),
+          meta:
+            (w.is_brigadier || w.role === 'brigadier' ? 'бригадир' : 'сотрудник') +
+            (w.brigade_id != null ? ' · бр.' + w.brigade_id : ''),
+        });
+      });
+    }
+  } catch (e) {
+    console.warn('[chat peers] worker fetch', e);
+  }
+
+  PeerPicker.items = items;
+  PeerPicker.selected = null;
+  PeerPicker.filter = 'all'; // сброс фильтра — иначе «Сотрудники» без admin = пусто
+  const hv = document.getElementById('chatPeerValue');
+  if (hv) hv.value = '';
+  const lab = document.getElementById('chatPeerSelectedLabel');
+  if (lab) lab.textContent = 'Никто не выбран';
+  // сбросить active chip на «Все»
+  document.querySelectorAll('#chatPeerFilters [data-peer-filter]').forEach((c) => {
+    c.classList.toggle('active', c.getAttribute('data-peer-filter') === 'all');
+  });
   console.log('[chat peers] worker count=', items.length);
   renderPeerList();
 }

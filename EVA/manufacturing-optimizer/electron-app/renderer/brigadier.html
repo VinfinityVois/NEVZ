@@ -647,7 +647,7 @@
   <p id="loadingText">Загрузка…</p>
 </div>
 
-<div id="chatNewModal" class="modal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(15,23,42,.45); align-items:center; justify-content:center;">
+<div id="chatNewModal" class="chat-new-overlay" style="display:none;">
   <div class="card" style="width:min(440px,92vw); max-height:80vh; display:flex; flex-direction:column; background:#fff; border-radius:16px; padding:0; overflow:hidden;">
     <div style="padding:14px 16px; border-bottom:1px solid #e0e3e6; display:flex; justify-content:space-between; align-items:center;">
       <strong>Новый диалог</strong>
@@ -661,6 +661,7 @@
         <button type="button" class="chip" data-peer-filter="brigadier">Бригадиры</button>
         <button type="button" class="chip" data-peer-filter="worker">Сотрудники</button>
       </div>
+      <p id="chatPeerSelectedLabel" class="muted" style="margin:0;font-size:13px;">Никто не выбран</p>
       <div class="peer-picker-list" id="chatPeerList" style="overflow:auto; max-height:280px; border:1px solid #e0e3e6; border-radius:10px;"></div>
       <textarea class="input textarea" id="chatNewBody" rows="3" placeholder="Первое сообщение…"></textarea>
       <button type="button" class="btn btn-primary" id="chatNewSend">Создать и отправить</button>
