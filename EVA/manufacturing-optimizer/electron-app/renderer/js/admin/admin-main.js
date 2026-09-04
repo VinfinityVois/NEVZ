@@ -35,19 +35,21 @@ function peerEsc(s) {
 function renderPeerList() {
   const box = document.getElementById('chatPeerList');
   if (!box) return;
+
   const q = (document.getElementById('chatPeerSearch')?.value || '').toLowerCase().trim();
-  let list = PeerPicker.items.slice();
-  if (PeerPicker.filter !== 'all') {
+  let list = (PeerPicker.items || []).slice();
+  if (PeerPicker.filter && PeerPicker.filter !== 'all') {
     list = list.filter((x) => x.type === PeerPicker.filter);
   }
   if (q) {
     list = list.filter(
       (x) =>
         String(x.name).toLowerCase().includes(q) ||
-        String(x.meta).toLowerCase().includes(q) ||
+        String(x.meta || '').toLowerCase().includes(q) ||
         String(x.id).includes(q)
     );
   }
+
   box.innerHTML = list.length
     ? list
         .map((x) => {
@@ -62,7 +64,7 @@ function renderPeerList() {
             peerEsc(x.name) +
             '</span>' +
             '<span class="p-meta">' +
-            peerEsc(x.meta) +
+            peerEsc(x.meta || '') +
             '</span></div>'
           );
         })
@@ -70,19 +72,22 @@ function renderPeerList() {
     : '<p class="muted" style="padding:8px">Никого не найдено</p>';
 
   box.querySelectorAll('.peer-item').forEach((el) => {
-    el.addEventListener('click', () => {
+    el.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       const key = el.getAttribute('data-key');
-      // const item = PeerPicker.items.find((i) => i.key === key);
       PeerPicker.selected = key;
-      const item = PeerPicker.items.find((i) => i.key === key);
-      const lab = document.getElementById('chatPeerSelectedLabel');
-      if (lab) lab.textContent = item ? ('Выбран: ' + item.name) : 'Никто не выбран';
+
       const val = document.getElementById('chatPeerValue');
-      const label = document.getElementById('chatPeerLabel');
       if (val) val.value = key;
-      if (label && item) label.textContent = item.name;
-      document.getElementById('chatPeerDrop').style.display = 'none';
-      renderPeerList();
+
+      const item = (PeerPicker.items || []).find((i) => i.key === key);
+      const lab = document.getElementById('chatPeerSelectedLabel');
+      if (lab) lab.textContent = item ? 'Выбран: ' + item.name : 'Выбран: ' + key;
+
+      // только подсветка, без полного перерисовывания списка
+      box.querySelectorAll('.peer-item').forEach((n) => n.classList.remove('selected'));
+      el.classList.add('selected');
     });
   });
 }
@@ -503,6 +508,7 @@ window._chatPollAdmin = setInterval(() => {
     loadChatThreadsAdmin(); // обновит notifDot
   }
 }, 8000);
+
 
   console.log('[Admin] ✅ Готово!');
   showNotification('Добро пожаловать!', 'Админ-панель загружена', 'success');
@@ -8717,10 +8723,13 @@ function renderChatThreadListAdmin() {
           const active = Number(t.id) === Number(ChatState.activeId) ? ' active' : '';
           const unread = t.unread ? '<span class="unread-pill">' + t.unread + '</span>' : '';
           return (
-            '<div class="chat-thread-item' + active + '" data-tid="' + t.id + '">' +
-            '<div class="t-title">' + escapeHtml(t.peer_name || t.subject || ('#' + t.id)) + '</div>' +
-            '<div class="t-prev">' + escapeHtml(t.last_preview || '') + '</div>' +
-            '<div class="t-meta"><span>' + escapeHtml((t.updated_at || '').slice(0, 16)) + '</span>' + unread + '</div></div>'
+            '<div class="chat-thread-item' + active + '" data-id="' + t.id + '">' +
+              '<div class="chat-thread-main">' +
+                '<div class="chat-thread-name">' + esc(t.peer_name || t.subject || ('#' + t.id)) + unread + '</div>' +
+                '<div class="chat-thread-preview">' + esc(t.last_preview || '') + '</div>' +
+              '</div>' +
+              '<button type="button" class="btn-text chat-del" data-del-id="' + t.id + '" title="Удалить">🗑</button>' +
+            '</div>'
           );
         })
         .join('')
@@ -8728,6 +8737,21 @@ function renderChatThreadListAdmin() {
   box.querySelectorAll('.chat-thread-item').forEach((el) => {
     el.addEventListener('click', () => openChatThreadAdmin(el.getAttribute('data-tid')));
   });
+  box.querySelectorAll('.chat-thread-item').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      if (e.target.closest('[data-del-id]')) return;
+      const id = el.getAttribute('data-id');
+      if (id && typeof openChatThread === 'function') openChatThread(id);
+    });
+  });
+  box.querySelectorAll('[data-del-id]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      deleteChatThread(btn.getAttribute('data-del-id'));
+    });
+  });
+  
 }
 
 function escapeHtml(s) {

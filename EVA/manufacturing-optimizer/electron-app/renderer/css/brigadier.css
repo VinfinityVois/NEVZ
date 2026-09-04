@@ -663,3 +663,20 @@
   color: #1a73e8;
   font-weight: 600;
 }
+
+.chat-thread-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.chat-thread-main { flex: 1; min-width: 0; }
+.chat-del {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.55;
+  font-size: 14px;
+}
+.chat-del:hover { opacity: 1; color: #ba1a1a; }
