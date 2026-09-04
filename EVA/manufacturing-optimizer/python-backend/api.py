@@ -3344,7 +3344,7 @@ class ChatStartBody(BaseModel):
     peer_name: Optional[str] = None
     brigade_id: Optional[int] = None
     subject: str = ""
-    body: str
+    body: Optional[str] = ""
     sender_role: str = "admin"
     sender_id: Optional[int] = 0
     sender_name: str = "Администратор"
@@ -3547,7 +3547,9 @@ async def chat_start(body: ChatStartBody):
     conn = get_db()
     try:
         cur = conn.cursor()
-        # ищем открытый тред с этим peer
+        text = (body.body or "").strip()
+
+        # Ищем открытый тред с этим peer
         cur.execute(
             """SELECT id FROM chat_threads
                WHERE peer_type=? AND peer_id=? AND status='open'
@@ -3558,45 +3560,50 @@ async def chat_start(body: ChatStartBody):
         if row:
             tid = row["id"]
         else:
+            subject = (body.subject or text or body.peer_name or "Диалог")[:80]
             cur.execute(
                 """INSERT INTO chat_threads
                    (subject, peer_type, peer_id, peer_name, brigade_id, last_preview, last_sender_role)
                    VALUES (?,?,?,?,?,?,?)""",
                 (
-                    body.subject or body.body[:80],
+                    subject,
                     body.peer_type,
                     body.peer_id,
                     body.peer_name,
                     body.brigade_id,
-                    body.body[:120],
-                    body.sender_role,
+                    (text[:120] if text else ""),
+                    body.sender_role if text else None,
                 ),
             )
             tid = cur.lastrowid
-        cur.execute(
-            """INSERT INTO chat_messages
-               (thread_id, sender_role, sender_id, sender_name, body, template_key)
-               VALUES (?,?,?,?,?,?)""",
-            (
-                tid,
-                body.sender_role,
-                body.sender_id,
-                body.sender_name,
-                body.body,
-                body.template_key,
-            ),
-        )
-        cur.execute(
-            """UPDATE chat_threads SET updated_at=datetime('now','localtime'),
-               last_preview=?, last_sender_role=?, subject=COALESCE(NULLIF(subject,''), ?)
-               WHERE id=?""",
-            (body.body[:120], body.sender_role, body.subject or body.body[:80], tid),
-        )
+
+        # Сообщение — ТОЛЬКО если есть непустой текст (не при «Написать»)
+        if text:
+            cur.execute(
+                """INSERT INTO chat_messages
+                   (thread_id, sender_role, sender_id, sender_name, body, template_key)
+                   VALUES (?,?,?,?,?,?)""",
+                (
+                    tid,
+                    body.sender_role,
+                    body.sender_id,
+                    body.sender_name,
+                    text,
+                    body.template_key,
+                ),
+            )
+            cur.execute(
+                """UPDATE chat_threads
+                   SET last_preview=?, last_sender_role=?, updated_at=CURRENT_TIMESTAMP
+                   WHERE id=?""",
+                (text[:120], body.sender_role, tid),
+            )
+
         conn.commit()
-        return {"success": True, "thread_id": tid}
+        return {"success": True, "thread_id": tid, "created_message": bool(text)}
     finally:
         conn.close()
-
+        
 @app.post("/chat/reply")
 async def chat_reply(body: ChatReplyBody):
     ensure_messaging_tables()

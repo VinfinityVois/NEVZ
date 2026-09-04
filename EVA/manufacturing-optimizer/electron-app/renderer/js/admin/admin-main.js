@@ -8922,37 +8922,62 @@ async function sendChatMessageAdmin() {
 }
 
 async function adminStartChatFromSelect() {
-  const raw = document.getElementById('chatPeerValue')?.value || '';
-  const body =
-    (document.getElementById('chatNewBody')?.value || '').trim() ||
-    (document.getElementById('chatBody')?.value || '').trim();
+  const raw = (
+    document.getElementById('chatPeerValue')?.value ||
+    (typeof PeerPicker !== 'undefined' ? PeerPicker.selected : '') ||
+    ''
+  ).trim();
   if (!raw) return alert('Выберите получателя в списке');
-  if (!body) return alert('Введите текст сообщения');
+
   const [peer_type, idStr] = raw.split(':');
   const peer_id = Number(idStr);
-  const item = (typeof PeerPicker !== 'undefined' ? PeerPicker.items : []).find((i) => i.key === raw);
+  const item = (PeerPicker.items || []).find((i) => i.key === raw);
   const peer_name = item?.name || raw;
 
-  const r = await fetch((typeof API_CHAT !== 'undefined' ? API_CHAT : 'http://127.0.0.1:8000') + '/chat/start', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      peer_type: peer_type === 'admin' ? 'worker' : peer_type,
-      peer_id: peer_type === 'admin' ? 0 : peer_id,
-      peer_name,
-      brigade_id: peer_type === 'brigade' ? peer_id : null,
-      subject: body.slice(0, 80),
-      body,
-      sender_role: 'admin',
-      sender_name: 'Администратор',
-    }),
-  });
-  if (!r.ok) return alert('Ошибка ' + r.status);
-  const d = await r.json();
-  document.getElementById('chatNewBody') && (document.getElementById('chatNewBody').value = '');
-  document.getElementById('chatNewModal') && (document.getElementById('chatNewModal').style.display = 'none');
-  await loadChatThreadsAdmin();
-  if (d.thread_id) openChatThreadAdmin(d.thread_id);
+  // защита от двойного клика
+  const btn = document.getElementById('chatNewSend');
+  if (btn?.dataset.busy === '1') return;
+  if (btn) btn.dataset.busy = '1';
+
+  try {
+    const r = await fetch(
+      (typeof API_CHAT !== 'undefined' ? API_CHAT : API_BASE || 'http://127.0.0.1:8000') +
+        '/chat/start',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          peer_type: peer_type === 'admin' ? 'worker' : peer_type,
+          peer_id: peer_type === 'admin' ? 0 : peer_id,
+          peer_name,
+          brigade_id: peer_type === 'brigade' ? peer_id : null,
+          subject: peer_name,
+          body: '', // без первого сообщения
+          sender_role: 'admin',
+          sender_id: 0,
+          sender_name: 'Администратор',
+        }),
+      }
+    );
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+
+    const modal = document.getElementById('chatNewModal');
+    if (modal) {
+      modal.classList.remove('is-open');
+      modal.style.display = 'none';
+    }
+    PeerPicker.selected = null;
+    const hv = document.getElementById('chatPeerValue');
+    if (hv) hv.value = '';
+
+    await loadChatThreadsAdmin();
+    if (d.thread_id) openChatThreadAdmin(d.thread_id);
+  } catch (e) {
+    alert(String(e.message || e));
+  } finally {
+    if (btn) btn.dataset.busy = '0';
+  }
 }
 
 
@@ -9015,4 +9040,35 @@ async function deleteChatThread(threadId) {
   if (box) box.innerHTML = '';
   const nameEl = document.getElementById('chatPeerName');
   if (nameEl) nameEl.textContent = 'Выберите диалог';
+}
+
+async function sendChatMessageAdmin() {
+  const body = (document.getElementById('chatBody')?.value || '').trim();
+  if (!body || !ChatState.activeId) return alert('Выберите диалог и введите текст');
+
+  const btn = document.getElementById('btnChatSend') || document.querySelector('#chatSendBtn');
+  if (btn?.dataset.busy === '1') return;
+  if (btn) btn.dataset.busy = '1';
+
+  try {
+    const r = await fetch(API_CHAT + '/chat/reply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        thread_id: ChatState.activeId,
+        body,
+        sender_role: 'admin',
+        sender_id: 0,
+        sender_name: 'Администратор',
+        template_key: document.getElementById('chatTemplate')?.value || null,
+      }),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    document.getElementById('chatBody').value = '';
+    await openChatThreadAdmin(ChatState.activeId); // один раз перечитать
+  } catch (e) {
+    alert(String(e.message || e));
+  } finally {
+    if (btn) btn.dataset.busy = '0';
+  }
 }
