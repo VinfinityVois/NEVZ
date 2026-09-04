@@ -680,3 +680,17 @@
   font-size: 14px;
 }
 .chat-del:hover { opacity: 1; color: #ba1a1a; }
+
+.logo-icon, .hub-logo img {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  object-fit: cover;
+  display: block;
+}
+.hub-logo {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  overflow: hidden;
+  padding: 0;
+  background: transparent;
+}

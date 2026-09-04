@@ -3136,3 +3136,17 @@ input:checked + .slider:before {
     .settings-top, .settings-mid { grid-template-columns: 1fr; }
     .settings-ui-grid { grid-template-columns: 1fr; }
   }
+
+  .logo-icon, .hub-logo img {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    object-fit: cover;
+    display: block;
+  }
+  .hub-logo {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    overflow: hidden;
+    padding: 0;
+    background: transparent;
+  }
