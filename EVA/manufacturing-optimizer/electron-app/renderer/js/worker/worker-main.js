@@ -1426,10 +1426,13 @@ async function startChatFromPicker() {
 
   const [ptype, idStr] = raw.split(':');
   const selectedId = Number(idStr);
-  const uid = Number(State.userId || State.user?.id);
+  const uid = Number(WorkerState.userId || WorkerState.user?.id);
   const item = (PeerPicker.items || []).find((i) => i.key === raw);
   const isAdmin = ptype === 'admin';
 
+  if (!uid || Number.isNaN(uid)) {
+    return alert('Сессия сотрудника не загружена (нет userId). Перевойдите.');
+  }
   if (!isAdmin && (!selectedId || Number.isNaN(selectedId))) {
     return alert('Некорректный получатель: ' + raw);
   }
@@ -1445,17 +1448,19 @@ async function startChatFromPicker() {
       body: JSON.stringify({
         peer_type: isAdmin ? 'admin' : 'worker',
         peer_id: isAdmin ? 0 : selectedId,
-        peer_name: isAdmin ? 'Администратор' : item?.name || raw,
-        brigade_id: State.brigadeId || null,
-        subject: isAdmin ? 'Администратор' : item?.name || raw,
+        peer_name: isAdmin ? 'Администратор' : (item?.name || raw),
+        brigade_id: WorkerState.brigadeId || null,
+        subject: isAdmin ? 'Администратор' : (item?.name || raw),
         body: '',
         sender_role: 'worker',
-        sender_id: Number(WorkerState.userId || WorkerState.user?.id),
+        sender_id: uid,
         sender_name: WorkerState.user?.name || 'Сотрудник',
-        brigade_id: WorkerState.brigadeId || null,
       }),
     });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
+    if (!r.ok) {
+      const err = await r.text().catch(() => '');
+      throw new Error('HTTP ' + r.status + ' ' + err);
+    }
     const d = await r.json();
 
     const modal = document.getElementById('chatNewModal');
@@ -1467,9 +1472,14 @@ async function startChatFromPicker() {
     const hv = document.getElementById('chatPeerValue');
     if (hv) hv.value = '';
 
-    await loadChatThreads();
-    if (d.thread_id && typeof openChatThread === 'function') openChatThread(d.thread_id);
+    if (typeof loadChatThreads === 'function') await loadChatThreads();
+    if (d.thread_id && typeof openChatThread === 'function') {
+      openChatThread(d.thread_id);
+    } else {
+      alert('Диалог создан, но не удалось открыть (нет thread_id)');
+    }
   } catch (e) {
+    console.error('[worker chat start]', e);
     alert(String(e.message || e));
   } finally {
     if (btn) btn.dataset.busy = '0';

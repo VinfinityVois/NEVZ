@@ -1189,9 +1189,11 @@
 <script src="https://unpkg.com/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
 
 <script>
-    document.getElementById('settingSidebarMode').value = localStorage.getItem('sidebarMode') || 'click';
-document.getElementById('settingSidebarStartCollapsed').checked =
-  localStorage.getItem('sidebarCollapsed') === '1';
+    // document.getElementById('settingSidebarMode').value = localStorage.getItem('sidebarMode') || 'click';
+    const el = document.getElementById('settingSidebarMode');
+        if (el) el.value = '...';
+    document.getElementById('settingSidebarStartCollapsed').checked =
+    localStorage.getItem('sidebarCollapsed') === '1';
 </script>
 
 

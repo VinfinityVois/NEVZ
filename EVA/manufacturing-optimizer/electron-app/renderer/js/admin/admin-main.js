@@ -8900,26 +8900,7 @@ async function openChatThreadAdmin(tid) {
   loadChatThreadsAdmin();
 }
 
-async function sendChatMessageAdmin() {
-  const body = (document.getElementById('chatBody')?.value || '').trim();
-  if (!body || !ChatState.activeId) return alert('Выберите диалог и введите текст');
-  const template_key = document.getElementById('chatTemplate')?.value || null;
-  const r = await fetch(API_CHAT + '/chat/reply', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      thread_id: ChatState.activeId,
-      body,
-      sender_role: 'admin',
-      sender_id: 0,
-      sender_name: 'Администратор',
-      template_key,
-    }),
-  });
-  if (!r.ok) return alert('Ошибка ' + r.status);
-  document.getElementById('chatBody').value = '';
-  openChatThreadAdmin(ChatState.activeId);
-}
+
 
 async function adminStartChatFromSelect() {
   const raw = (
