@@ -957,68 +957,118 @@
                 
                 <!-- ===== ВКЛАДКА НАСТРОЙКИ ===== -->
                 <div class="tab-pane" id="settings-tab">
-                    <section class="settings-card" style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;max-width:420px;">
-                        <h3 style="margin:0 0 12px;font-size:15px;">Боковая панель</h3>
-                        <label style="display:block;font-size:13px;color:#64748b;margin-bottom:6px;">Режим сворачивания</label>
-                        <select id="settingSidebarMode" class="form-input" style="width:100%;margin-bottom:12px;">
-                          <option value="click">Только по клику на стрелку</option>
-                          <option value="hover">Только по наведению</option>
-                          <option value="both">Клик и наведение</option>
-                        </select>
-                        <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:14px;">
-                          <input type="checkbox" id="settingSidebarStartCollapsed">
-                          При старте свёрнута
-                        </label>
-                        <button type="button" id="btnSaveSidebarSettings" class="btn btn-primary btn-sm">Применить</button>
-                      </section>
-                    <div class="settings-container">
-                        <div class="settings-section">
-                            <h3>Внешний вид</h3>
-                            <div class="setting-item">
-                                <label>Тема</label>
-                                <select id="themeSelect" class="select">
-                                    <option value="light">Светлая</option>
-                                    <option value="dark">Тёмная</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div class="settings-section">
-                            <h3>Производство</h3>
-                            <div class="setting-item">
-                                <label>Автосохранение</label>
-                                <label class="switch">
-                                    <input type="checkbox" id="autoSave" checked>
-                                    <span class="slider"></span>
-                                </label>
-                            </div>
-                            <div class="setting-item">
-                                <label>Интервал обновления (сек)</label>
-                                <input type="number" id="refreshInterval" class="input" value="30" min="5" max="300">
-                            </div>
-                        </div>
-                        
-                        <div class="settings-section">
-                            <h3>AI Настройки</h3>
-                            <div class="setting-item">
-                                <label>Авто-оптимизация</label>
-                                <label class="switch">
-                                    <input type="checkbox" id="autoOptimize">
-                                    <span class="slider"></span>
-                                </label>
-                            </div>
-                            <div class="setting-item">
-                                <label>Порог эффективности (%)</label>
-                                <input type="number" id="efficiencyThreshold" class="input" value="75" min="50" max="95">
-                            </div>
-                        </div>
-                        
-                        <div class="settings-actions">
-                            <button class="btn btn-primary" id="saveSettingsBtn">Сохранить настройки</button>
-                            <button class="btn btn-outline" id="resetSettingsBtn">Сбросить</button>
-                        </div>
+                    <div class="page-head" style="margin-bottom:16px;">
+                      <h1 style="margin:0;font-size:22px;">Настройки</h1>
+                      <p class="page-sub" style="margin:4px 0 0;color:#64748b;">
+                        Профиль · интерфейс · безопасность
+                      </p>
                     </div>
-                </div>
+                  
+                    <!-- Ряд 1: профиль + сводка аккаунта -->
+                    <div class="settings-top">
+                      <div class="card settings-profile">
+                        <div class="card-header">
+                          <h2>Данные администратора</h2>
+                          <span class="badge">сессия</span>
+                        </div>
+                        <div class="card-body settings-personal">
+                          <div class="avatar-block">
+                            <div class="user-avatar xl" id="settingsAvatar">А</div>
+                            <img id="settingsAvatarImg" class="avatar-preview" alt="" style="display:none;">
+                            <input type="file" id="avatarFileInput" accept="image/*" hidden>
+                            <div class="avatar-actions">
+                              <button type="button" class="btn btn-outline" id="avatarChangeBtn">Сменить фото</button>
+                              <button type="button" class="btn btn-outline" id="avatarDeleteBtn">Удалить фото</button>
+                            </div>
+                            <span class="muted" style="margin-top:6px;font-size:11px;">Хранится на этом ПК</span>
+                          </div>
+                          <div class="settings-fields full-readonly">
+                            <div class="form-group"><label>ФИО / имя</label><input class="input" id="settingsName" readonly></div>
+                            <div class="form-group"><label>Логин</label><input class="input" id="settingsLogin" readonly></div>
+                            <div class="form-group"><label>Роль</label><input class="input" id="settingsRole" readonly value="admin"></div>
+                            <div class="form-group"><label>Email</label><input class="input" id="settingsEmail" readonly></div>
+                            <div class="form-group"><label>Статус</label><input class="input" id="settingsOnlineStatus" readonly value="В сети"></div>
+                          </div>
+                        </div>
+                      </div>
+                  
+                      <div class="card settings-qr">
+                        <div class="card-header"><h2>О системе</h2></div>
+                        <div class="card-body qr-body" style="align-items:flex-start;">
+                          <p class="qr-note" style="text-align:left;">
+                            Manufacturing Optimizer · НЭВЗ<br>
+                            API: <code id="settingsApiUrl">http://127.0.0.1:8000</code>
+                          </p>
+                          <p class="muted" id="settingsBuildInfo" style="font-size:12px;margin:0;">v2.x · admin</p>
+                        </div>
+                      </div>
+                    </div>
+                  
+                    <!-- Ряд 2: пароль + уведомления -->
+                    <div class="settings-mid">
+                      <div class="card">
+                        <div class="card-header"><h2>Смена пароля</h2></div>
+                        <div class="card-body form-stack">
+                          <div class="form-group"><label>Текущий пароль</label><input class="input" id="admOldPass" type="password"></div>
+                          <div class="form-group"><label>Новый пароль</label><input class="input" id="admNewPass" type="password"></div>
+                          <div class="form-group"><label>Повтор</label><input class="input" id="admNewPass2" type="password"></div>
+                          <button type="button" class="btn btn-primary" id="admChangePassBtn">Сменить пароль</button>
+                        </div>
+                      </div>
+                      <div class="card">
+                        <div class="card-header"><h2>Уведомления</h2></div>
+                        <div class="card-body form-stack check-row">
+                          <label><input type="checkbox" id="notifApp" checked> В приложении</label>
+                          <label><input type="checkbox" id="notifCritical" checked> Критический путь / сбои</label>
+                          <label><input type="checkbox" id="notifChat" checked> Новые сообщения</label>
+                          <label><input type="checkbox" id="notifAi" checked> AI / оптимизация</label>
+                        </div>
+                      </div>
+                    </div>
+                  
+                    <!-- Ряд 3: интерфейс (как у бригадира) -->
+                    <div class="card settings-ui">
+                      <div class="card-header"><h2>Интерфейс и дашборд</h2></div>
+                      <div class="card-body settings-ui-grid">
+                        <div class="form-group">
+                          <label>Язык</label>
+                          <select class="input" id="settingsLang">
+                            <option value="ru" selected>Русский</option>
+                            <option value="en">English</option>
+                          </select>
+                        </div>
+                        <div class="form-group">
+                          <label>Боковое меню</label>
+                          <select class="input" id="settingsSidebarMode">
+                            <option value="click">По клику</option>
+                            <option value="hover">При наведении</option>
+                            <option value="both">Клик и наведение</option>
+                          </select>
+                        </div>
+                        <div class="form-group">
+                          <label>Плотность дашборда</label>
+                          <select class="input" id="settingsDashDensity">
+                            <option value="comfortable">Обычная</option>
+                            <option value="compact">Компактная</option>
+                          </select>
+                        </div>
+                        <div class="form-group">
+                          <label>Тема</label>
+                          <select class="input" id="themeSelect">
+                            <option value="light">Светлая</option>
+                            <option value="dark">Тёмная</option>
+                          </select>
+                        </div>
+                        <div class="form-group check-row">
+                          <label><input type="checkbox" id="settingSidebarStartCollapsed"> При старте меню свёрнуто</label>
+                          <label><input type="checkbox" id="autoSave" checked> Автосохранение</label>
+                        </div>
+                        <div class="form-group" style="grid-column:1/-1">
+                          <button type="button" class="btn btn-primary" id="settingsSaveUiBtn">Сохранить настройки интерфейса</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 
             </div>
         </main>
@@ -1054,7 +1104,7 @@
     </div>
     
     <div id="chatNewModal" class="chat-new-overlay" style="display:none;">
-            <div class="card" style="width:min(440px,92vw); max-height:80vh; display:flex; flex-direction:column; background:#fff; border-radius:16px; padding:0; overflow:hidden;">
+        <div class="card" style="width:min(640px,94vw); max-height:88vh; display:flex; flex-direction:column; background:#fff; border-radius:16px; padding:0; overflow:hidden;">
               <div style="padding:14px 16px; border-bottom:1px solid #e0e3e6; display:flex; justify-content:space-between; align-items:center;">
                 <strong>Новый диалог</strong>
                 <button type="button" class="btn-text" id="chatNewClose">✕</button>
@@ -1075,7 +1125,7 @@
               </div>
             </div>
           </div>
-          <input type="hidden" id="chatPeerValue" value="">
+          <input type="hidden" id="chatPeerValue" value="" />
 <!-- Скрипты -->
 <script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
 <script src="https://unpkg.com/cytoscape-dagre@4.0.0/dist/cytoscape-dagre.min.js"></script>

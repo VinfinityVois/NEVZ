@@ -3492,22 +3492,22 @@ async def chat_threads(
                 (limit,),
             )
         else:
-            # свои треды: peer worker или peer brigade
+            wid = worker_id or 0
+            bid = brigade_id
             cur.execute(
                 """
-                SELECT * FROM chat_threads
-                WHERE (peer_type = 'worker' AND peer_id = ?)
-                   OR (peer_type = 'brigade' AND peer_id = ?)
-                   OR (brigade_id = ? AND ? IS NOT NULL)
-                ORDER BY updated_at DESC, id DESC LIMIT ?
+                SELECT DISTINCT t.*
+                FROM chat_threads t
+                LEFT JOIN chat_messages m ON m.thread_id = t.id
+                WHERE
+                      (t.peer_type = 'worker' AND t.peer_id = ?)
+                   OR (t.peer_type = 'admin' AND m.sender_id = ?)
+                   OR (m.sender_id = ?)
+                   OR (t.brigade_id IS NOT NULL AND t.brigade_id = ? AND ? IS NOT NULL)
+                ORDER BY t.updated_at DESC, t.id DESC
+                LIMIT ?
                 """,
-                (
-                    worker_id or -1,
-                    brigade_id if brigade_id is not None else -1,
-                    brigade_id if brigade_id is not None else -1,
-                    brigade_id,
-                    limit,
-                ),
+                (wid, wid, wid, bid, bid, limit),
             )
         rows = [dict(r) for r in cur.fetchall()]
         # непрочитанные для текущего

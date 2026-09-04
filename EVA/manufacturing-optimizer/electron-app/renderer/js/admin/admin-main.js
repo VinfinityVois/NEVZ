@@ -26,11 +26,15 @@ const PeerPicker = {
   selected: null, // key
 };
 
-function peerEsc(s) {
+function escapeHtml(s) {
   return String(s ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+function peerEsc(s) {
+  return escapeHtml(s);
 }
 function renderPeerList() {
   const box = document.getElementById('chatPeerList');
@@ -456,6 +460,55 @@ let graphFilters = {
 };
 
 async function initAdmin() {
+  document.getElementById('settingsSaveUiBtn')?.addEventListener('click', saveAdminUiSettings);
+
+document.getElementById('avatarChangeBtn')?.addEventListener('click', () => {
+  document.getElementById('avatarFileInput')?.click();
+});
+document.getElementById('avatarFileInput')?.addEventListener('change', (e) => {
+  const f = e.target.files?.[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    localStorage.setItem('adminAvatarDataUrl', reader.result);
+    applyAvatarFromStorageAdmin();
+  };
+  reader.readAsDataURL(f);
+});
+document.getElementById('avatarDeleteBtn')?.addEventListener('click', () => {
+  localStorage.removeItem('adminAvatarDataUrl');
+  const img = document.getElementById('settingsAvatarImg');
+  if (img) { img.removeAttribute('src'); img.style.display = 'none'; }
+  const letter = document.getElementById('settingsAvatar');
+  if (letter) letter.style.display = '';
+});
+
+document.getElementById('admChangePassBtn')?.addEventListener('click', async () => {
+  const oldP = document.getElementById('admOldPass')?.value || '';
+  const newP = document.getElementById('admNewPass')?.value || '';
+  const newP2 = document.getElementById('admNewPass2')?.value || '';
+  if (newP.length < 4) return alert('Пароль не короче 4 символов');
+  if (newP !== newP2) return alert('Пароли не совпадают');
+  try {
+    const r = await fetch((API_BASE || 'http://127.0.0.1:8000') + '/auth/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ old_password: oldP, new_password: newP, login: 'admin' }),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    alert('Пароль изменён');
+    document.getElementById('admOldPass').value = '';
+    document.getElementById('admNewPass').value = '';
+    document.getElementById('admNewPass2').value = '';
+  } catch (e) {
+    alert('Не удалось сменить пароль: ' + (e.message || e));
+  }
+});
+  document.getElementById('btnChatDelete')?.addEventListener('click', () => {
+    const id = (typeof ChatState !== 'undefined' && ChatState.activeId) || null;
+    if (id) deleteChatThread(id);
+    else alert('Сначала откройте диалог');
+  });
   console.log('[Admin] 🚀 Инициализация...');
   restoreAIPaths();
   setupEventListeners();
@@ -507,6 +560,7 @@ window._chatPollAdmin = setInterval(() => {
   } else if (typeof loadChatThreadsAdmin === 'function') {
     loadChatThreadsAdmin(); // обновит notifDot
   }
+  if (tab === 'settings') fillAdminSettings();
 }, 8000);
 
 
@@ -8725,8 +8779,8 @@ function renderChatThreadListAdmin() {
           return (
             '<div class="chat-thread-item' + active + '" data-id="' + t.id + '">' +
               '<div class="chat-thread-main">' +
-                '<div class="chat-thread-name">' + esc(t.peer_name || t.subject || ('#' + t.id)) + unread + '</div>' +
-                '<div class="chat-thread-preview">' + esc(t.last_preview || '') + '</div>' +
+                '<div class="chat-thread-name">' + escapeHtml(t.peer_name || t.subject || ('#' + t.id)) + unread + '</div>' +
+                '<div class="chat-thread-preview">' + escapeHtml(t.last_preview || '') + '</div>' +
               '</div>' +
               '<button type="button" class="btn-text chat-del" data-del-id="' + t.id + '" title="Удалить">🗑</button>' +
             '</div>'
@@ -8734,32 +8788,88 @@ function renderChatThreadListAdmin() {
         })
         .join('')
     : '<p class="muted" style="padding:12px">Нет диалогов</p>';
-  box.querySelectorAll('.chat-thread-item').forEach((el) => {
-    el.addEventListener('click', () => openChatThreadAdmin(el.getAttribute('data-tid')));
-  });
-  box.querySelectorAll('.chat-thread-item').forEach((el) => {
-    el.addEventListener('click', (e) => {
-      if (e.target.closest('[data-del-id]')) return;
-      const id = el.getAttribute('data-id');
-      if (id && typeof openChatThread === 'function') openChatThread(id);
+    box.querySelectorAll('.chat-thread-item').forEach((el) => {
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('[data-del-id]')) return;
+        const id = el.getAttribute('data-id');
+        if (id && typeof openChatThreadAdmin === 'function') openChatThreadAdmin(id);
+        else if (id && typeof openChatThread === 'function') openChatThread(id);
+      });
     });
-  });
-  box.querySelectorAll('[data-del-id]').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      deleteChatThread(btn.getAttribute('data-del-id'));
+    box.querySelectorAll('[data-del-id]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        deleteChatThread(btn.getAttribute('data-del-id'));
+      });
     });
-  });
   
 }
 
-function escapeHtml(s) {
-  return String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+function fillAdminSettings() {
+  const auth = window.electronAPI?.storage?.get?.('auth')
+    || JSON.parse(localStorage.getItem('auth') || '{}');
+  const u = auth.user || auth || {};
+  const set = (id, v) => {
+    const el = document.getElementById(id);
+    if (el) el.value = v != null ? String(v) : '';
+  };
+  set('settingsName', u.name || u.full_name || 'Администратор');
+  set('settingsLogin', u.login || 'admin');
+  set('settingsRole', u.role || 'admin');
+  set('settingsEmail', u.email || '');
+  set('settingsOnlineStatus', 'В сети');
+
+  const letter = (u.name || 'А').charAt(0).toUpperCase();
+  const av = document.getElementById('settingsAvatar');
+  if (av) av.textContent = letter;
+
+  const apiEl = document.getElementById('settingsApiUrl');
+  if (apiEl) apiEl.textContent = (typeof API_BASE !== 'undefined' ? API_BASE : 'http://127.0.0.1:8000');
+
+  // UI из localStorage
+  const sel = (id, key, def) => {
+    const el = document.getElementById(id);
+    if (el) el.value = localStorage.getItem(key) || def;
+  };
+  sel('settingsLang', 'admin_lang', 'ru');
+  sel('settingsSidebarMode', 'sidebarMode', 'click');
+  sel('settingsDashDensity', 'admin_dash_density', 'comfortable');
+  sel('themeSelect', 'admin_theme', 'light');
+  const startCol = document.getElementById('settingSidebarStartCollapsed');
+  if (startCol) startCol.checked = localStorage.getItem('sidebarCollapsed') === '1';
+
+  applyAvatarFromStorageAdmin?.();
+}
+
+function saveAdminUiSettings() {
+  localStorage.setItem('admin_lang', document.getElementById('settingsLang')?.value || 'ru');
+  localStorage.setItem('sidebarMode', document.getElementById('settingsSidebarMode')?.value || 'click');
+  localStorage.setItem('admin_dash_density', document.getElementById('settingsDashDensity')?.value || 'comfortable');
+  localStorage.setItem('admin_theme', document.getElementById('themeSelect')?.value || 'light');
+  const startCol = document.getElementById('settingSidebarStartCollapsed');
+  if (startCol) localStorage.setItem('sidebarCollapsed', startCol.checked ? '1' : '0');
+
+  ['notifApp', 'notifCritical', 'notifChat', 'notifAi'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) localStorage.setItem('admin_' + id, el.checked ? '1' : '0');
+  });
+
+  if (typeof initSidebarBehavior === 'function') initSidebarBehavior();
+  showNotification?.('Настройки', 'Интерфейс сохранён', 'success');
+}
+
+function applyAvatarFromStorageAdmin() {
+  const data = localStorage.getItem('adminAvatarDataUrl');
+  const img = document.getElementById('settingsAvatarImg');
+  const letter = document.getElementById('settingsAvatar');
+  const top = document.getElementById('userAvatarImg'); // если есть в шапке
+  if (data && img) {
+    img.src = data;
+    img.style.display = 'block';
+    if (letter) letter.style.display = 'none';
+    if (top) { top.src = data; top.style.display = 'block'; }
+  }
 }
 
 async function openChatThreadAdmin(tid) {

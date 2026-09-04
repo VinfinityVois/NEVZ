@@ -50,6 +50,11 @@ const ChatState = { threads: [], activeId: null };
 
 
 async function initWorker() {
+  document.getElementById('btnChatDelete')?.addEventListener('click', () => {
+    const id = (typeof ChatState !== 'undefined' && ChatState.activeId) || null;
+    if (id) deleteChatThread(id);
+    else alert('Сначала откройте диалог');
+  });
   cacheDomElements();
   setupSidebar();
   setupHubNav();
