@@ -3335,3 +3335,17 @@
   color: #64748b;
   margin-bottom: 16px;
 }
+
+.logo-icon, .hub-logo img {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  object-fit: cover;
+  display: block;
+}
+.hub-logo {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+  padding: 0;
+}
