@@ -44,7 +44,7 @@
 
 <br>
 
-## <img src="EVA/manufacturing-optimizer/docs/assets/icons/factory-gear.svg" width="26" valign="middle"/> О проекте
+## <img src="EVA/manufacturing-optimizer/docs/icons/factory-gear-spin.svg" width="28" valign="middle"/> О проекте
 
 **Manufacturing Optimizer** (кодовое название **NEVZ**) — десктопное приложение для планирования и оптимизации производственных процессов, построенное на классическом сетевом планировании (**CPM/PERT**) и усиленное собственным AI-движком: предсказание срывов сроков, обнаружение аномалий, автоматическое «латание» пробелов в графике и обучение на исторических данных.
 
@@ -54,17 +54,17 @@
 
 <br>
 
-## <img src="EVA/manufacturing-optimizer/docs/assets/icons/dashboard.svg" width="26" valign="middle"/> Скриншоты
+## <img src="EVA/manufacturing-optimizer/docs/icons/dashboard-draw.svg" width="28" valign="middle"/> Скриншоты
 
 <div align="center">
 <table>
 <tr>
 <td width="50%" align="center">
-<img src="EVA/manufacturing-optimizer/docs/assets/screenshots/login-screen.png" width="100%" alt="Экран входа"/>
+<img src="EVA/manufacturing-optimizer/docs/screenshots/login-screen.png" width="100%" alt="Экран входа"/>
 <br><sub><b>Экран входа</b> — логин/пароль или QR-код со смартфона</sub>
 </td>
 <td width="50%" align="center">
-<img src="EVA/manufacturing-optimizer/docs/assets/screenshots/brigadier-assignments.png" width="100%" alt="Панель бригадира — Назначения"/>
+<img src="EVA/manufacturing-optimizer/docs/screenshots/brigadier-assignments.png" width="100%" alt="Панель бригадира — Назначения"/>
 <br><sub><b>Панель бригадира</b> — перенос сотрудников и назначение работ бригаде</sub>
 </td>
 </tr>
@@ -77,19 +77,19 @@
 <img src="https://capsule-render.vercel.app/api?type=rect&color=0:0b1c33,50:0961f6,100:0b1c33&height=3&width=1000" width="100%"/>
 </div>
 
-## <img src="EVA/manufacturing-optimizer/docs/assets/icons/ai-layers.svg" width="26" valign="middle"/> Ключевые возможности
+## <img src="EVA/manufacturing-optimizer/docs/icons/ai-layers-pulse.svg" width="28" valign="middle"/> Ключевые возможности
 
 <table>
 <tr>
 <td width="50%" valign="top">
 
-### <img src="EVA/manufacturing-optimizer/docs/assets/icons/analytics.svg" width="20" valign="middle"/> Планирование и расчёты
+### <img src="EVA/manufacturing-optimizer/docs/icons/analytics.svg" width="20" valign="middle"/> Планирование и расчёты
 - Построение сетевого графика на основе **CPM** (критический путь) и **PERT** (вероятностные оценки)
 - Расчёт резервов времени (slack), сжатие графика (crashing), выравнивание ресурсов
 - Интерактивная **диаграмма Ганта** (frappe-gantt) и сетевые диаграммы (Cytoscape + dagre)
 - Импорт/экспорт данных в Excel (`.xlsx/.xls/.xlsb`) и CSV
 
-### <img src="EVA/manufacturing-optimizer/docs/assets/icons/ai-layers.svg" width="20" valign="middle"/> AI и оптимизация
+### <img src="EVA/manufacturing-optimizer/docs/icons/ai-layers.svg" width="20" valign="middle"/> AI и оптимизация
 - Предиктивные модели срыва сроков (Gradient Boosting, XGBoost, LightGBM, CatBoost, ансамбли)
 - Детектор аномалий и «охотник за пробелами» (gap detector / bridger) в графике
 - Оптимизация бригад: линейное программирование, генетический алгоритм, OR-Tools
@@ -99,12 +99,12 @@
 </td>
 <td width="50%" valign="top">
 
-### <img src="EVA/manufacturing-optimizer/docs/assets/icons/brigade.svg" width="20" valign="middle"/> Ролевая модель
+### <img src="EVA/manufacturing-optimizer/docs/icons/brigade.svg" width="20" valign="middle"/> Ролевая модель
 - Три специализированные панели: **Администратор**, **Бригадир**, **Рабочий**
 - Вход по логину/паролю **или по QR-коду** со смартфона (см. [ниже](#-вход-по-qr-коду))
 - Гибкое управление бригадами, задачами и загрузкой персонала
 
-### <img src="EVA/manufacturing-optimizer/docs/assets/icons/dashboard.svg" width="20" valign="middle"/> Технические особенности
+### <img src="EVA/manufacturing-optimizer/docs/icons/dashboard.svg" width="20" valign="middle"/> Технические особенности
 - Локальный REST API на FastAPI, автосвязка Electron ↔ Python при старте
 - SQLite как единая база данных
 - Real-time обновления через WebSocket
@@ -117,7 +117,7 @@
 
 <br>
 
-## <img src="EVA/manufacturing-optimizer/docs/assets/icons/process-node.svg" width="26" valign="middle"/> Архитектура
+## <img src="EVA/manufacturing-optimizer/docs/icons/process-node.svg" width="26" valign="middle"/> Архитектура
 
 Приложение построено по схеме **«толстый клиент + локальный сервис»**: Electron поднимает Python-процесс как дочерний, всё общение идёт по `http://127.0.0.1:8000`.
 
@@ -166,7 +166,7 @@ is_brigadier == 1      →  открывается панель бригадир
 
 <br>
 
-## <img src="EVA/manufacturing-optimizer/docs/assets/icons/terminal.svg" width="26" valign="middle"/> Технологический стек
+## <img src="EVA/manufacturing-optimizer/docs/icons/terminal.svg" width="26" valign="middle"/> Технологический стек
 
 | Слой | Технологии |
 |---|---|
@@ -222,7 +222,7 @@ NEVZ/
 
 <br>
 
-## <img src="EVA/manufacturing-optimizer/docs/assets/icons/terminal.svg" width="26" valign="middle"/> Быстрый старт
+## <img src="EVA/manufacturing-optimizer/docs/icons/terminal.svg" width="26" valign="middle"/> Быстрый старт
 
 ### Требования
 
@@ -301,30 +301,30 @@ cp python-backend/.env.example python-backend/.env
 
 <br>
 
-## <img src="EVA/manufacturing-optimizer/docs/assets/icons/user-profile.svg" width="26" valign="middle"/> Роли и права доступа
+## <img src="EVA/manufacturing-optimizer/docs/icons/user-profile.svg" width="26" valign="middle"/> Роли и права доступа
 
 | Роль | Как попадает | Возможности |
 |---|---|---|
 | 🛡 **Администратор** | `role = "admin"` в БД | Полное управление: сотрудники, бригады, операции, отчёты, обучение AI-моделей |
-| <img src="EVA/manufacturing-optimizer/docs/assets/icons/brigade.svg" width="16" valign="middle"/> **Бригадир** | `is_brigadier = 1` | Управление своей бригадой, распределение задач, контроль хода работ |
+| <img src="EVA/manufacturing-optimizer/docs/icons/brigade.svg" width="16" valign="middle"/> **Бригадир** | `is_brigadier = 1` | Управление своей бригадой, распределение задач, контроль хода работ |
 | 🧑‍🔧 **Рабочий** | по умолчанию | Просмотр своих задач, отметки о выполнении, статус |
 
 <br>
 
-## <img src="EVA/manufacturing-optimizer/docs/assets/icons/factory-gear.svg" width="26" valign="middle"/> Поддерживаемые типы производственных операций
+## <img src="EVA/manufacturing-optimizer/docs/icons/factory-gear.svg" width="26" valign="middle"/> Поддерживаемые типы производственных операций
 
 <div align="center">
 
 <table>
 <tr>
-<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/assembly.svg" width="36"/><br><sub><b>Сборка</b></sub></td>
-<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/welding.svg" width="36"/><br><sub><b>Сварка</b></sub></td>
-<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/cnc.svg" width="36"/><br><sub><b>ЧПУ / токарные</b></sub></td>
-<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/quality-control.svg" width="36"/><br><sub><b>Контроль качества</b></sub></td>
-<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/warehouse.svg" width="36"/><br><sub><b>Склад</b></sub></td>
-<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/painting.svg" width="36"/><br><sub><b>Покраска</b></sub></td>
-<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/electronics.svg" width="36"/><br><sub><b>Электромонтаж</b></sub></td>
-<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/logistics.svg" width="36"/><br><sub><b>Логистика</b></sub></td>
+<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/icons/assembly.svg" width="36"/><br><sub><b>Сборка</b></sub></td>
+<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/icons/welding.svg" width="36"/><br><sub><b>Сварка</b></sub></td>
+<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/icons/cnc.svg" width="36"/><br><sub><b>ЧПУ / токарные</b></sub></td>
+<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/icons/quality-control.svg" width="36"/><br><sub><b>Контроль качества</b></sub></td>
+<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/icons/warehouse.svg" width="36"/><br><sub><b>Склад</b></sub></td>
+<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/icons/painting.svg" width="36"/><br><sub><b>Покраска</b></sub></td>
+<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/icons/electronics.svg" width="36"/><br><sub><b>Электромонтаж</b></sub></td>
+<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/icons/logistics.svg" width="36"/><br><sub><b>Логистика</b></sub></td>
 </tr>
 </table>
 
@@ -334,7 +334,7 @@ cp python-backend/.env.example python-backend/.env
 
 <br>
 
-## <img src="EVA/manufacturing-optimizer/docs/assets/icons/dashboard.svg" width="26" valign="middle"/> Интерфейс
+## <img src="EVA/manufacturing-optimizer/docs/icons/dashboard.svg" width="26" valign="middle"/> Интерфейс
 
 Панели администратора и бригадира построены вокруг набора привычных UI-паттернов:
 
@@ -342,14 +342,14 @@ cp python-backend/.env.example python-backend/.env
 
 <table>
 <tr>
-<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/search.svg" width="30"/><br><sub>Поиск</sub></td>
-<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/filter.svg" width="30"/><br><sub>Фильтры</sub></td>
-<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/calendar.svg" width="30"/><br><sub>Календарь</sub></td>
-<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/notifications.svg" width="30"/><br><sub>Уведомления</sub></td>
-<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/user-profile.svg" width="30"/><br><sub>Профиль</sub></td>
-<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/pdf-export.svg" width="30"/><br><sub>Экспорт в PDF</sub></td>
-<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/excel-export.svg" width="30"/><br><sub>Экспорт в Excel</sub></td>
-<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/logout.svg" width="30"/><br><sub>Выход</sub></td>
+<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/icons/search.svg" width="30"/><br><sub>Поиск</sub></td>
+<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/icons/filter.svg" width="30"/><br><sub>Фильтры</sub></td>
+<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/icons/calendar.svg" width="30"/><br><sub>Календарь</sub></td>
+<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/icons/notifications.svg" width="30"/><br><sub>Уведомления</sub></td>
+<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/icons/user-profile.svg" width="30"/><br><sub>Профиль</sub></td>
+<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/icons/pdf-export.svg" width="30"/><br><sub>Экспорт в PDF</sub></td>
+<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/icons/excel-export.svg" width="30"/><br><sub>Экспорт в Excel</sub></td>
+<td align="center" width="12.5%"><img src="EVA/manufacturing-optimizer/docs/icons/logout.svg" width="30"/><br><sub>Выход</sub></td>
 </tr>
 </table>
 
@@ -359,50 +359,63 @@ cp python-backend/.env.example python-backend/.env
 
 ## 🎨 Библиотека иконок
 
-Все иконки документации и часть иконок интерфейса — собственный набор SVG (`docs/assets/icons/`), в едином фирменном синем `#0961f6`:
+Все иконки документации и часть иконок интерфейса — собственный набор SVG (`docs/icons/`), в едином фирменном синем `#0961f6`:
 
 <div align="center">
 <table>
 <tr>
-<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/factory-gear.svg" width="26"/></td>
-<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/operations.svg" width="26"/></td>
-<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/brigade.svg" width="26"/></td>
-<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/terminal.svg" width="26"/></td>
-<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/analytics.svg" width="26"/></td>
-<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/process-node.svg" width="26"/></td>
-<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/dashboard.svg" width="26"/></td>
-<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/ai-layers.svg" width="26"/></td>
-<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/time.svg" width="26"/></td>
-<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/assets/icons/alert.svg" width="26"/></td>
+<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/icons/factory-gear.svg" width="26"/></td>
+<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/icons/operations.svg" width="26"/></td>
+<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/icons/brigade.svg" width="26"/></td>
+<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/icons/terminal.svg" width="26"/></td>
+<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/icons/analytics.svg" width="26"/></td>
+<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/icons/process-node.svg" width="26"/></td>
+<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/icons/dashboard.svg" width="26"/></td>
+<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/icons/ai-layers.svg" width="26"/></td>
+<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/icons/time.svg" width="26"/></td>
+<td align="center" width="9%"><img src="EVA/manufacturing-optimizer/docs/icons/alert.svg" width="26"/></td>
 </tr>
 <tr>
-<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/assembly.svg" width="26"/></td>
-<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/welding.svg" width="26"/></td>
-<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/cnc.svg" width="26"/></td>
-<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/quality-control.svg" width="26"/></td>
-<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/warehouse.svg" width="26"/></td>
-<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/painting.svg" width="26"/></td>
-<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/electronics.svg" width="26"/></td>
-<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/logistics.svg" width="26"/></td>
-<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/user-profile.svg" width="26"/></td>
-<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/search.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/icons/assembly.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/icons/welding.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/icons/cnc.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/icons/quality-control.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/icons/warehouse.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/icons/painting.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/icons/electronics.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/icons/logistics.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/icons/user-profile.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/icons/search.svg" width="26"/></td>
 </tr>
 <tr>
-<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/help.svg" width="26"/></td>
-<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/notifications.svg" width="26"/></td>
-<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/logout.svg" width="26"/></td>
-<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/filter.svg" width="26"/></td>
-<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/calendar.svg" width="26"/></td>
-<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/pdf-export.svg" width="26"/></td>
-<td align="center"><img src="EVA/manufacturing-optimizer/docs/assets/icons/excel-export.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/icons/help.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/icons/notifications.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/icons/logout.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/icons/filter.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/icons/calendar.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/icons/pdf-export.svg" width="26"/></td>
+<td align="center"><img src="EVA/manufacturing-optimizer/docs/icons/excel-export.svg" width="26"/></td>
 <td></td><td></td><td></td>
+</tr>
+</table>
+</div>
+
+<sub>Несколько иконок в README — анимированные SVG (вращение, пульсация, мигание), а не статичные картинки:</sub>
+
+<div align="center">
+<table>
+<tr>
+<td align="center" width="20%"><img src="EVA/manufacturing-optimizer/docs/icons/factory-gear-spin.svg" width="32"/><br><sub>вращение</sub></td>
+<td align="center" width="20%"><img src="EVA/manufacturing-optimizer/docs/icons/ai-layers-pulse.svg" width="32"/><br><sub>пульсация</sub></td>
+<td align="center" width="20%"><img src="EVA/manufacturing-optimizer/docs/icons/alert-blink.svg" width="32"/><br><sub>мигание</sub></td>
+<td align="center" width="20%"><img src="EVA/manufacturing-optimizer/docs/icons/dashboard-draw.svg" width="32"/><br><sub>обход по контуру</sub></td>
 </tr>
 </table>
 </div>
 
 <br>
 
-## <img src="EVA/manufacturing-optimizer/docs/assets/icons/user-profile.svg" width="26" valign="middle"/> Вход по QR-коду
+## <img src="EVA/manufacturing-optimizer/docs/icons/user-profile.svg" width="26" valign="middle"/> Вход по QR-коду
 
 Экран входа поддерживает второй способ авторизации — сканирование QR-кода телефоном:
 
@@ -425,7 +438,7 @@ QR-сессия действует ограниченное время и одн
 
 <br>
 
-## <img src="EVA/manufacturing-optimizer/docs/assets/icons/ai-layers.svg" width="26" valign="middle"/> AI / машинное обучение
+## <img src="EVA/manufacturing-optimizer/docs/icons/ai-layers-pulse.svg" width="28" valign="middle"/> AI / машинное обучение
 
 Модуль `python-backend/ai/` — сердце «интеллектуальной» части системы:
 
@@ -442,7 +455,7 @@ QR-сессия действует ограниченное время и одн
 
 <br>
 
-## <img src="EVA/manufacturing-optimizer/docs/assets/icons/terminal.svg" width="26" valign="middle"/> API
+## <img src="EVA/manufacturing-optimizer/docs/icons/terminal.svg" width="26" valign="middle"/> API
 
 Backend экспонирует REST + WebSocket API, сгруппированный по доменам (`python-backend/api/`):
 
@@ -543,7 +556,7 @@ pytest tests/ -v
 
 <br>
 
-## <img src="EVA/manufacturing-optimizer/docs/assets/icons/alert.svg" width="26" valign="middle"/> FAQ / известные особенности
+## <img src="EVA/manufacturing-optimizer/docs/icons/alert-blink.svg" width="28" valign="middle"/> FAQ / известные особенности
 
 <details>
 <summary><b>Я вхожу как обычный сотрудник, но открывается панель бригадира — это баг?</b></summary>
