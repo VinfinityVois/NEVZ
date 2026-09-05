@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="EVA/manufacturing-optimizer/electron-app/renderer/assets/icons/app-icon.svg" width="88" height="88" alt="Manufacturing Optimizer logo"/>
+<img src="EVA/manufacturing-optimizer/docs/branding/mfg-optimizer-logo-animated.svg" width="220" alt="Mfg Optimizer animated logo"/>
 
 <img src="https://capsule-render.vercel.app/api?type=waving&color=0:0961f6,100:66CEF6&height=200&section=header&text=Manufacturing%20Optimizer&fontSize=44&fontColor=ffffff&fontAlignY=40&desc=%D0%98%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82%D1%83%D0%B0%D0%BB%D1%8C%D0%BD%D0%B0%D1%8F%20%D0%BE%D0%BF%D1%82%D0%B8%D0%BC%D0%B8%D0%B7%D0%B0%D1%86%D0%B8%D1%8F%20%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B0&descAlignY=60&descSize=18&animation=fadeIn" width="100%" alt="Manufacturing Optimizer banner"/>
 
