@@ -59,11 +59,19 @@ from db_adapter import (
 # КОНФИГУРАЦИЯ ПУТЕЙ
 # ================================================================
 
-BASE_DIR = Path(__file__).parent
-DATA_DIR = BASE_DIR.parent / "data"
-DB_PATH = DATA_DIR / "manufacturing.db"
-EXPORTS_DIR = DATA_DIR / "exports"
+# import os  # если ещё нет вверху файла
 
+BASE_DIR = Path(__file__).resolve().parent
+
+_env_db = os.environ.get("NEVZ_DB_PATH", "").strip()
+if _env_db:
+    DB_PATH = Path(_env_db)
+    DATA_DIR = DB_PATH.parent
+else:
+    DATA_DIR = BASE_DIR.parent / "data"
+    DB_PATH = DATA_DIR / "manufacturing.db"
+
+EXPORTS_DIR = DATA_DIR / "exports"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
 

@@ -1,0 +1,8 @@
+<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="3" y="3" width="18" height="18" rx="2" stroke="#0961f6" stroke-width="2"/>
+  <path d="M3 9H21" stroke="#0961f6" stroke-width="2"/>
+  <path d="M9 21V9" stroke="#0961f6" stroke-width="2"/>
+  <circle r="1.6" fill="#66CEF6">
+    <animateMotion dur="3.2s" repeatCount="indefinite" path="M0,-3 L9,-3 L9,9 L-6,9 Z"/>
+  </circle>
+</svg>
