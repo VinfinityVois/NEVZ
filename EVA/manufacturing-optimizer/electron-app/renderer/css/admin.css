@@ -367,27 +367,42 @@ body {
     overflow-x: hidden;
 }
 
-/* единый ритм секций */
+/* ===== ВКЛАДКИ ===== */
+.content-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 25px 30px;
+}
+
 .content-body > .tab-pane {
     animation: fade-in var(--transition-base, 0.22s) both;
+    flex: 1 1 auto;
+    min-height: 0;
 }
 
 .tab-pane {
-    display: none;
+    display: none !important;
 }
 
 .tab-pane.active {
-    display: block;
-}
-
-/* ===== ВКЛАДКИ ===== */
-.tab-pane {
-    display: none;
-}
-
-.tab-pane.active {
-    display: block;
+    display: block !important;
     animation: fade-in 0.3s ease;
+}
+
+/* Сообщения: flex только когда active */
+#messages-tab.tab-pane.active {
+    display: flex !important;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+#messages-tab.tab-pane:not(.active) {
+    display: none !important;
 }
 
 /* ===== ДАШБОРД ===== */
@@ -2637,12 +2652,15 @@ input:checked + .slider:before {
     transition: transform 0.2s ease;
   }
   
-  /* если main не на flex — сдвиг контента */
+  /* main расширяется flex-ом при collapsed sidebar */
   .main-content {
-    transition: margin-left 0.25s ease;
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
+    margin-left: 0 !important;
   }
   body.sidebar-collapsed .main-content {
-    margin-left: 90px;
+    margin-left: 0 !important;
   }
 
 
@@ -2781,133 +2799,168 @@ input:checked + .slider:before {
     margin: 0 auto;
 }
 
-/* чаты */
+
+/* ===== CHAT (единый блок) ===== */
+#messages-tab .page-head {
+  flex: 0 0 auto;
+  margin-bottom: 12px;
+}
+
+#messages-tab .chat-layout,
 .chat-layout {
-    display: grid;
-    grid-template-columns: 300px 1fr;
-    gap: 0;
-    min-height: 650px;
-    border: 1px solid #e0e3e6;
-    border-radius: 16px;
-    overflow: hidden;
-    background: #fff;
-  }
-  .chat-list-pane {
-    border-right: 1px solid #e0e3e6;
-    display: flex;
-    flex-direction: column;
-    background: #f7f9fc;
-  }
-  .chat-list-toolbar { padding: 12px; display: flex; gap: 10px; }
-  .chat-thread-list { overflow: auto; flex: 1; }
-  .chat-thread-item {
-    padding: 16px 20px;
-    border-bottom: 1px solid #e0e3e6;
-    cursor: pointer;
-  }
-  .chat-thread-item:hover { background: #eef3ff; }
-  .chat-thread-item.active { background: #e8f0fe; border-left: 3px solid #1a73e8; }
-  .chat-thread-item .t-title { font-weight: 600; font-size: 13px; }
-  .chat-thread-item .t-prev { font-size: 16px; color: #727785; margin-top: 5px;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .chat-thread-item .t-meta { font-size: 16px; color: #9aa0a6; margin-top: 5px; display:flex; justify-content:space-between; }
-  .chat-thread-item .unread-pill {
-    background: #1a73e8; color: #fff; border-radius: 10px;
-    padding: 0 6px; font-size: 11px; font-weight: 700;
-  }
-  .chat-main-pane { display: flex; flex-direction: column; min-width: 0; }
-  .chat-main-head { padding: 12px 16px; border-bottom: 1px solid #e0e3e6; }
-  .chat-messages {
-    flex: 1; overflow: auto; padding: 22px;
-    background: #f7f9fc; display: flex; flex-direction: column; gap: 8px;
-    min-height: 400px;
-  }
-  .chat-bubble {
-    max-width: 75%; padding: 10px 12px; border-radius: 14px;
-    font-size: 17px; line-height: 1.4;
-  }
-  .chat-bubble.me { align-self: flex-end; background: #1a73e8; color: #fff; border-bottom-right-radius: 4px; }
-  .chat-bubble.them { align-self: flex-start; background: #fff; border: 1px solid #e0e3e6; border-bottom-left-radius: 4px; }
-  .chat-bubble .b-meta { font-size: 10px; opacity: .75; margin-top: 4px; }
-  .chat-compose {
-    display: grid;
-    grid-template-columns: 160px 1fr auto;
-    gap: 10px;
-    padding: 15px;
-    border-top: 1px solid #e0e3e6;
-    background: #fff;
-  }
-  @media (max-width: 1125px) {
-    .chat-layout { grid-template-columns: 1fr; }
-    .chat-list-pane { max-height: 275px; }
-  }
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  border: 1px solid #e0e3e6;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.chat-list-pane {
+  border-right: 1px solid #e0e3e6;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: #f7f9fc;
+}
+
+.chat-list-toolbar {
+  padding: 12px;
+  display: flex;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.chat-thread-list {
+  overflow: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.chat-thread-item {
+  padding: 16px 20px;
+  border-bottom: 1px solid #e0e3e6;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chat-thread-item:hover { background: #eef3ff; }
+.chat-thread-item.active {
+  background: #e8f0fe;
+  border-left: 3px solid #1a73e8;
+}
+
+.chat-thread-item .t-title { font-weight: 600; font-size: 13px; }
+.chat-thread-item .t-prev {
+  font-size: 16px;
+  color: #727785;
+  margin-top: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chat-thread-item .t-meta {
+  font-size: 16px;
+  color: #9aa0a6;
+  margin-top: 5px;
+  display: flex;
+  justify-content: space-between;
+}
+.chat-thread-item .unread-pill {
+  background: #1a73e8;
+  color: #fff;
+  border-radius: 10px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.chat-thread-main { flex: 1; min-width: 0; }
+.chat-del {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.55;
+  font-size: 20px;
+}
+.chat-del:hover { opacity: 1; color: #ba1a1a; }
+
+.chat-main-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.chat-main-head {
+  flex: 0 0 auto;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e0e3e6;
+}
+
+.chat-messages {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 22px;
+  background: #f7f9fc;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chat-bubble {
+  max-width: 75%;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-size: 17px;
+  line-height: 1.4;
+}
+.chat-bubble.me {
+  align-self: flex-end;
+  background: #1a73e8;
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.chat-bubble.them {
+  align-self: start;
+  background: #fff;
+  border: 1px solid #e0e3e6;
+  border-bottom-left-radius: 4px;
+}
+.chat-bubble .b-meta {
+  font-size: 10px;
+  opacity: 0.75;
+  margin-top: 4px;
+}
+
+.chat-compose {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 160px 1fr auto;
+  gap: 10px;
+  padding: 12px 15px;
+  border-top: 1px solid #e0e3e6;
+  background: #fff;
+  z-index: 2;
+}
+
+@media (max-width: 1125px) {
+  .chat-layout { grid-template-columns: 1fr; }
+  .chat-list-pane { max-height: 220px; }
+}
 
 
-  /* ===== CHAT ===== */
-.chat-layout {
-    display: grid;
-    grid-template-columns: 300px 1fr;
-    min-height: 650px;
-    border: 1px solid #e0e3e6;
-    border-radius: 16px;
-    overflow: hidden;
-    background: #fff;
-  }
-  .chat-list-pane {
-    border-right: 1px solid #e0e3e6;
-    display: flex;
-    flex-direction: column;
-    background: #f7f9fc;
-  }
-  .chat-list-toolbar { padding: 12px; display: flex; gap: 10px; }
-  .chat-thread-list { overflow: auto; flex: 1; }
-  .chat-thread-item {
-    padding: 16px 20px;
-    border-bottom: 1px solid #e0e3e6;
-    cursor: pointer;
-  }
-  .chat-thread-item:hover { background: #eef3ff; }
-  .chat-thread-item.active { background: #e8f0fe; border-left: 3px solid #1a73e8; }
-  .chat-thread-item .t-title { font-weight: 600; font-size: 13px; }
-  .chat-thread-item .t-prev {
-    font-size: 16px; color: #727785; margin-top: 5px;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .chat-thread-item .t-meta {
-    font-size: 16px; color: #9aa0a6; margin-top: 5px;
-    display: flex; justify-content: space-between;
-  }
-  .chat-thread-item .unread-pill {
-    background: #1a73e8; color: #fff; border-radius: 10px;
-    padding: 0 6px; font-size: 11px; font-weight: 700;
-  }
-  .chat-main-pane { display: flex; flex-direction: column; min-width: 0; }
-  .chat-main-head { padding: 12px 16px; border-bottom: 1px solid #e0e3e6; }
-  .chat-messages {
-    flex: 1; overflow: auto; padding: 22px;
-    background: #f7f9fc; display: flex; flex-direction: column; gap: 8px;
-    min-height: 400px;
-  }
-  .chat-bubble {
-    max-width: 75%; padding: 10px 12px; border-radius: 14px;
-    font-size: 17px; line-height: 1.4;
-  }
-  .chat-bubble.me {
-    align-self: flex-end; background: #1a73e8; color: #fff;
-    border-bottom-right-radius: 4px;
-  }
-  .chat-bubble.them {
-    align-self: flex-start; background: #fff;
-    border: 1px solid #e0e3e6; border-bottom-left-radius: 4px;
-  }
-  .chat-bubble .b-meta { font-size: 10px; opacity: .75; margin-top: 4px; }
-  .chat-compose {
-    display: grid;
-    grid-template-columns: 160px 1fr auto;
-    gap: 10px;
-    padding: 15px;
-    border-top: 1px solid #e0e3e6;
-  }
   .notif-wrap { position: relative; }
   .notif-dot {
     position: absolute; top: 2px; right: 2px;
@@ -3150,3 +3203,94 @@ input:checked + .slider:before {
     /* background: #fff; */
     padding: 0;
   }
+
+  
+
+/* ========================================================================
+   FIX OVERRIDES (вкладки / сайдбар / чат) — не удалять
+   ======================================================================== */
+
+.admin-layout {
+  display: flex !important;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.sidebar {
+  flex: 0 0 auto !important;
+}
+
+.sidebar.collapsed {
+  width: 80px !important;
+}
+
+.main-content {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  margin-left: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+body.sidebar-collapsed .main-content {
+  margin-left: 0 !important;
+}
+
+.content-body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow: auto !important;
+}
+
+/* все вкладки скрыты, кроме active */
+.tab-pane {
+  display: none !important;
+}
+
+.tab-pane.active {
+  display: block !important;
+}
+
+#messages-tab.tab-pane.active {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+#messages-tab.tab-pane:not(.active) {
+  display: none !important;
+}
+
+#messages-tab .chat-layout {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+}
+
+/* убрать принудительную высоту, из‑за которой скроллилась вся страница */
+.chat-layout {
+  min-height: 0 !important;
+}
+
+.chat-messages {
+  min-height: 0 !important;
+  flex: 1 1 auto !important;
+  overflow: auto !important;
+}
+
+.chat-compose {
+  flex: 0 0 auto !important;
+}
+
+/* настройки не перекрываются чатом */
+#settings-tab.tab-pane:not(.active) {
+  display: none !important;
+}
+#settings-tab.tab-pane.active {
+  display: block !important;
+}

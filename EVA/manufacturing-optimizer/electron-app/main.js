@@ -8,9 +8,13 @@ const net = require('net');
 app.commandLine.appendSwitch('disable-gpu');
 app.commandLine.appendSwitch('in-process-gpu');
 
+app.commandLine.appendSwitch('high-dpi-support', '1');
+app.commandLine.appendSwitch('force-device-scale-factor', '1'); // опционально: жёстко 100%
+
 const APP_VERSION = '2.0.0';
 Menu.setApplicationMenu(null);   // убирает File Edit View…
 const PYTHON_API_URL = 'http://127.0.0.1:8000';
+const APP_ICON = path.join(__dirname, 'renderer', 'assets', 'icons', 'app-icon.ico');
 
 let loginWindow = null;
 let adminWindow = null;
@@ -246,37 +250,98 @@ async function refreshBootstrapPartial(keys) {
 }
 
 
+
+function isPackaged() {
+  return app.isPackaged;
+}
+
+function resourcePath(...parts) {
+  return path.join(process.resourcesPath, ...parts);
+}
+
+/** Рабочая БД в AppData; при первом запуске копия из installer */
+function ensureUserDatabase() {
+  const userDir = app.getPath('userData');
+  if (!fs.existsSync(userDir)) fs.mkdirSync(userDir, { recursive: true });
+  const dest = path.join(userDir, 'manufacturing.db');
+  if (!fs.existsSync(dest)) {
+    const candidates = [
+      resourcePath('data', 'manufacturing.db'),
+      path.join(__dirname, '..', 'python-backend', 'manufacturing.db'),
+      path.join(__dirname, '..', 'python-backend', 'data', 'manufacturing.db'),
+      path.join(__dirname, '..', 'data', 'manufacturing.db'),
+    ];
+    for (const src of candidates) {
+      try {
+        if (fs.existsSync(src)) {
+          fs.copyFileSync(src, dest);
+          console.log('[DB] seeded', src, '->', dest);
+          break;
+        }
+      } catch (e) {
+        console.error('[DB]', e);
+      }
+    }
+  }
+  return dest;
+}
+
+
 async function startPythonBackend() {
     if (await isPortInUse(8000)) {
         log('INFO', 'Port 8000 already in use, using existing Python API');
         return;
     }
 
-    const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
-    const apiScript = path.join(__dirname, '..', 'python-backend', 'api.py');
-    
-    if (!fs.existsSync(apiScript)) {
-        log('ERROR', 'api.py not found:', apiScript);
-        return;
+    const dbPath = ensureUserDatabase();
+    const env = {
+        ...process.env,
+        PYTHONUNBUFFERED: '1',
+        PYTHONIOENCODING: 'utf-8',
+        NEVZ_DB_PATH: dbPath,
+        NEVZ_HOST: '127.0.0.1',
+        NEVZ_PORT: '8000',
+    };
+
+    if (isPackaged()) {
+        const apiExe = resourcePath('nevz-api', 'nevz-api.exe');
+        if (!fs.existsSync(apiExe)) {
+            log('ERROR', 'nevz-api.exe not found:', apiExe);
+            dialog.showErrorBox('MfgOptimizer', 'Не найден сервер API:\n' + apiExe + '\nПереустановите программу.');
+            return;
+        }
+        log('INFO', 'Starting packaged API:', apiExe);
+        pythonProcess = spawn(apiExe, [], {
+            cwd: path.dirname(apiExe),
+            env,
+            windowsHide: true,
+        });
+    } else {
+        const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+        const apiScript = path.join(__dirname, '..', 'python-backend', 'api.py');
+        if (!fs.existsSync(apiScript)) {
+            log('ERROR', 'api.py not found:', apiScript);
+            return;
+        }
+        log('INFO', 'Starting Python backend (dev)...');
+        pythonProcess = spawn(pythonCmd, [apiScript], {
+            cwd: path.join(__dirname, '..', 'python-backend'),
+            env,
+        });
     }
-    
-    log('INFO', 'Starting Python backend...');
-    pythonProcess = spawn(pythonCmd, [apiScript], {
-        cwd: path.join(__dirname, '..', 'python-backend'),
-        env: { ...process.env, PYTHONUNBUFFERED: '1', PYTHONIOENCODING: 'utf-8' }
-    });
-    
+
+    if (!pythonProcess) return;
+
     pythonProcess.stdout.on('data', d => {
         const text = d.toString().trim();
         if (text) console.log('[Python]', text);
     });
     pythonProcess.stderr.on('data', d => {
         const text = d.toString().trim();
-        if (text) console.log('[Python Error]', text);
+        if (text) console.error('[Python Error]', text);
     });
-    
     pythonProcess.on('exit', (code) => {
-        log('WARN', `Python process exited with code ${code}`);
+        log('INFO', 'Python process exited with code ' + code);
         pythonProcess = null;
     });
 }
@@ -472,19 +537,45 @@ app.on('before-quit', () => {
 });
 
 function blockDevShortcuts(win) {
-    // win.webContents.on('before-input-event', (event, input) => {
-    //   if (input.key === 'F12') event.preventDefault();
-    //   if (input.control && input.shift && ['I', 'J', 'C'].includes((input.key || '').toUpperCase())) {
-    //     event.preventDefault();
-    //   }
-    // });
-  }
-  
+  if (!win || !win.webContents) return;
+  win.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'F12') {
+      event.preventDefault();
+      return;
+    }
+    const key = (input.key || '').toUpperCase();
+    if (input.control && input.shift && ['I', 'J', 'C'].includes(key)) {
+      event.preventDefault();
+    }
+    // Ctrl+U / Ctrl+Shift+U — на всякий случай
+    if (input.control && !input.shift && key === 'U') {
+      event.preventDefault();
+    }
+  });
+}
+
+// 1.0 = как системные 100%; 1.1 = чуть крупнее (как нужно)
+const UI_ZOOM = 1.1;
+const UI_ZOOM_ADMIN = 0.95; // меньше = мельче; попробуйте 0.9 … 1.0
+
+function applyWindowScale(win, factor = UI_ZOOM) {
+  if (!win || !win.webContents) return;
+  const apply = () => {
+    try {
+      win.webContents.setZoomFactor(factor);
+      win.webContents.setVisualZoomLevelLimits(1, 1);
+    } catch (_) {}
+  };
+  apply();
+  win.webContents.on('did-finish-load', apply);
+}
+
   function createSplashWindow() {
     const splash = new BrowserWindow({
       fullscreen: true,
       frame: false,
       autoHideMenuBar: true,
+      icon: APP_ICON,
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
         contextIsolation: true,
@@ -493,7 +584,10 @@ function blockDevShortcuts(win) {
       }
     });
     splash.loadFile(path.join(__dirname, 'renderer', 'splash.html'));
+    blockDevShortcuts(splash);
+    applyWindowScale(splash);
     return splash;
+    // return splash;
   }
   
   function createLoginWindow() {
@@ -503,6 +597,7 @@ function blockDevShortcuts(win) {
       fullscreen: true,
       frame: false,
       autoHideMenuBar: true,
+      icon: APP_ICON,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
@@ -512,6 +607,8 @@ function blockDevShortcuts(win) {
     });
     loginWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
     blockDevShortcuts(loginWindow);
+    // blockDevShortcuts(loginWindow);
+    applyWindowScale(loginWindow);
     loginWindow.on('closed', () => { loginWindow = null; });
   }
   
@@ -523,17 +620,20 @@ function blockDevShortcuts(win) {
     adminWindow = new BrowserWindow({
       fullscreen: true,
       autoHideMenuBar: true,
+      icon: APP_ICON,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
         preload: path.join(__dirname, 'preload.js'),
-        devTools: true          // было false
-      }
+        devTools: false,
+      },
     });
     adminWindow.loadFile(path.join(__dirname, 'renderer', 'admin.html'));
-    // blockDevShortcuts(adminWindow);  // временно выкл.
-    adminWindow.webContents.openDevTools({ mode: 'detach' }); // сразу открыть F12
-    adminWindow.on('closed', () => { adminWindow = null; });
+    blockDevShortcuts(adminWindow);
+    applyWindowScale(adminWindow, UI_ZOOM_ADMIN);
+    adminWindow.on('closed', () => {
+      adminWindow = null;
+    });
   }
   
 
@@ -545,6 +645,7 @@ function blockDevShortcuts(win) {
     workerWindow = new BrowserWindow({
       fullscreen: true,
       autoHideMenuBar: true,
+      icon: APP_ICON,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
@@ -561,6 +662,7 @@ function blockDevShortcuts(win) {
       { search: q }
     );
     blockDevShortcuts(workerWindow);
+    applyWindowScale(workerWindow);;
     workerWindow.on('closed', () => { workerWindow = null; });
   }
 
@@ -570,41 +672,43 @@ function blockDevShortcuts(win) {
       brigadeId: String(brigadeId ?? ''),
     }).toString();
   
-    // Всегда пересоздаём окно с актуальными параметрами
     if (brigadierWindow && !brigadierWindow.isDestroyed()) {
-      try { brigadierWindow.close(); } catch (_) {}
+      try {
+        brigadierWindow.close();
+      } catch (_) {}
       brigadierWindow = null;
     }
   
     brigadierWindow = new BrowserWindow({
       fullscreen: true,
       autoHideMenuBar: true,
+      icon: APP_ICON,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
         preload: path.join(__dirname, 'preload.js'),
-        devTools: true, // временно, чтобы видеть [Brigadier init]
+        devTools: false,
       },
     });
   
-    // и search, и query — совместимость версий Electron
     const filePath = path.join(__dirname, 'renderer', 'brigadier.html');
     const fileUrl =
       'file:///' +
       filePath.replace(/\\/g, '/') +
-      '?userId=' + encodeURIComponent(String(userId ?? '')) +
-      '&brigadeId=' + encodeURIComponent(String(brigadeId ?? ''));
+      '?userId=' +
+      encodeURIComponent(String(userId ?? '')) +
+      '&brigadeId=' +
+      encodeURIComponent(String(brigadeId ?? ''));
   
     brigadierWindow.loadURL(fileUrl);
-  
-    brigadierWindow.webContents.openDevTools({ mode: 'detach' }); // временно
-  
+    blockDevShortcuts(brigadierWindow);
+    applyWindowScale(brigadierWindow);
     brigadierWindow.webContents.on('did-finish-load', () => {
       console.log('[main] brigadier loaded', q);
     });
-  
-    // blockDevShortcuts(brigadierWindow);
-    brigadierWindow.on('closed', () => { brigadierWindow = null; });
+    brigadierWindow.on('closed', () => {
+      brigadierWindow = null;
+    });
   }
   
   // logout: закрыть админ → открыть логин (не закрывать приложение)
@@ -632,4 +736,5 @@ function blockDevShortcuts(win) {
   ipcMain.handle('app-quit', () => {
     app.quit();
   });
+  
   

@@ -1,8 +1,10 @@
 {
-  "appId": "com.manufacturing.optimizer",
-  "productName": "Manufacturing Optimizer",
+  "appId": "ru.nevz.mfgoptimizer",
+  "productName": "MfgOptimizer",
+  "copyright": "Copyright © NEVZ / Transmashholding",
   "directories": {
-    "output": "dist"
+    "output": "dist",
+    "buildResources": "build"
   },
   "files": [
     "main.js",
@@ -11,29 +13,40 @@
     "node_modules/**/*",
     "!**/*.map",
     "!**/test/**",
-    "!**/tests/**",
-    "!**/*.ts",
-    "!**/*.md"
+    "!**/tests/**"
+  ],
+  "extraResources": [
+  {
+    "from": "../python-backend/dist/nevz-api",
+    "to": "nevz-api",
+    "filter": ["**/*"]
+  },
+  {
+    "from": "../data/manufacturing.db",
+    "to": "data/manufacturing.db"
+  }
   ],
   "win": {
-    "target": "nsis",
-    "icon": "renderer/assets/icons/app-icon.ico"
-  },
+  "target": [{ "target": "nsis", "arch": ["x64"] }],
+  "icon": "renderer/assets/icons/app-icon.ico",
+  "artifactName": "MfgOptimizer-Setup-${version}.${ext}",
+  "sign": null,
+  "signAndEditExecutable": false
+},
   "nsis": {
     "oneClick": false,
+    "perMachine": false,
     "allowToChangeInstallationDirectory": true,
+    "allowElevation": true,
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
-    "shortcutName": "Manufacturing Optimizer"
-  },
-  "mac": {
-    "target": "dmg",
-    "icon": "renderer/assets/icons/app-icon.icns",
-    "category": "public.app-category.productivity"
-  },
-  "linux": {
-    "target": "AppImage",
-    "icon": "renderer/assets/icons/app-icon.png",
-    "category": "Office"
+    "shortcutName": "MfgOptimizer",
+    "installerIcon": "renderer/assets/icons/app-icon.ico",
+    "uninstallerIcon": "renderer/assets/icons/app-icon.ico",
+    "installerHeaderIcon": "renderer/assets/icons/app-icon.ico",
+    "deleteAppDataOnUninstall": false,
+    "runAfterFinish": true,
+    "menuCategory": "NEVZ",
+    "language": "1049"
   }
 }
